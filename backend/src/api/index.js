@@ -1,0 +1,316 @@
+/**
+ * API Routes Module
+ * Central route registration with authentication and rate limiting
+ * @module api
+ */
+
+import express from 'express';
+import userRoutes from './user/routes.js';
+import planRoutes from './plan/routes.js';
+import assetRoutes from './assets/routes.js';
+import feedbackRoutes from './feedback/routes.js';
+import learningContentRoutes from './learning/index.js';
+import ttsRoutes from './tts/routes.js';
+import chatRoutes from '../../routes/chat.js';
+import { generateAssets, getAssetSchema } from './assets/controller.js';
+
+// Authentication middleware
+import { requireAuth, requireAuthAndOwnership, optionalAuth } from '../middleware/authMiddleware.js';
+
+// Rate limiting middleware
+import {
+  rateLimitChat,
+  rateLimitAssets,
+  rateLimitTts,
+  rateLimitPlan,
+  rateLimitLearningContent,
+} from '../middleware/rateLimitMiddleware.js';
+
+// Cost tracking
+import { getUsageStats } from '../services/costTracker.js';
+
+// Learning state service
+import { getUserProgress, getWeakTopics, getStrongTopics } from '../services/learningState.js';
+
+// Asset cache service
+import {
+  invalidateByModelVersion,
+  invalidateByAssetType,
+  purgeExpiredCache,
+  getCacheStats,
+} from '../services/assetCache.js';
+
+// Circuit breaker
+import { agentRegistry } from '../agents/index.js';
+
+// Logger
+import { logger } from '../services/logger.js';
+
+/**
+ * Admin user IDs from environment
+ * Comma-separated list of user IDs with admin access
+ */
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || '').split(',').filter(Boolean);
+
+/**
+ * Register all API routes
+ * @param {express.Application} app - Express app instance
+ */
+export function registerRoutes(app) {
+  const router = express.Router();
+
+  /**
+   * Usage API
+   * GET /api/usage/:userId - Get user's daily usage statistics
+   */
+  router.get('/usage/:id', requireAuthAndOwnership, (req, res) => {
+    const stats = getUsageStats(req.user.userId);
+    res.json(stats);
+  });
+
+  /**
+   * Learning Progress API
+   * GET /api/progress/:userId - Get user's learning progress
+   */
+  router.get('/progress/:id', requireAuthAndOwnership, async (req, res) => {
+    try {
+      const progress = await getUserProgress(req.user.userId);
+
+      if (!progress) {
+        return res.status(404).json({ error: 'No progress found' });
+      }
+
+      // Add weak and strong topics
+      const [weakTopics, strongTopics] = await Promise.all([
+        getWeakTopics(req.user.userId),
+        getStrongTopics(req.user.userId),
+      ]);
+
+      res.json({
+        ...progress,
+        weakTopics,
+        strongTopics,
+      });
+    } catch (err) {
+      console.error('Error fetching progress:', err);
+      res.status(500).json({ error: 'Failed to fetch progress' });
+    }
+  });
+
+  /**
+   * Chat API (Streaming responses) - Protected + Rate Limited
+   * POST /api/chat - Stream responses via SSE
+   * POST /api/tool-result - Handle widget rendering
+   */
+  router.post('/chat', requireAuth, rateLimitChat, (req, res, next) => {
+    // Inject authenticated userId into request body for downstream use
+    req.body.userId = req.user.userId;
+    next();
+  });
+  router.post('/tool-result', requireAuth, rateLimitChat, (req, res, next) => {
+    req.body.userId = req.user.userId;
+    next();
+  });
+  router.use('/', chatRoutes);
+
+  /**
+   * User API (Profile & Personalization) - Protected + Ownership Check
+   * POST /api/user - Create user profile
+   * GET /api/user/:id - Get user profile
+   * PUT /api/user/:id - Update profile
+   * GET /api/user/:id/stats - Get user stats
+   * GET /api/user/:id/metrics - Get user metrics
+   * POST /api/user/:id/detect-style - Detect learning style
+   */
+  router.use('/user', requireAuth);
+  router.use('/user/:id', requireAuthAndOwnership);
+  router.use('/user', userRoutes);
+
+  /**
+   * Planner API - Protected + Rate Limited
+   * POST /api/plan - Generate learning plan
+   * GET /api/plan/schema - Get plan schema
+   */
+  router.post('/plan', requireAuth, rateLimitPlan);
+  router.use('/plan', planRoutes);
+
+  /**
+   * Asset Generation API - Protected + Rate Limited
+   * POST /api/generate-assets - Generate widgets/diagrams (SSE streaming)
+   * GET /api/assets/schema - Get asset schema
+   */
+  router.use('/assets', requireAuth);
+  router.post('/generate-assets', requireAuth, rateLimitAssets, generateAssets);
+  router.get('/assets/schema', requireAuth, getAssetSchema);
+
+  /**
+   * Feedback API - Protected
+   * POST /api/feedback - Submit feedback
+   * GET /api/feedback/stats - Get feedback statistics
+   * GET /api/feedback/user/:userId - Get user feedback (ownership checked in route)
+   */
+  router.use('/feedback', requireAuth);
+  router.use('/feedback', feedbackRoutes);
+
+  /**
+   * Learning Content API - Protected + Rate Limited
+   * POST /api/learning-content - Generate comprehensive learning content
+   * POST /api/learning-content/quiz-answer - Process quiz answers
+   * POST /api/learning-content/track-interaction - Track user interactions
+   */
+  router.post('/learning-content', requireAuth, rateLimitLearningContent);
+  router.post('/learning-content/quiz-answer', requireAuth);
+  router.post('/learning-content/track-interaction', requireAuth);
+  router.use('/', learningContentRoutes);
+
+  /**
+   * TTS (Text-to-Speech) API - Protected + Rate Limited
+   * POST /api/tts - Convert text to speech
+   */
+  router.post('/tts', requireAuth, rateLimitTts);
+  router.use('/tts', ttsRoutes);
+
+  /**
+   * Admin API - Requires admin user
+   */
+
+  // Middleware to check admin access
+  const requireAdmin = (req, res, next) => {
+    if (!req.user || !ADMIN_USER_IDS.includes(req.user.userId)) {
+      logger.warn({ userId: req.user?.userId }, 'Unauthorized admin access attempt');
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+  };
+
+  /**
+   * POST /api/admin/invalidate-cache - Invalidate asset cache
+   * Body: { assetType?: string, modelVersion?: string }
+   */
+  router.post('/admin/invalidate-cache', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { assetType, modelVersion } = req.body;
+      let deleted = 0;
+
+      if (modelVersion) {
+        deleted = await invalidateByModelVersion(modelVersion);
+      } else if (assetType) {
+        deleted = await invalidateByAssetType(assetType);
+      } else {
+        // Purge all expired entries
+        deleted = await purgeExpiredCache();
+      }
+
+      logger.info({
+        admin: req.user.userId,
+        assetType,
+        modelVersion,
+        deleted,
+      }, 'Admin cache invalidation');
+
+      res.json({
+        success: true,
+        deleted,
+        message: modelVersion
+          ? `Invalidated ${deleted} entries for model ${modelVersion}`
+          : assetType
+            ? `Invalidated ${deleted} entries for type ${assetType}`
+            : `Purged ${deleted} expired entries`,
+      });
+    } catch (err) {
+      logger.error({ error: err }, 'Admin cache invalidation failed');
+      res.status(500).json({ error: 'Cache invalidation failed' });
+    }
+  });
+
+  /**
+   * GET /api/admin/cache-stats - Get cache statistics
+   */
+  router.get('/admin/cache-stats', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await getCacheStats();
+      res.json(stats);
+    } catch (err) {
+      logger.error({ error: err }, 'Failed to get cache stats');
+      res.status(500).json({ error: 'Failed to get cache stats' });
+    }
+  });
+
+  /**
+   * GET /api/admin/circuit-breakers - Get circuit breaker status
+   */
+  router.get('/admin/circuit-breakers', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const status = agentRegistry.getCircuitBreakerStatus();
+      res.json(status);
+    } catch (err) {
+      logger.error({ error: err }, 'Failed to get circuit breaker status');
+      res.status(500).json({ error: 'Failed to get circuit breaker status' });
+    }
+  });
+
+  /**
+   * POST /api/admin/circuit-breakers/reset - Reset circuit breakers
+   * Body: { agentName?: string }
+   */
+  router.post('/admin/circuit-breakers/reset', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const { agentName } = req.body;
+
+      if (agentName) {
+        agentRegistry.resetCircuitBreaker(agentName);
+        logger.info({ admin: req.user.userId, agentName }, 'Circuit breaker reset');
+        res.json({ success: true, message: `Circuit breaker reset for ${agentName}` });
+      } else {
+        agentRegistry.resetAllCircuitBreakers();
+        logger.info({ admin: req.user.userId }, 'All circuit breakers reset');
+        res.json({ success: true, message: 'All circuit breakers reset' });
+      }
+    } catch (err) {
+      logger.error({ error: err }, 'Failed to reset circuit breaker');
+      res.status(500).json({ error: 'Failed to reset circuit breaker' });
+    }
+  });
+
+  /**
+   * GET /api/admin/agents - Get agent statistics
+   */
+  router.get('/admin/agents', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const summary = agentRegistry.summary();
+      res.json(summary);
+    } catch (err) {
+      logger.error({ error: err }, 'Failed to get agent stats');
+      res.status(500).json({ error: 'Failed to get agent stats' });
+    }
+  });
+
+  /**
+   * 404 handler for API routes
+   * Returns JSON instead of HTML for missing API endpoints
+   */
+  router.use((req, res) => {
+    res.status(404).json({
+      error: 'Not found',
+      message: `API endpoint ${req.method} ${req.path} does not exist`,
+      availableEndpoints: [
+        'POST /api/chat',
+        'POST /api/tool-result',
+        'POST /api/learning-content',
+        'POST /api/tts',
+        'POST /api/plan',
+        'POST /api/generate-assets',
+        'POST /api/feedback',
+        'GET /api/usage/:userId',
+        'GET /api/progress/:userId',
+        'GET /api/health'
+      ]
+    });
+  });
+
+  app.use('/api', router);
+
+  return app;
+}
+
+export default registerRoutes;
