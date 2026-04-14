@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,18 +6,31 @@ import {
   isDueForReview,
   sortCardsByPriority,
   getCardStatus,
-  getDueDescription,
-  getIntervalPreviews,
-  QUALITY_MAPPINGS,
   SM2_DEFAULTS,
 } from '../../utils/spacedRepetition';
 import {
   getFlashcardProgress,
   updateFlashcardProgress,
   updateStudyStreak,
+  supabase,
 } from '../../lib/supabase';
 
-// Helper to safely extract string from potentially nested object
+// ============================================
+// CONSTANTS
+// ============================================
+
+const FILTER_OPTIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'my', label: 'My Cards' },
+  { id: 'system', label: 'System' },
+];
+
+const LOCAL_STORAGE_KEY = 'visualearn_user_flashcards';
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
 function extractString(value, fallback = '') {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'string') return value;
@@ -33,359 +46,380 @@ function extractString(value, fallback = '') {
   return fallback;
 }
 
-// Truncate text helper
-function truncateText(text, maxLength) {
-  const str = extractString(text, '');
-  if (!str || str.length <= maxLength) return str;
-  return str.substring(0, maxLength).trim() + '...';
-}
+// ============================================
+// CREATE FLASHCARD MODAL
+// ============================================
 
-// Difficulty config
-const difficultyConfig = {
-  beginner: {
-    label: 'Beginner',
-    color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
-  },
-  intermediate: {
-    label: 'Intermediate',
-    color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30',
-  },
-  advanced: {
-    label: 'Advanced',
-    color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30',
-  },
-};
+function CreateFlashcardModal({ isOpen, onClose, onSave }) {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [topic, setTopic] = useState('');
+  const questionRef = useRef(null);
 
-// Filter tabs
-const FILTER_TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'due', label: 'Due' },
-  { id: 'new', label: 'New' },
-  { id: 'learning', label: 'Learning' },
-  { id: 'mastered', label: 'Mastered' },
-];
-
-export default function FlashcardsView({ flashcards, userId, onInteraction }) {
-  const { id: conversationId } = useParams();
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [direction, setDirection] = useState(0);
-  const [viewMode, setViewMode] = useState('single'); // 'single' | 'grid'
-  const [activeFilter, setActiveFilter] = useState('due');
-  const [selectedGridCard, setSelectedGridCard] = useState(null);
-  const [cardProgress, setCardProgress] = useState({});
-  const [isLoadingProgress, setIsLoadingProgress] = useState(true);
-  const [showRatingButtons, setShowRatingButtons] = useState(false);
-
-  // Load progress from Supabase
   useEffect(() => {
-    async function loadProgress() {
-      if (!userId || !conversationId) {
-        setIsLoadingProgress(false);
-        return;
-      }
-
-      try {
-        const progress = await getFlashcardProgress(userId, conversationId);
-        setCardProgress(progress);
-      } catch (error) {
-        console.error('Failed to load flashcard progress:', error);
-      } finally {
-        setIsLoadingProgress(false);
-      }
+    if (isOpen && questionRef.current) {
+      questionRef.current.focus();
     }
+  }, [isOpen]);
 
-    loadProgress();
-  }, [userId, conversationId]);
-
-  // Process flashcards with progress data
-  const processedCards = useMemo(() => {
-    if (!flashcards || !Array.isArray(flashcards)) return [];
-
-    return flashcards.map((card, idx) => {
-      const cardId = card.id || `card_${idx}`;
-      const progress = cardProgress[cardId] || null;
-
-      return {
-        id: cardId,
-        front: extractString(card.front || card.question || card.term, ''),
-        back: extractString(card.back || card.answer || card.definition, ''),
-        difficulty: card.difficulty || 'intermediate',
-        progress,
-        status: getCardStatus(progress),
-        isDue: isDueForReview(progress?.nextReviewDate),
-        dueDescription: progress ? getDueDescription(progress.nextReviewDate) : 'New card',
-      };
-    });
-  }, [flashcards, cardProgress]);
-
-  // Sort cards by priority (due first, then new)
-  const sortedCards = useMemo(() => {
-    return sortCardsByPriority(processedCards);
-  }, [processedCards]);
-
-  // Filter cards based on active filter
-  const filteredCards = useMemo(() => {
-    switch (activeFilter) {
-      case 'due':
-        return sortedCards.filter(card => card.isDue || card.status === 'new');
-      case 'new':
-        return sortedCards.filter(card => card.status === 'new');
-      case 'learning':
-        return sortedCards.filter(card => card.status === 'learning' || card.status === 'review');
-      case 'mastered':
-        return sortedCards.filter(card => card.status === 'mastered');
-      default:
-        return sortedCards;
-    }
-  }, [sortedCards, activeFilter]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const dueCount = processedCards.filter(c => c.isDue || c.status === 'new').length;
-    const newCount = processedCards.filter(c => c.status === 'new').length;
-    const learningCount = processedCards.filter(c => c.status === 'learning' || c.status === 'review').length;
-    const masteredCount = processedCards.filter(c => c.status === 'mastered').length;
-    const mastery = processedCards.length > 0 ? Math.round((masteredCount / processedCards.length) * 100) : 0;
-
-    return {
-      total: processedCards.length,
-      due: dueCount,
-      new: newCount,
-      learning: learningCount,
-      mastered: masteredCount,
-      mastery,
-    };
-  }, [processedCards]);
-
-  // Reset current index when filter changes
   useEffect(() => {
-    setCurrentIndex(0);
-    setIsFlipped(false);
-    setShowRatingButtons(false);
-  }, [activeFilter]);
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (viewMode !== 'single') return;
-
-      if (e.key === ' ' || e.key === 'Enter') {
-        e.preventDefault();
-        if (!isFlipped) {
-          handleFlip();
-        }
-      } else if (e.key === 'ArrowRight') {
-        handleNext();
-      } else if (e.key === 'ArrowLeft') {
-        handlePrev();
-      } else if (showRatingButtons && ['1', '2', '3', '4', '5'].includes(e.key)) {
-        e.preventDefault();
-        handleRating(parseInt(e.key));
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped, currentIndex, viewMode, showRatingButtons]);
-
-  const currentCard = filteredCards[currentIndex] || filteredCards[0];
-
-  const handleNext = useCallback(() => {
-    if (filteredCards.length === 0) return;
-    setDirection(1);
-    setIsFlipped(false);
-    setShowRatingButtons(false);
-    setCurrentIndex((prev) => (prev + 1) % filteredCards.length);
-    onInteraction?.({ type: 'flashcard_next', cardIndex: currentIndex });
-  }, [filteredCards.length, currentIndex, onInteraction]);
-
-  const handlePrev = useCallback(() => {
-    if (filteredCards.length === 0) return;
-    setDirection(-1);
-    setIsFlipped(false);
-    setShowRatingButtons(false);
-    setCurrentIndex((prev) => (prev - 1 + filteredCards.length) % filteredCards.length);
-  }, [filteredCards.length]);
-
-  const handleFlip = useCallback(() => {
-    setIsFlipped(true);
-    setShowRatingButtons(true);
-    onInteraction?.({ type: 'flashcard_flip', cardIndex: currentIndex });
-  }, [currentIndex, onInteraction]);
-
-  // Handle SM-2 rating
-  const handleRating = useCallback(async (quality) => {
-    if (!currentCard) return;
-
-    const progress = currentCard.progress || {
-      easeFactor: SM2_DEFAULTS.easeFactor,
-      interval: SM2_DEFAULTS.interval,
-      repetitions: SM2_DEFAULTS.repetitions,
-      timesSeen: 0,
-      timesCorrect: 0,
-    };
-
-    // Calculate new SM-2 values
-    const newValues = calculateSM2(
-      quality,
-      progress.easeFactor,
-      progress.interval,
-      progress.repetitions
-    );
-
-    const newProgress = {
-      ...newValues,
-      timesSeen: (progress.timesSeen || 0) + 1,
-      timesCorrect: quality >= 3 ? (progress.timesCorrect || 0) + 1 : progress.timesCorrect || 0,
-      lastRating: quality,
-    };
-
-    // Update local state immediately for responsiveness
-    setCardProgress(prev => ({
-      ...prev,
-      [currentCard.id]: {
-        ...newProgress,
-        nextReviewDate: newValues.nextReviewDate,
-      },
-    }));
-
-    // Save to database
-    if (userId && conversationId) {
-      try {
-        await updateFlashcardProgress(userId, conversationId, currentCard.id, newProgress);
-        await updateStudyStreak(userId, 1);
-      } catch (error) {
-        console.error('Failed to save progress:', error);
-      }
+    if (!isOpen) {
+      setQuestion('');
+      setAnswer('');
+      setTopic('');
     }
+  }, [isOpen]);
 
-    onInteraction?.({
-      type: 'flashcard_rated',
-      cardId: currentCard.id,
-      quality,
-      newInterval: newValues.interval,
-    });
-
-    // Move to next card
-    handleNext();
-  }, [currentCard, userId, conversationId, onInteraction, handleNext]);
-
-  // Get interval previews for current card
-  const intervalPreviews = useMemo(() => {
-    if (!currentCard) return {};
-    return getIntervalPreviews(currentCard.progress);
-  }, [currentCard]);
-
-  const slideVariants = {
-    enter: (direction) => ({
-      x: direction > 0 ? 300 : -300,
-      opacity: 0
-    }),
-    center: {
-      x: 0,
-      opacity: 1
-    },
-    exit: (direction) => ({
-      x: direction < 0 ? 300 : -300,
-      opacity: 0
-    })
+  const handleSave = () => {
+    if (!question.trim() || !answer.trim()) return;
+    onSave({ question: question.trim(), answer: answer.trim(), topic: topic.trim() });
+    onClose();
   };
 
-  // Difficulty badge component
-  const DifficultyBadge = ({ difficulty }) => {
-    const config = difficultyConfig[difficulty] || difficultyConfig.intermediate;
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${config.color}`}>
-        {config.label}
-      </span>
-    );
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      onClose();
+    } else if (e.key === 'Enter' && e.ctrlKey) {
+      handleSave();
+    }
   };
 
-  // Status badge component
-  const StatusBadge = ({ status, dueDescription }) => {
-    const statusConfig = {
-      new: { color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400', label: 'New' },
-      learning: { color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', label: 'Learning' },
-      review: { color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400', label: 'Review' },
-      mastered: { color: 'bg-green-500/10 text-green-600 dark:text-green-400', label: 'Mastered' },
-    };
-    const config = statusConfig[status] || statusConfig.new;
+  if (!isOpen) return null;
 
-    return (
-      <div className="flex items-center gap-2">
-        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-          {config.label}
-        </span>
-        {dueDescription && status !== 'new' && (
-          <span className="text-xs text-muted-foreground">{dueDescription}</span>
-        )}
-      </div>
-    );
-  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={handleKeyDown}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-  // Grid card component
-  const GridCard = ({ card }) => {
-    const [isGridFlipped, setIsGridFlipped] = useState(false);
-
-    return (
+      {/* Modal */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`bg-card border rounded-xl p-4 cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 ${
-          selectedGridCard === card.id ? 'ring-2 ring-primary' : 'border-border'
-        }`}
-        onClick={() => setIsGridFlipped(!isGridFlipped)}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-lg"
       >
-        {/* Header with status and difficulty */}
-        <div className="flex items-center justify-between mb-2 gap-2">
-          <StatusBadge status={card.status} />
-          <DifficultyBadge difficulty={card.difficulty} />
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold text-foreground">Create Flashcard</h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {/* Content */}
-        {!isGridFlipped ? (
-          <>
-            <p className="text-sm font-medium text-foreground mb-2 line-clamp-2">
-              {truncateText(card.front, 60)}
-            </p>
-            <p className="text-xs text-primary italic">Tap to reveal</p>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-foreground mb-2 line-clamp-3">
-              {truncateText(card.back, 80)}
-            </p>
-            <div className="flex gap-1 mt-2 pt-2 border-t border-border">
-              {[1, 2, 3, 4, 5].map((q) => (
-                <button
-                  key={q}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRatingForCard(card, q);
-                  }}
-                  className={`flex-1 text-xs py-1 rounded ${QUALITY_MAPPINGS.colors[q]}`}
-                  title={`${QUALITY_MAPPINGS.shortLabels[q]} - ${intervalPreviews[q]?.description || ''}`}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Due indicator */}
-        {card.isDue && card.status !== 'new' && (
-          <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-            {card.dueDescription}
+        {/* Body */}
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Question (Front)
+            </label>
+            <textarea
+              ref={questionRef}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Enter the question..."
+              className="w-full h-24 px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            />
           </div>
-        )}
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Answer (Back)
+            </label>
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Enter the answer..."
+              className="w-full h-24 px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Topic (Optional)
+            </label>
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g., JavaScript, React..."
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!question.trim() || !answer.trim()}
+            className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save Card
+          </button>
+        </div>
       </motion.div>
-    );
+    </div>
+  );
+}
+
+// ============================================
+// FLASHCARD CARD COMPONENT
+// ============================================
+
+function FlashcardCard({ card, onRate, isUserCard }) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const handleFlip = () => {
+    setIsFlipped(!isFlipped);
   };
 
-  const handleRatingForCard = async (card, quality) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="h-48 perspective-1000 cursor-pointer group"
+      onClick={handleFlip}
+    >
+      <div
+        className={`relative w-full h-full transition-transform duration-500 preserve-3d ${
+          isFlipped ? 'rotate-y-180' : ''
+        }`}
+        style={{ transformStyle: 'preserve-3d' }}
+      >
+        {/* Front */}
+        <div
+          className="absolute inset-0 bg-card border border-border rounded-xl p-4 flex flex-col backface-hidden group-hover:border-primary/50 group-hover:shadow-lg transition-all"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
+          {/* User card indicator */}
+          {isUserCard && (
+            <div className="absolute top-2 right-2">
+              <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-medium rounded">
+                My Card
+              </span>
+            </div>
+          )}
+
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm font-medium text-foreground text-center leading-relaxed line-clamp-4">
+              {card.front}
+            </p>
+          </div>
+
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Tap to reveal
+          </p>
+        </div>
+
+        {/* Back */}
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex flex-col backface-hidden"
+          style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+        >
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm text-foreground text-center leading-relaxed line-clamp-4">
+              {card.back}
+            </p>
+          </div>
+
+          {/* Rating buttons */}
+          <div className="flex items-center justify-center gap-2 mt-2 pt-2 border-t border-emerald-500/20">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRate(card.id, 2);
+                setIsFlipped(false);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/20 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Hard
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRate(card.id, 4);
+                setIsFlipped(false);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-600 dark:text-green-400 rounded-lg text-xs font-medium hover:bg-green-500/20 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Easy
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================
+// MAIN FLASHCARDS VIEW
+// ============================================
+
+export default function FlashcardsView({ flashcards, userId, onInteraction, updateConceptMastery }) {
+  const { id: conversationId } = useParams();
+
+  // State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [userCards, setUserCards] = useState([]);
+  const [cardProgress, setCardProgress] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  // Load user cards and progress
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+
+      // Load user flashcards
+      if (userId && conversationId) {
+        try {
+          // Try to load from Supabase
+          const { data: dbCards } = await supabase
+            .from('user_flashcards')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('conversation_id', conversationId);
+
+          if (dbCards) {
+            setUserCards(dbCards.map(c => ({
+              id: c.id,
+              front: c.question,
+              back: c.answer,
+              topic: c.topic,
+              isUserCard: true,
+              createdAt: c.created_at,
+            })));
+          }
+
+          // Load progress
+          const progress = await getFlashcardProgress(userId, conversationId);
+          setCardProgress(progress);
+        } catch (error) {
+          console.error('Failed to load from Supabase:', error);
+          // Fallback to localStorage
+          loadFromLocalStorage();
+        }
+      } else {
+        loadFromLocalStorage();
+      }
+
+      setIsLoading(false);
+    }
+
+    function loadFromLocalStorage() {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const sessionCards = parsed[conversationId] || [];
+          setUserCards(sessionCards.map(c => ({ ...c, isUserCard: true })));
+        } catch (e) {
+          console.error('Failed to parse localStorage:', e);
+        }
+      }
+    }
+
+    loadData();
+  }, [userId, conversationId]);
+
+  // Process system flashcards
+  const systemCards = useMemo(() => {
+    if (!flashcards || !Array.isArray(flashcards)) return [];
+
+    return flashcards.map((card, idx) => ({
+      id: card.id || `system_${idx}`,
+      front: extractString(card.front || card.question || card.term, ''),
+      back: extractString(card.back || card.answer || card.definition, ''),
+      isUserCard: false,
+      progress: cardProgress[card.id || `system_${idx}`] || null,
+    }));
+  }, [flashcards, cardProgress]);
+
+  // Combine and filter cards
+  const allCards = useMemo(() => {
+    const combined = [...userCards, ...systemCards];
+
+    // Apply filter
+    let filtered = combined;
+    if (activeFilter === 'my') {
+      filtered = combined.filter(c => c.isUserCard);
+    } else if (activeFilter === 'system') {
+      filtered = combined.filter(c => !c.isUserCard);
+    }
+
+    // Apply search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(c =>
+        c.front.toLowerCase().includes(query) ||
+        c.back.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [userCards, systemCards, activeFilter, searchQuery]);
+
+  // Create flashcard handler
+  const handleCreateCard = useCallback(async ({ question, answer, topic }) => {
+    const newCard = {
+      id: `user_${Date.now()}`,
+      front: question,
+      back: answer,
+      topic,
+      isUserCard: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to Supabase if logged in
+    if (userId && conversationId) {
+      try {
+        await supabase.from('user_flashcards').insert({
+          user_id: userId,
+          conversation_id: conversationId,
+          question,
+          answer,
+          topic,
+        });
+      } catch (error) {
+        console.error('Failed to save to Supabase:', error);
+      }
+    }
+
+    // Also save to localStorage as backup
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : {};
+    parsed[conversationId] = [...(parsed[conversationId] || []), newCard];
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+
+    setUserCards(prev => [newCard, ...prev]);
+
+    onInteraction?.({ type: 'flashcard_created', cardId: newCard.id });
+  }, [userId, conversationId, onInteraction]);
+
+  // Rate card handler
+  const handleRate = useCallback(async (cardId, quality) => {
+    const card = allCards.find(c => c.id === cardId);
+    if (!card) return;
+
     const progress = card.progress || {
       easeFactor: SM2_DEFAULTS.easeFactor,
       interval: SM2_DEFAULTS.interval,
@@ -406,27 +440,61 @@ export default function FlashcardsView({ flashcards, userId, onInteraction }) {
       timesSeen: (progress.timesSeen || 0) + 1,
       timesCorrect: quality >= 3 ? (progress.timesCorrect || 0) + 1 : progress.timesCorrect || 0,
       lastRating: quality,
+      lastReviewed: new Date().toISOString(),
+      difficulty: quality <= 2 ? 'hard' : 'easy',
     };
 
     setCardProgress(prev => ({
       ...prev,
-      [card.id]: {
-        ...newProgress,
-        nextReviewDate: newValues.nextReviewDate,
-      },
+      [cardId]: newProgress,
     }));
 
+    // Update concept mastery
+    if (updateConceptMastery) {
+      updateConceptMastery(cardId, quality >= 3, 'flashcard');
+    }
+
+    // Save to database
     if (userId && conversationId) {
       try {
-        await updateFlashcardProgress(userId, conversationId, card.id, newProgress);
+        await updateFlashcardProgress(userId, conversationId, cardId, newProgress);
         await updateStudyStreak(userId, 1);
       } catch (error) {
         console.error('Failed to save progress:', error);
       }
     }
-  };
 
-  if (isLoadingProgress) {
+    onInteraction?.({ type: 'flashcard_rated', cardId, quality });
+  }, [allCards, userId, conversationId, updateConceptMastery, onInteraction]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.key === 'ArrowRight') {
+        setFocusedIndex(prev => Math.min(prev + 1, allCards.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+      } else if (e.key === ' ' && focusedIndex >= 0) {
+        e.preventDefault();
+        // Flip focused card - handled by card component
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [allCards.length, focusedIndex]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = allCards.length;
+    const userCount = allCards.filter(c => c.isUserCard).length;
+    const systemCount = total - userCount;
+    return { total, userCount, systemCount };
+  }, [allCards]);
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -434,127 +502,69 @@ export default function FlashcardsView({ flashcards, userId, onInteraction }) {
     );
   }
 
-  if (!processedCards || processedCards.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-        <p>No flashcards available</p>
-      </div>
-    );
-  }
-
-  const progress = filteredCards.length > 0 ? ((currentIndex + 1) / filteredCards.length) * 100 : 0;
-
   return (
     <div className="space-y-4">
-      {/* Due Today Banner */}
-      {stats.due > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <p className="font-medium text-amber-800 dark:text-amber-200">
-              {stats.due} card{stats.due !== 1 ? 's' : ''} due for review
-            </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Consistent review improves long-term retention.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Bar */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 text-sm flex-wrap">
-          <span className="text-muted-foreground">
-            Total: <span className="font-semibold text-foreground">{stats.total}</span>
-          </span>
-          <span className="text-amber-600 dark:text-amber-400">
-            Due: <span className="font-semibold">{stats.due}</span>
-          </span>
-          <span className="text-blue-600 dark:text-blue-400">
-            New: <span className="font-semibold">{stats.new}</span>
-          </span>
-          <span className="text-orange-600 dark:text-orange-400">
-            Learning: <span className="font-semibold">{stats.learning}</span>
-          </span>
-          <span className="text-green-600 dark:text-green-400">
-            Mastered: <span className="font-semibold">{stats.mastered}</span>
-          </span>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
-          <button
-            onClick={() => setViewMode('single')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              viewMode === 'single'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-            title="Single card view"
+        {/* Search */}
+        <div className="flex-1 min-w-[200px] max-w-md relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-            title="Grid view"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Mastery Progress Bar */}
-      <div className="bg-card border border-border rounded-lg p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-foreground">Mastery Progress</span>
-          <span className="text-xs text-muted-foreground">{stats.mastery}%</span>
-        </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${stats.mastery}%` }}
-            transition={{ duration: 0.5 }}
-            className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search flashcards..."
+            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
+
+        {/* Create Button */}
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Create Flashcard
+        </button>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg overflow-x-auto">
-        {FILTER_TABS.map((tab) => {
-          const count = tab.id === 'all' ? stats.total :
-                        tab.id === 'due' ? stats.due :
-                        tab.id === 'new' ? stats.new :
-                        tab.id === 'learning' ? stats.learning : stats.mastered;
+      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        {FILTER_OPTIONS.map((filter) => {
+          const count = filter.id === 'all' ? stats.total :
+                        filter.id === 'my' ? stats.userCount : stats.systemCount;
           return (
             <button
-              key={tab.id}
-              onClick={() => setActiveFilter(tab.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                activeFilter === tab.id
+              key={filter.id}
+              onClick={() => setActiveFilter(filter.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                activeFilter === filter.id
                   ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {tab.label}
+              {filter.label}
               <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                activeFilter === tab.id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                activeFilter === filter.id ? 'bg-primary/10 text-primary' : 'bg-muted'
               }`}>
                 {count}
               </span>
@@ -563,184 +573,57 @@ export default function FlashcardsView({ flashcards, userId, onInteraction }) {
         })}
       </div>
 
-      {/* Empty state for filtered view */}
-      {filteredCards.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>No cards in this category</p>
+      {/* Empty State */}
+      {allCards.length === 0 && (
+        <div className="text-center py-12">
+          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <p className="text-muted-foreground mb-4">
+            {searchQuery ? 'No flashcards match your search' : 'No flashcards yet'}
+          </p>
           <button
-            onClick={() => setActiveFilter('all')}
-            className="mt-2 text-sm text-primary hover:underline"
+            onClick={() => setShowCreateModal(true)}
+            className="text-primary hover:underline text-sm"
           >
-            View all cards
+            Create your first flashcard
           </button>
         </div>
       )}
 
-      {/* Grid View */}
-      {viewMode === 'grid' && filteredCards.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredCards.map((card) => (
-            <GridCard key={card.id} card={card} />
-          ))}
+      {/* Flashcard Grid */}
+      {allCards.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <AnimatePresence>
+            {allCards.map((card, index) => (
+              <FlashcardCard
+                key={card.id}
+                card={card}
+                onRate={handleRate}
+                isUserCard={card.isUserCard}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
-      {/* Single Card View */}
-      {viewMode === 'single' && filteredCards.length > 0 && (
-        <>
-          {/* Progress indicator */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.3 }}
-                className="h-full bg-primary"
-              />
-            </div>
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {currentIndex + 1} / {filteredCards.length}
-            </span>
-          </div>
-
-          {/* Card */}
-          <div className="relative h-80 perspective-1000">
-            <AnimatePresence mode="wait" custom={direction}>
-              {currentCard && (
-                <motion.div
-                  key={currentCard.id}
-                  custom={direction}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="absolute inset-0"
-                >
-                  <div
-                    onClick={() => !isFlipped && handleFlip()}
-                    className="w-full h-full cursor-pointer preserve-3d"
-                    style={{ perspective: '1000px' }}
-                  >
-                    <motion.div
-                      animate={{ rotateY: isFlipped ? 180 : 0 }}
-                      transition={{ duration: 0.6, ease: 'easeInOut' }}
-                      className="relative w-full h-full"
-                      style={{ transformStyle: 'preserve-3d' }}
-                    >
-                      {/* Front */}
-                      <div
-                        className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10 border border-border rounded-2xl p-6 flex flex-col backface-hidden"
-                        style={{ backfaceVisibility: 'hidden' }}
-                      >
-                        {/* Header with status and difficulty */}
-                        <div className="flex items-center justify-between mb-4 gap-2">
-                          <StatusBadge status={currentCard.status} dueDescription={currentCard.dueDescription} />
-                          <DifficultyBadge difficulty={currentCard.difficulty} />
-                        </div>
-
-                        {/* Question */}
-                        <div className="flex-1 flex items-center justify-center">
-                          <p className="text-lg font-medium text-foreground leading-relaxed text-center">
-                            {currentCard.front}
-                          </p>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground text-center mt-4">
-                          Press Space or click to reveal answer
-                        </p>
-                      </div>
-
-                      {/* Back */}
-                      <div
-                        className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-green-500/10 border border-green-500/30 rounded-2xl p-6 flex flex-col backface-hidden rotate-y-180"
-                        style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-                      >
-                        {/* Header */}
-                        <div className="flex items-center justify-between mb-4">
-                          <DifficultyBadge difficulty={currentCard.difficulty} />
-                          <span className="text-xs text-green-600 dark:text-green-400 font-medium">Answer</span>
-                        </div>
-
-                        {/* Answer */}
-                        <div className="flex-1 flex items-center justify-center">
-                          <p className="text-lg text-foreground leading-relaxed text-center">
-                            {currentCard.back}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Rating Buttons - Show after flip */}
-          {showRatingButtons && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-3"
-            >
-              <p className="text-center text-sm text-muted-foreground">
-                How well did you know this?
-              </p>
-              <div className="flex gap-2 justify-center flex-wrap">
-                {[1, 2, 3, 4, 5].map((quality) => (
-                  <button
-                    key={quality}
-                    onClick={() => handleRating(quality)}
-                    className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all min-w-[70px] ${QUALITY_MAPPINGS.colors[quality]} border border-transparent hover:border-current`}
-                  >
-                    <span className="font-semibold">{quality}</span>
-                    <span className="text-xs opacity-80">{QUALITY_MAPPINGS.shortLabels[quality]}</span>
-                    <span className="text-[10px] opacity-60">{intervalPreviews[quality]?.description}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-center text-xs text-muted-foreground">
-                Press 1-5 on keyboard to rate
-              </p>
-            </motion.div>
-          )}
-
-          {/* Navigation (shown when not rating) */}
-          {!showRatingButtons && (
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={handlePrev}
-                className="p-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-
-              <button
-                onClick={handleFlip}
-                className="px-6 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
-              >
-                Reveal Answer
-              </button>
-
-              <button
-                onClick={handleNext}
-                className="p-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Keyboard hints */}
-          <p className="text-center text-xs text-muted-foreground">
-            Space: flip • ← →: navigate • 1-5: rate (after flip)
-          </p>
-        </>
+      {/* Keyboard Hints */}
+      {allCards.length > 0 && (
+        <p className="text-center text-xs text-muted-foreground">
+          Click to flip • Space: flip • Arrow keys: navigate
+        </p>
       )}
+
+      {/* Create Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateFlashcardModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onSave={handleCreateCard}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

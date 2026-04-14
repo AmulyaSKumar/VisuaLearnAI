@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getConversationMessages, supabase } from "../lib/supabase";
 import { useLearningContent } from "../hooks/useLearningContent";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
+import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
 import LearnTabView from "../components/learning/LearnTabView";
 import ExamplesTabView from "../components/learning/ExamplesTabView";
 import FlashcardsView from "../components/learning/FlashcardsView";
@@ -47,7 +48,15 @@ const TAB_ICONS = {
   ),
 };
 
-export default function LearningPage() {
+// Depth levels for content complexity
+const DEPTH_LEVELS = [
+  { id: 'simple', label: 'Simple', description: 'Easy explanations, no jargon' },
+  { id: 'balanced', label: 'Balanced', description: 'Mix of simple and technical' },
+  { id: 'technical', label: 'Technical', description: 'Full detail, industry terms' },
+];
+
+// Inner component that uses the Learning Intelligence context
+function LearningPageContent() {
   const { id: conversationId } = useParams();
   const navigate = useNavigate();
   const { user, session } = useAuth();
@@ -62,6 +71,51 @@ export default function LearningPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [readCards, setReadCards] = useState(new Set());
+  const [showDepthDropdown, setShowDepthDropdown] = useState(false);
+
+  // Learning Intelligence context
+  const {
+    depthLevel,
+    setDepthLevel,
+    updateConceptMastery,
+    recordQuizResult,
+    getConceptStatus,
+    weakAreas,
+    stats,
+  } = useLearningIntelligence();
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      // Number keys 1-5 for tab switching
+      if (e.key >= '1' && e.key <= '5') {
+        const tabIndex = parseInt(e.key) - 1;
+        if (TABS[tabIndex]) {
+          setActiveTab(TABS[tabIndex].id);
+        }
+        return;
+      }
+
+      // Arrow keys for tab navigation
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const currentIndex = TABS.findIndex(t => t.id === activeTab);
+        if (e.key === 'ArrowLeft' && currentIndex > 0) {
+          setActiveTab(TABS[currentIndex - 1].id);
+        } else if (e.key === 'ArrowRight' && currentIndex < TABS.length - 1) {
+          setActiveTab(TABS[currentIndex + 1].id);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab]);
 
   // Learning content hook (fallback if not stored)
   const { content: generatedContent, isLoading: isLearningContentLoading, generateContent } = useLearningContent();
@@ -176,6 +230,8 @@ export default function LearningPage() {
             onGoToFlashcards={() => setActiveTab('flashcards')}
             onGoToMindMap={() => setActiveTab('mindmap')}
             learningContent={learningContent}
+            depthLevel={depthLevel}
+            getConceptStatus={getConceptStatus}
           />
         );
 
@@ -184,6 +240,7 @@ export default function LearningPage() {
           <ExamplesTabView
             examples={learningContent?.examples}
             onInteraction={handleInteraction}
+            updateConceptMastery={updateConceptMastery}
           />
         );
 
@@ -193,6 +250,7 @@ export default function LearningPage() {
             flashcards={learningContent?.flashcards}
             userId={userId}
             onInteraction={handleInteraction}
+            updateConceptMastery={updateConceptMastery}
           />
         );
 
@@ -203,6 +261,9 @@ export default function LearningPage() {
             userId={userId}
             onInteraction={handleInteraction}
             onBackToLearn={() => setActiveTab('learn')}
+            updateConceptMastery={updateConceptMastery}
+            recordQuizResult={recordQuizResult}
+            topic={learningContent?.topic || conversation?.title}
           />
         );
 
@@ -211,6 +272,9 @@ export default function LearningPage() {
           <MindMapTabView
             mindMap={learningContent?.mind_map}
             keyIdeas={learningContent?.key_ideas}
+            getConceptStatus={getConceptStatus}
+            weakAreas={weakAreas}
+            onGoToQuiz={goToQuiz}
           />
         );
 
@@ -257,6 +321,68 @@ export default function LearningPage() {
               </div>
             </div>
 
+            {/* Depth Level Toggle */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDepthDropdown(!showDepthDropdown)}
+                className="flex items-center gap-2 px-3 min-h-[44px] text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <span className="hidden sm:inline capitalize">{depthLevel}</span>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showDepthDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowDepthDropdown(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-20 py-1">
+                    <div className="px-3 py-2 border-b border-border">
+                      <p className="text-xs font-medium text-muted-foreground">Content Depth</p>
+                    </div>
+                    {DEPTH_LEVELS.map((level) => (
+                      <button
+                        key={level.id}
+                        onClick={() => {
+                          setDepthLevel(level.id);
+                          setShowDepthDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors ${
+                          depthLevel === level.id ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground">{level.label}</span>
+                          {depthLevel === level.id && (
+                            <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{level.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Stats Badge */}
+            {stats.studyStreak > 0 && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-full text-xs font-medium">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                </svg>
+                {stats.studyStreak} day streak
+              </div>
+            )}
+
             <button
               onClick={() => navigate('/chat/new')}
               className="flex items-center justify-center gap-2 px-3 min-h-[44px] text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex-shrink-0"
@@ -274,18 +400,26 @@ export default function LearningPage() {
       <div className="flex-shrink-0 border-b border-border bg-muted/20">
         <div className="max-w-5xl mx-auto px-2 sm:px-4">
           <div className="flex gap-1 py-2 overflow-x-auto scrollbar-hide -mx-2 px-2 sm:mx-0 sm:px-0">
-            {TABS.map((tab) => (
+            {TABS.map((tab, index) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`group flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap transition-all flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
+                title={`Press ${index + 1} to switch`}
               >
                 {TAB_ICONS[tab.icon]}
                 <span className="hidden xs:inline sm:inline">{tab.label}</span>
+                <span className={`hidden sm:inline-block text-[10px] ml-1 px-1.5 py-0.5 rounded ${
+                  activeTab === tab.id
+                    ? 'bg-primary-foreground/20'
+                    : 'bg-muted group-hover:bg-muted-foreground/10'
+                }`}>
+                  {index + 1}
+                </span>
               </button>
             ))}
           </div>
@@ -335,5 +469,14 @@ export default function LearningPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrapper component that provides the Learning Intelligence context
+export default function LearningPage() {
+  return (
+    <LearningIntelligenceProvider>
+      <LearningPageContent />
+    </LearningIntelligenceProvider>
   );
 }

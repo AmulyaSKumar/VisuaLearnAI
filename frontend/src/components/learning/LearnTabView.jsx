@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 
 // ============================================
 // CONTENT BLOCK TYPE ICONS & LABELS
@@ -433,17 +434,72 @@ function SkillProgress({ skillAreas = [], completedIds }) {
 }
 
 // ============================================
+// TTS CONTROL BUTTON
+// ============================================
+
+function TTSControl({ text, isPlaying, onPlay, onStop }) {
+  return (
+    <button
+      onClick={isPlaying ? onStop : onPlay}
+      className={`p-2 rounded-lg transition-colors ${
+        isPlaying
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+      }`}
+      title={isPlaying ? 'Stop reading' : 'Read aloud'}
+    >
+      {isPlaying ? (
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ============================================
 // MAIN CONTENT AREA
 // ============================================
 
-function MainContent({ idea, isCompleted, onMarkComplete }) {
+function MainContent({ idea, isCompleted }) {
   const config = DIFFICULTY_CONFIG[idea?.difficulty] || DIFFICULTY_CONFIG.foundational;
   const blocks = idea?.blocks || [];
+  const { isSpeaking, speak, stop, isSupported } = useTextToSpeech();
 
   // Generate fallback blocks if none exist
   const displayBlocks = blocks.length > 0 ? blocks : [
     { type: 'concept', title: 'Overview', content: idea?.explanation || 'No content available.' }
   ];
+
+  // Extract text content for TTS
+  const getReadableContent = useCallback(() => {
+    if (!idea) return '';
+    let text = idea.title + '. ';
+    if (idea.subtitle) text += idea.subtitle + '. ';
+
+    displayBlocks.forEach(block => {
+      if (block.title) text += block.title + '. ';
+      if (block.content) text += block.content + '. ';
+      if (block.explanation) text += block.explanation + '. ';
+    });
+
+    if (idea.analogy) text += 'Think of it like: ' + idea.analogy + '. ';
+    return text;
+  }, [idea, displayBlocks]);
+
+  const handleSpeak = useCallback(() => {
+    const text = getReadableContent();
+    if (text) speak(text);
+  }, [getReadableContent, speak]);
+
+  // Stop TTS when switching concepts
+  useEffect(() => {
+    return () => stop();
+  }, [idea?.id, stop]);
 
   if (!idea) {
     return (
@@ -458,8 +514,17 @@ function MainContent({ idea, isCompleted, onMarkComplete }) {
       {/* Header */}
       <div className="border-b border-border pb-4">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">{idea.title}</h2>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold text-foreground">{idea.title}</h2>
+              {isSupported && (
+                <TTSControl
+                  isPlaying={isSpeaking}
+                  onPlay={handleSpeak}
+                  onStop={stop}
+                />
+              )}
+            </div>
             {idea.subtitle && (
               <p className="text-sm text-muted-foreground mt-1">{idea.subtitle}</p>
             )}
@@ -499,21 +564,7 @@ function MainContent({ idea, isCompleted, onMarkComplete }) {
         </div>
       )}
 
-      {/* Mark Complete */}
-      {!isCompleted && (
-        <div className="pt-4 border-t border-border">
-          <button
-            onClick={onMarkComplete}
-            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Mark as Complete
-          </button>
-        </div>
-      )}
-
+      {/* Completed indicator (no manual button needed) */}
       {isCompleted && (
         <div className="pt-4 border-t border-border">
           <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -617,26 +668,15 @@ export default function LearnTabView({
     return keyIdeas.find(idea => idea.id === activeConceptId);
   }, [keyIdeas, activeConceptId]);
 
-  const handleConceptClick = (id) => {
+  // Auto-mark current concept as read when navigating to another
+  const handleConceptClick = useCallback((id) => {
+    // Mark the current concept as read when leaving it
+    if (activeConceptId && activeConceptId !== id && !readCards.has(activeConceptId)) {
+      onReadCard?.(activeConceptId);
+    }
     setActiveConceptId(id);
     mainContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleMarkComplete = useCallback(() => {
-    if (activeConceptId) {
-      onReadCard?.(activeConceptId);
-
-      // Auto-advance to next uncompleted concept
-      const currentIndex = keyIdeas.findIndex(i => i.id === activeConceptId);
-      const nextUncompleted = keyIdeas.slice(currentIndex + 1).find(i => !readCards.has(i.id));
-      if (nextUncompleted) {
-        setTimeout(() => {
-          setActiveConceptId(nextUncompleted.id);
-          mainContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 300);
-      }
-    }
-  }, [activeConceptId, keyIdeas, readCards, onReadCard]);
+  }, [activeConceptId, readCards, onReadCard]);
 
   const progress = keyIdeas.length > 0
     ? Math.round((readCards.size / keyIdeas.length) * 100)
@@ -791,7 +831,6 @@ export default function LearnTabView({
           <MainContent
             idea={activeConcept}
             isCompleted={readCards.has(activeConceptId)}
-            onMarkComplete={handleMarkComplete}
           />
         )}
       </div>

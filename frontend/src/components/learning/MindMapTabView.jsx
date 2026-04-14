@@ -94,9 +94,17 @@ function getSourceHandle(angle) {
   }
 }
 
+// Mastery status colors
+const masteryColors = {
+  mastered: { bg: '#10B981', text: 'Mastered', icon: 'check' },
+  learning: { bg: '#F59E0B', text: 'Learning', icon: 'clock' },
+  weak: { bg: '#EF4444', text: 'Needs Practice', icon: 'alert' },
+  new: { bg: '#6B7280', text: 'New', icon: 'new' },
+};
+
 // Custom Node Component for Key Ideas
 function KeyIdeaNode({ data, id }) {
-  const { label, subtitle, hasSubConcepts, isExpanded, onExpand, onNodeClick } = data;
+  const { label, subtitle, hasSubConcepts, isExpanded, onExpand, onNodeClick, masteryStatus, onTestConcept, isWeak } = data;
 
   // Ensure label is a string
   const displayLabel = extractString(label, 'Key Idea');
@@ -107,6 +115,8 @@ function KeyIdeaNode({ data, id }) {
     const url = `https://www.google.com/search?q=${encodeURIComponent(displayLabel)}+explained`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  const statusInfo = masteryColors[masteryStatus] || masteryColors.new;
 
   return (
     <div
@@ -124,8 +134,33 @@ function KeyIdeaNode({ data, id }) {
         className="!bg-transparent !border-0 !w-2 !h-2"
       />
 
+      {/* Mastery status indicator */}
+      {masteryStatus && masteryStatus !== 'new' && (
+        <div
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold z-10 shadow-md"
+          style={{ background: statusInfo.bg }}
+          title={statusInfo.text}
+        >
+          {masteryStatus === 'mastered' && (
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
+          {masteryStatus === 'learning' && (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+          {masteryStatus === 'weak' && (
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+      )}
+
       <div
-        className="rounded-2xl px-5 py-4 min-w-[160px] max-w-[200px] transition-all duration-200 hover:scale-105"
+        className={`rounded-2xl px-5 py-4 min-w-[160px] max-w-[200px] transition-all duration-200 hover:scale-105 ${isWeak ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}
         style={{
           background: nodeColors.keyIdea.bg,
           color: nodeColors.keyIdea.text,
@@ -156,6 +191,22 @@ function KeyIdeaNode({ data, id }) {
                 ) : (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 )}
+              </svg>
+            </button>
+          )}
+
+          {/* Test Me button */}
+          {onTestConcept && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTestConcept?.(displayLabel);
+              }}
+              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all hover:scale-110"
+              title="Test this concept"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </button>
           )}
@@ -309,9 +360,12 @@ const nodeTypes = {
 };
 
 // Generate mind map layout from keyIdeas
-function generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers) {
+function generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers, getConceptStatus, weakAreas) {
   const nodes = [];
   const edges = [];
+
+  // Create a set of weak area IDs for quick lookup
+  const weakAreaIds = new Set((weakAreas || []).map(w => w.id));
 
   // Ensure topic is a string
   const topicStr = extractString(topic, 'Main Topic');
@@ -362,6 +416,11 @@ function generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers) {
     // Determine which handle to use based on position relative to center
     const sourceHandle = getSourceHandle(angle);
 
+    // Get mastery status for this concept
+    const conceptId = idea?.id || `key_idea_${index}`;
+    const conceptStatus = getConceptStatus ? getConceptStatus(conceptId) : { status: 'new' };
+    const isWeak = weakAreaIds.has(conceptId);
+
     // Key idea node
     nodes.push({
       id: nodeId,
@@ -375,6 +434,9 @@ function generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers) {
         concepts: subConcepts,
         onExpand: handlers.onExpand,
         onNodeClick: handlers.onNodeClick,
+        masteryStatus: conceptStatus.status,
+        onTestConcept: handlers.onTestConcept,
+        isWeak,
       },
       type: 'keyIdea',
     });
@@ -448,7 +510,7 @@ function generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers) {
 }
 
 // Side Panel Component
-function SidePanel({ isOpen, onClose, nodeData }) {
+function SidePanel({ isOpen, onClose, nodeData, onTestConcept }) {
   if (!isOpen || !nodeData) return null;
 
   const title = extractString(nodeData.label || nodeData.title, 'Details');
@@ -467,13 +529,25 @@ function SidePanel({ isOpen, onClose, nodeData }) {
     concepts = nodeData.concepts;
   }
 
+  const masteryStatus = nodeData.masteryStatus;
+  const statusInfo = masteryColors[masteryStatus] || masteryColors.new;
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}+explained`;
 
   return (
     <div className="fixed inset-y-0 right-0 w-80 bg-card border-l border-border shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-        <h3 className="font-semibold text-foreground truncate pr-2">{title}</h3>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h3 className="font-semibold text-foreground truncate">{title}</h3>
+          {masteryStatus && masteryStatus !== 'new' && (
+            <span
+              className="px-2 py-0.5 text-xs font-medium rounded-full text-white flex-shrink-0"
+              style={{ background: statusInfo.bg }}
+            >
+              {statusInfo.text}
+            </span>
+          )}
+        </div>
         <button
           onClick={onClose}
           className="w-8 h-8 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors flex-shrink-0"
@@ -536,13 +610,30 @@ function SidePanel({ isOpen, onClose, nodeData }) {
         )}
       </div>
 
-      {/* Read More Link */}
-      <div className="p-4 border-t border-border">
+      {/* Actions */}
+      <div className="p-4 border-t border-border space-y-2">
+        {/* Test Me Button */}
+        {onTestConcept && (
+          <button
+            onClick={() => {
+              onTestConcept(title);
+              onClose();
+            }}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Test My Knowledge
+          </button>
+        )}
+
+        {/* Read More Link */}
         <a
           href={searchUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-[#1D9E75] text-white rounded-lg font-medium hover:bg-[#158F68] transition-colors"
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-muted text-foreground rounded-lg font-medium hover:bg-muted/80 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -605,7 +696,7 @@ function CustomToolbar({ onExportPng }) {
 }
 
 // Inner component that uses useReactFlow
-function MindMapFlow({ topic, keyIdeas, flowRef }) {
+function MindMapFlow({ topic, keyIdeas, flowRef, getConceptStatus, weakAreas, onGoToQuiz }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -627,15 +718,23 @@ function MindMapFlow({ topic, keyIdeas, flowRef }) {
     setSidePanelOpen(true);
   }, []);
 
+  const handleTestConcept = useCallback((conceptLabel) => {
+    // Navigate to quiz tab - the concept can be used to filter/focus
+    if (onGoToQuiz) {
+      onGoToQuiz();
+    }
+  }, [onGoToQuiz]);
+
   const handlers = useMemo(() => ({
     onExpand: handleExpand,
     onNodeClick: handleNodeClick,
-  }), [handleExpand, handleNodeClick]);
+    onTestConcept: handleTestConcept,
+  }), [handleExpand, handleNodeClick, handleTestConcept]);
 
   // Generate layout
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers),
-    [topic, keyIdeas, expandedNodes, handlers]
+    () => generateMindMapLayout(topic, keyIdeas, expandedNodes, handlers, getConceptStatus, weakAreas),
+    [topic, keyIdeas, expandedNodes, handlers, getConceptStatus, weakAreas]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -708,6 +807,7 @@ function MindMapFlow({ topic, keyIdeas, flowRef }) {
         isOpen={sidePanelOpen}
         onClose={() => setSidePanelOpen(false)}
         nodeData={selectedNode}
+        onTestConcept={handleTestConcept}
       />
 
       {/* Overlay when side panel is open */}
@@ -722,7 +822,7 @@ function MindMapFlow({ topic, keyIdeas, flowRef }) {
 }
 
 // Main component
-export default function MindMapTabView({ mindMap, keyIdeas }) {
+export default function MindMapTabView({ mindMap, keyIdeas, getConceptStatus, weakAreas, onGoToQuiz }) {
   const flowRef = useRef(null);
 
   // Get topic from mindMap or first keyIdea - ensure it's a string
@@ -738,6 +838,9 @@ export default function MindMapTabView({ mindMap, keyIdeas }) {
     concepts: branch?.children || [],
   })) || []);
 
+  // Check if there are weak areas to highlight
+  const hasWeakAreas = weakAreas && weakAreas.length > 0;
+
   if ((!mindMap?.root && (!keyIdeas || keyIdeas.length === 0))) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -751,19 +854,51 @@ export default function MindMapTabView({ mindMap, keyIdeas }) {
 
   return (
     <div className="space-y-4">
+      {/* Weak Areas Alert */}
+      {hasWeakAreas && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-3">
+          <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">
+              {weakAreas.length} concept{weakAreas.length > 1 ? 's' : ''} need{weakAreas.length === 1 ? 's' : ''} practice
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Look for nodes with red rings - click the test button to practice
+            </p>
+          </div>
+          {onGoToQuiz && (
+            <button
+              onClick={onGoToQuiz}
+              className="px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Practice Now
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Info */}
       <div className="bg-muted/30 rounded-lg p-3 flex items-center gap-2">
         <svg className="w-4 h-4 text-muted-foreground flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <span className="text-sm text-muted-foreground">
-          Click nodes to view details. Use + buttons to expand sub-concepts. Pan to move, scroll to zoom.
+          Click nodes to view details. Use + to expand and quiz icon to test yourself. Pan to move, scroll to zoom.
         </span>
       </div>
 
       {/* Mind Map */}
       <ReactFlowProvider>
-        <MindMapFlow topic={topic} keyIdeas={ideas} flowRef={flowRef} />
+        <MindMapFlow
+          topic={topic}
+          keyIdeas={ideas}
+          flowRef={flowRef}
+          getConceptStatus={getConceptStatus}
+          weakAreas={weakAreas}
+          onGoToQuiz={onGoToQuiz}
+        />
       </ReactFlowProvider>
 
       {/* Legend */}
