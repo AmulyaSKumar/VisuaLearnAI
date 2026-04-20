@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { createConversation, deleteConversation, supabase, updateConversation } from '../lib/supabase';
 import InputBar from '../components/InputBar';
+import DocumentUpload from '../components/DocumentUpload';
+import DocumentList from '../components/DocumentList';
+import { useDocuments } from '../hooks/useDocuments';
+import { getDocumentPreview } from '../services/documentService';
 import {
   DEFAULT_CONVERSATION_TITLE,
   generateConversationTitle,
@@ -23,9 +27,52 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [documentPreview, setDocumentPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const accessToken = session?.access_token;
 
-  const handleSendMessage = async (text, preferences = {}) => {
+  // Document management hook
+  const {
+    documents,
+    isLoading: documentsLoading,
+    uploadProgress,
+    upload: uploadDocument,
+    remove: removeDocument,
+  } = useDocuments();
+
+  const selectedDocument = documents.find(d => d.id === selectedDocumentId);
+
+  // Fetch preview when document is selected and ready
+  useEffect(() => {
+    if (!selectedDocumentId || !accessToken) {
+      setDocumentPreview(null);
+      return;
+    }
+
+    const doc = documents.find(d => d.id === selectedDocumentId);
+    if (doc?.status !== 'ready') {
+      setDocumentPreview(null);
+      return;
+    }
+
+    setPreviewLoading(true);
+    getDocumentPreview(selectedDocumentId, accessToken)
+      .then(result => {
+        if (result.success && result.preview) {
+          setDocumentPreview(result.preview);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch document preview:', err);
+      })
+      .finally(() => {
+        setPreviewLoading(false);
+      });
+  }, [selectedDocumentId, documents, accessToken]);
+
+  const handleSendMessage = async (text) => {
     if (!user || !text.trim()) return;
 
     setIsLoading(true);
@@ -37,14 +84,14 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       // 1. Create conversation only when the first message is actually being sent
       conversation = await createConversation(user.id, DEFAULT_CONVERSATION_TITLE);
 
-      // 2. Save user message with preferences
+      // 2. Save user message
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversation.id,
           role: 'user',
           content: text,
-          metadata: { preferences }
+          metadata: {}
         });
 
       if (msgError) throw msgError;
@@ -63,7 +110,6 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         body: JSON.stringify({
           messages: [{ role: 'user', content: text }],
           userId: user.id,
-          preferences
         })
       });
 
@@ -105,7 +151,12 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         const lcResponse = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
           headers: lcHeaders,
-          body: JSON.stringify({ query: text, userId: user.id, preferences })
+          body: JSON.stringify({
+            query: text,
+            userId: user.id,
+            contentType: 'learn',
+            documentId: selectedDocumentId, // RAG: pass document ID if selected
+          })
         });
         if (lcResponse.ok) {
           const lcData = await lcResponse.json();
@@ -127,7 +178,6 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             role: 'assistant',
             content: fullText || '',
             metadata: {
-              preferences,
               learningContent,
               factCheck
             }
@@ -158,7 +208,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   };
 
   const handleSuggestionClick = (suggestion) => {
-    handleSendMessage(suggestion.text, { mode: 'balanced', style: 'visual' });
+    handleSendMessage(suggestion.text);
   };
 
   return (
@@ -176,6 +226,160 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           <p className="text-sm sm:text-base text-muted-foreground">
             Ask any question and get an interactive learning experience
           </p>
+        </div>
+
+        {/* Document Section */}
+        <div className="border border-border rounded-xl overflow-hidden">
+          {/* Document Header */}
+          <button
+            onClick={() => setShowDocuments(!showDocuments)}
+            className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">
+                  {selectedDocument ? 'Learning from document' : 'Learn from a PDF'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedDocument
+                    ? selectedDocument.filename
+                    : 'Upload a document to ask questions about it'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedDocument && (
+                <span className="px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                  Active
+                </span>
+              )}
+              <svg
+                className={`w-5 h-5 text-muted-foreground transition-transform ${showDocuments ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+
+          {/* Document Panel */}
+          {showDocuments && (
+            <div className="p-4 border-t border-border space-y-4">
+              {/* Upload */}
+              <DocumentUpload
+                onUpload={uploadDocument}
+                uploadProgress={uploadProgress}
+                disabled={isLoading}
+              />
+
+              {/* Document List */}
+              {documents.length > 0 && (
+                <div className="pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">
+                    Your Documents
+                  </p>
+                  <DocumentList
+                    documents={documents}
+                    selectedDocumentId={selectedDocumentId}
+                    onSelect={setSelectedDocumentId}
+                    onDelete={removeDocument}
+                    isLoading={documentsLoading}
+                  />
+                </div>
+              )}
+
+              {/* Selected document indicator with preview */}
+              {selectedDocument && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-sm text-foreground">
+                        Learning from: <strong>{selectedDocument.filename}</strong>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedDocumentId(null)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  </div>
+
+                  {/* Document Preview */}
+                  {previewLoading && (
+                    <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      Analyzing document...
+                    </div>
+                  )}
+
+                  {documentPreview && !previewLoading && (
+                    <div className="p-4 bg-muted/30 border border-border rounded-lg space-y-3">
+                      {/* Topics */}
+                      {documentPreview.topics?.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
+                            Topics in this document
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {documentPreview.topics.map((topic, idx) => (
+                              <span key={idx} className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-full">
+                                {topic}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Suggested Questions */}
+                      {documentPreview.suggestedQuestions?.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
+                            Try asking
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {documentPreview.suggestedQuestions.slice(0, 4).map((question, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleSendMessage(question)}
+                                disabled={isLoading}
+                                className="flex items-center gap-2 p-2 text-left text-sm bg-background hover:bg-muted border border-border rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-foreground">{question}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4 pt-2 border-t border-border text-xs text-muted-foreground">
+                        {documentPreview.pageCount && (
+                          <span>{documentPreview.pageCount} pages</span>
+                        )}
+                        {documentPreview.chunkCount && (
+                          <span>{documentPreview.chunkCount} sections indexed</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Error */}
@@ -198,7 +402,6 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             <InputBar
               onSend={handleSendMessage}
               inputDisabled={isLoading}
-              showPreferences={true}
             />
 
             {/* Suggestions */}

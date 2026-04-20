@@ -27,16 +27,17 @@ npm start          # Production start
 ```
 
 ### Backend Tests
-Run individual test files after setting environment variables:
+Run individual test files from the `tests/` folder after setting environment variables:
 ```bash
-node test_stream.js         # Basic streaming
-node test_stream_tools.js   # Tool calls
-node test_realtime.js       # Real-time conversation
-node test_tts.js            # Text-to-speech
-node test_day1_agents.js    # Agent system
-node test_day1_memory.js    # Memory management
-node test_day1_supabase.js  # Database
-node test_integration_full.js  # Full integration
+cd backend
+node tests/test_stream.js         # Basic streaming
+node tests/test_stream_tools.js   # Tool calls
+node tests/test_realtime.js       # Real-time conversation
+node tests/test_tts.js            # Text-to-speech
+node tests/test_day1_agents.js    # Agent system
+node tests/test_day1_memory.js    # Memory management
+node tests/test_day1_supabase.js  # Database
+node tests/test_integration_full.js  # Full integration
 ```
 
 ## Architecture
@@ -45,8 +46,8 @@ node test_integration_full.js  # Full integration
 ```
 backend/
 ├── server.js                 # Entry point (loads dotenv, starts src/server.js)
-├── tools.js                  # show_widget tool definition & system prompt
 ├── routes/chat.js            # Chat streaming routes
+├── tests/                    # Test files
 └── src/
     ├── server.js             # Express app, HTTP server, WebSocket
     ├── config/environment.js # Centralized config from env vars
@@ -55,17 +56,20 @@ backend/
     │   ├── chat/             # POST /api/chat, /api/tool-result
     │   ├── user/             # User profile CRUD
     │   ├── plan/             # Learning plan generation
+    │   ├── learning/         # Learning content generation
     │   ├── assets/           # Widget/diagram generation
     │   └── feedback/         # User feedback
     ├── agents/               # AI agent system
     │   ├── base-agent.js     # Abstract base class
     │   ├── registry.js       # Agent discovery & orchestration
+    │   ├── learning-content.js  # Learning content agents
     │   ├── planner.js        # Learning plan agent
     │   ├── visual-intelligence.js  # Widget generation
     │   ├── image-generator.js      # Image generation
     │   ├── fact-checker.js         # Validation
     │   └── personalization.js      # Learning style detection
     ├── services/             # Reusable business logic
+    │   ├── anthropic/prompts.js  # System prompts & tool definitions
     │   └── memory/           # Conversation/session management
     ├── database/client.js    # Supabase operations
     ├── middleware/           # Express middleware
@@ -80,10 +84,13 @@ src/
 ├── App.jsx                   # Router (main route: /chat/:id)
 ├── main.jsx                  # Entry point
 ├── index.css                 # Global styles + Tailwind + CSS variables
-├── contexts/AuthContext.jsx  # Auth state management
+├── contexts/
+│   ├── AuthContext.jsx       # Auth state management
+│   └── LearningIntelligenceContext.jsx  # Learning progress tracking
 ├── hooks/
 │   ├── useSSEStream.js       # SSE chat streaming + tool handling
 │   ├── useChat.js            # Chat orchestration
+│   ├── useLearningContent.js # Learning content fetching
 │   ├── useAssetStream.js     # Asset generation streaming
 │   ├── useLearningPlan.js    # Learning plan state
 │   ├── useFeedback.js        # Feedback submission
@@ -93,15 +100,22 @@ src/
 │   ├── MessageBubble.jsx     # Individual messages
 │   ├── MessageList.jsx       # Message container
 │   ├── WidgetFrame.jsx       # Renders widgets in iframes
-│   ├── WidgetLoading.jsx     # Widget loading state
 │   ├── InputBar.jsx          # User input
 │   ├── Sidebar.jsx           # Conversation list + theme toggle
 │   ├── VoiceOverlay.jsx      # Voice recording UI
-│   ├── LearningPlanCard.jsx  # Plan display
-│   ├── ImageWidget.jsx       # Generated images
-│   ├── FactCheckBadge.jsx    # Validation indicators
-│   └── FeedbackButtons.jsx   # User feedback UI
-└── pages/                    # Route pages
+│   ├── LearningWorkspace.jsx # Learning content display
+│   └── learning/             # Learning-specific components
+│       ├── LearnTabView.jsx  # Main learning content
+│       ├── QuizView.jsx      # Quiz interface
+│       ├── FlashcardsView.jsx # Flashcard practice
+│       ├── ExamplesTabView.jsx # Examples display
+│       └── MindMapTabView.jsx  # Mind map visualization
+├── pages/
+│   ├── LearningPage.jsx      # Learning session page
+│   ├── NewChatPage.jsx       # Start new chat
+│   ├── LoginPage.jsx         # Authentication
+│   └── Dashboard.jsx         # User dashboard
+└── utils/                    # Utility functions
 ```
 
 ## Key Patterns

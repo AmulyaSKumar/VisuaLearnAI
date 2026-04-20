@@ -89,83 +89,68 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={handleKeyDown}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-lg"
+        exit={{ opacity: 0, scale: 0.98 }}
+        className="relative bg-card border border-border rounded-md shadow-lg w-full max-w-md"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-semibold text-foreground">Create Flashcard</h3>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">New Flashcard</h3>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            Close
           </button>
         </div>
 
         {/* Body */}
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Question (Front)
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Front
             </label>
             <textarea
               ref={questionRef}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Enter the question..."
-              className="w-full h-24 px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="Question or term"
+              className="w-full h-20 px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Answer (Back)
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Back
             </label>
             <textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Enter the answer..."
-              className="w-full h-24 px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Topic (Optional)
-            </label>
-            <input
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g., JavaScript, React..."
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Answer or definition"
+              className="w-full h-20 px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border resize-none"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <div className="flex items-center justify-end gap-3 px-4 py-3 border-t border-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!question.trim() || !answer.trim()}
-            className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save Card
+            Save
           </button>
         </div>
       </motion.div>
@@ -186,45 +171,40 @@ function FlashcardCard({ card, onRate, isUserCard }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="h-48 perspective-1000 cursor-pointer group"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-44 perspective-1000 cursor-pointer"
       onClick={handleFlip}
     >
       <div
-        className={`relative w-full h-full transition-transform duration-500 preserve-3d ${
+        className={`relative w-full h-full transition-transform duration-300 preserve-3d ${
           isFlipped ? 'rotate-y-180' : ''
         }`}
         style={{ transformStyle: 'preserve-3d' }}
       >
         {/* Front */}
         <div
-          className="absolute inset-0 bg-card border border-border rounded-xl p-4 flex flex-col backface-hidden group-hover:border-primary/50 group-hover:shadow-lg transition-all"
+          className="absolute inset-0 bg-card border border-border rounded-md p-4 flex flex-col backface-hidden hover:border-muted-foreground/30 transition-colors"
           style={{ backfaceVisibility: 'hidden' }}
         >
-          {/* User card indicator */}
           {isUserCard && (
-            <div className="absolute top-2 right-2">
-              <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-medium rounded">
-                My Card
-              </span>
-            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Custom</p>
           )}
 
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm font-medium text-foreground text-center leading-relaxed line-clamp-4">
+            <p className="text-sm text-foreground text-center leading-relaxed line-clamp-4">
               {card.front}
             </p>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Tap to reveal
+          <p className="text-[10px] text-muted-foreground text-center mt-2">
+            Click to flip
           </p>
         </div>
 
         {/* Back */}
         <div
-          className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex flex-col backface-hidden"
+          className="absolute inset-0 bg-muted/30 border border-border rounded-md p-4 flex flex-col backface-hidden"
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
         >
           <div className="flex-1 flex items-center justify-center">
@@ -234,19 +214,16 @@ function FlashcardCard({ card, onRate, isUserCard }) {
           </div>
 
           {/* Rating buttons */}
-          <div className="flex items-center justify-center gap-2 mt-2 pt-2 border-t border-emerald-500/20">
+          <div className="flex items-center justify-center gap-3 mt-2 pt-2 border-t border-border">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onRate(card.id, 2);
                 setIsFlipped(false);
               }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/20 transition-colors"
+              className="px-4 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-muted transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Hard
+              Again
             </button>
             <button
               onClick={(e) => {
@@ -254,12 +231,9 @@ function FlashcardCard({ card, onRate, isUserCard }) {
                 onRate(card.id, 4);
                 setIsFlipped(false);
               }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-600 dark:text-green-400 rounded-lg text-xs font-medium hover:bg-green-500/20 transition-colors"
+              className="px-4 py-1.5 text-xs font-medium text-foreground bg-foreground/10 border border-transparent rounded-md hover:bg-foreground/20 transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Easy
+              Got it
             </button>
           </div>
         </div>
@@ -503,71 +477,47 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Search */}
-        <div className="flex-1 min-w-[200px] max-w-md relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+        <div className="flex-1 min-w-[200px] max-w-sm">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search flashcards..."
-            className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Search cards..."
+            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border"
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
         </div>
 
         {/* Create Button */}
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Create Flashcard
+          Add Card
         </button>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+      <div className="flex items-center gap-4 border-b border-border">
         {FILTER_OPTIONS.map((filter) => {
           const count = filter.id === 'all' ? stats.total :
                         filter.id === 'my' ? stats.userCount : stats.systemCount;
+          const isActive = activeFilter === filter.id;
           return (
             <button
               key={filter.id}
               onClick={() => setActiveFilter(filter.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                activeFilter === filter.id
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`relative pb-2 text-sm font-medium transition-colors ${
+                isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {filter.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                activeFilter === filter.id ? 'bg-primary/10 text-primary' : 'bg-muted'
-              }`}>
-                {count}
-              </span>
+              {filter.label} ({count})
+              {isActive && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
+              )}
             </button>
           );
         })}
@@ -575,18 +525,15 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
 
       {/* Empty State */}
       {allCards.length === 0 && (
-        <div className="text-center py-12">
-          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <p className="text-muted-foreground mb-4">
-            {searchQuery ? 'No flashcards match your search' : 'No flashcards yet'}
+        <div className="py-12 text-center">
+          <p className="text-sm text-muted-foreground mb-3">
+            {searchQuery ? 'No cards match your search' : 'No flashcards available'}
           </p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="text-primary hover:underline text-sm"
+            className="text-sm text-foreground hover:underline"
           >
-            Create your first flashcard
+            Create a card
           </button>
         </div>
       )}
@@ -609,8 +556,8 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
 
       {/* Keyboard Hints */}
       {allCards.length > 0 && (
-        <p className="text-center text-xs text-muted-foreground">
-          Click to flip • Space: flip • Arrow keys: navigate
+        <p className="text-center text-xs text-muted-foreground pt-4">
+          Click card to reveal answer
         </p>
       )}
 

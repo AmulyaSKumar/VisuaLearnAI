@@ -1,58 +1,138 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 
 // ============================================
-// CONTENT BLOCK TYPE ICONS & LABELS
+// PROFESSIONAL CONTENT BLOCK LABELS
 // ============================================
 
-const BLOCK_ICONS = {
-  concept: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-    </svg>
-  ),
-  code: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-    </svg>
-  ),
-  mistake: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-    </svg>
-  ),
-  comparison: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  ),
-  challenge: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-    </svg>
-  ),
-  insight: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-    </svg>
-  ),
-};
-
 const BLOCK_TYPES = {
-  concept: { label: 'Concept', color: 'border-blue-500/30 bg-blue-500/5' },
-  code: { label: 'Code', color: 'border-emerald-500/30 bg-emerald-500/5' },
-  mistake: { label: 'Common Mistake', color: 'border-amber-500/30 bg-amber-500/5' },
-  comparison: { label: 'Comparison', color: 'border-purple-500/30 bg-purple-500/5' },
-  challenge: { label: 'Challenge', color: 'border-rose-500/30 bg-rose-500/5' },
-  insight: { label: 'Deep Insight', color: 'border-indigo-500/30 bg-indigo-500/5' },
+  concept: { label: 'Overview' },
+  code: { label: 'Code Example' },
+  mistake: { label: 'Common Pitfall' },
+  comparison: { label: 'Comparison' },
+  challenge: { label: 'Exercise' },
+  insight: { label: 'Key Insight' },
 };
 
-const DIFFICULTY_CONFIG = {
-  high: { label: 'Advanced', color: 'text-rose-600 dark:text-rose-400 bg-rose-500/10' },
-  medium: { label: 'Intermediate', color: 'text-amber-600 dark:text-amber-400 bg-amber-500/10' },
-  foundational: { label: 'Foundational', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' },
+const DIFFICULTY_LABELS = {
+  high: 'Advanced',
+  medium: 'Intermediate',
+  foundational: 'Beginner',
 };
+
+// ============================================
+// HIGHLIGHT UTILITIES
+// ============================================
+
+function getHighlightStorageKey(topic) {
+  return `visualearn_highlights_${topic || 'default'}`;
+}
+
+function loadHighlights(topic) {
+  try {
+    const stored = localStorage.getItem(getHighlightStorageKey(topic));
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHighlights(topic, highlights) {
+  try {
+    localStorage.setItem(getHighlightStorageKey(topic), JSON.stringify(highlights));
+  } catch {
+    console.error('Failed to save highlights');
+  }
+}
+
+// ============================================
+// SELECTION POPUP COMPONENT
+// ============================================
+
+function SelectionPopup({ position, onHighlight, onClose }) {
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (popupRef.current && !popupRef.current.contains(e.target)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  if (!position) return null;
+
+  return (
+    <motion.div
+      ref={popupRef}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      style={{ top: position.y - 40, left: position.x }}
+      className="fixed z-50 bg-foreground text-background px-3 py-1.5 rounded-md shadow-lg"
+    >
+      <button
+        onClick={onHighlight}
+        className="text-xs font-medium hover:opacity-80 transition-opacity"
+      >
+        Highlight
+      </button>
+    </motion.div>
+  );
+}
+
+// ============================================
+// HIGHLIGHTED TEXT COMPONENT
+// ============================================
+
+function HighlightedText({ text, highlights, blockId, onRemoveHighlight }) {
+  if (!highlights || highlights.length === 0 || !text) {
+    return <span>{text}</span>;
+  }
+
+  // Filter highlights for this block
+  const blockHighlights = highlights.filter(h => h.blockId === blockId);
+  if (blockHighlights.length === 0) {
+    return <span>{text}</span>;
+  }
+
+  // Sort highlights by start position
+  const sorted = [...blockHighlights].sort((a, b) => a.start - b.start);
+
+  const parts = [];
+  let lastEnd = 0;
+
+  sorted.forEach((highlight, idx) => {
+    // Add text before highlight
+    if (highlight.start > lastEnd) {
+      parts.push(
+        <span key={`text-${idx}`}>{text.slice(lastEnd, highlight.start)}</span>
+      );
+    }
+    // Add highlighted text
+    parts.push(
+      <mark
+        key={`highlight-${idx}`}
+        className="bg-yellow-200 dark:bg-yellow-500/30 cursor-pointer px-0.5 rounded-sm"
+        onClick={() => onRemoveHighlight?.(highlight.id)}
+        title="Click to remove highlight"
+      >
+        {text.slice(highlight.start, highlight.end)}
+      </mark>
+    );
+    lastEnd = highlight.end;
+  });
+
+  // Add remaining text
+  if (lastEnd < text.length) {
+    parts.push(<span key="text-end">{text.slice(lastEnd)}</span>);
+  }
+
+  return <>{parts}</>;
+}
 
 // ============================================
 // CODE BLOCK WITH EXECUTION
@@ -61,24 +141,60 @@ const DIFFICULTY_CONFIG = {
 function CodeBlock({ code, language, explanation, title }) {
   const [showPreview, setShowPreview] = useState(false);
   const [editedCode, setEditedCode] = useState(code || '');
+  const [output, setOutput] = useState('');
   const iframeRef = useRef(null);
 
-  const runCode = useCallback(() => {
-    if (iframeRef.current && (language === 'html' || language === 'javascript')) {
-      const doc = iframeRef.current.contentDocument;
-      if (doc) {
-        const fullHtml = language === 'html'
-          ? editedCode
-          : `<html><body><script>${editedCode}</script></body></html>`;
-        doc.open();
-        doc.write(fullHtml);
-        doc.close();
-      }
-    }
-    setShowPreview(true);
-  }, [editedCode, language]);
+  // Run JavaScript code and capture console.log output
+  const runJavaScript = useCallback((codeToRun) => {
+    const logs = [];
+    const sandboxConsole = {
+      log: (...args) => logs.push(args.map(arg => {
+        if (typeof arg === 'object') {
+          try { return JSON.stringify(arg, null, 2); } catch { return String(arg); }
+        }
+        return String(arg);
+      }).join(' ')),
+      error: (...args) => logs.push('Error: ' + args.map(String).join(' ')),
+      warn: (...args) => logs.push('Warning: ' + args.map(String).join(' ')),
+      info: (...args) => logs.push(args.map(String).join(' ')),
+    };
 
-  const canExecute = ['html', 'javascript', 'css'].includes(language?.toLowerCase());
+    try {
+      // Create a function that takes our custom console
+      const fn = new Function('console', codeToRun);
+      fn(sandboxConsole);
+    } catch (e) {
+      logs.push('Error: ' + e.message);
+    }
+
+    return logs.length > 0 ? logs.join('\n') : 'No output (code ran successfully but produced no console.log statements)';
+  }, []);
+
+  const runCode = useCallback(() => {
+    const lang = language?.toLowerCase();
+
+    if (lang === 'javascript' || lang === 'js') {
+      // Execute JS and capture console output
+      const result = runJavaScript(editedCode);
+      setOutput(result);
+      setShowPreview(true);
+    } else if (lang === 'html') {
+      // For HTML, use iframe
+      if (iframeRef.current) {
+        const doc = iframeRef.current.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(editedCode);
+          doc.close();
+        }
+      }
+      setOutput('');
+      setShowPreview(true);
+    }
+  }, [editedCode, language, runJavaScript]);
+
+  const canExecute = ['html', 'javascript', 'js'].includes(language?.toLowerCase());
+  const isJavaScript = ['javascript', 'js'].includes(language?.toLowerCase());
 
   return (
     <div className="space-y-3">
@@ -110,11 +226,17 @@ function CodeBlock({ code, language, explanation, title }) {
         />
       </div>
 
-      {/* Preview */}
+      {/* Preview / Output */}
       {showPreview && canExecute && (
-        <div className="border border-border rounded-lg overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="border border-border rounded-lg overflow-hidden"
+        >
           <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
-            <span className="text-xs font-medium text-muted-foreground">Preview</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {isJavaScript ? 'Console Output' : 'Preview'}
+            </span>
             <button
               onClick={() => setShowPreview(false)}
               className="text-xs text-muted-foreground hover:text-foreground"
@@ -122,13 +244,22 @@ function CodeBlock({ code, language, explanation, title }) {
               Close
             </button>
           </div>
-          <iframe
-            ref={iframeRef}
-            title="Code Preview"
-            className="w-full h-40 bg-white"
-            sandbox="allow-scripts"
-          />
-        </div>
+
+          {isJavaScript ? (
+            // JavaScript: Show console output as text
+            <pre className="p-4 bg-zinc-900 text-zinc-100 font-mono text-sm min-h-[80px] max-h-[200px] overflow-auto whitespace-pre-wrap">
+              {output || 'No output'}
+            </pre>
+          ) : (
+            // HTML: Use iframe
+            <iframe
+              ref={iframeRef}
+              title="Code Preview"
+              className="w-full h-40 bg-white"
+              sandbox="allow-scripts"
+            />
+          )}
+        </motion.div>
       )}
 
       {explanation && (
@@ -144,43 +275,31 @@ function CodeBlock({ code, language, explanation, title }) {
 
 function MistakeBlock({ title, wrong, right, why }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {title && <h4 className="text-sm font-medium text-foreground">{title}</h4>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Wrong */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <span className="text-xs font-semibold uppercase tracking-wide">Wrong</span>
-          </div>
-          <pre className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-lg text-sm font-mono text-rose-700 dark:text-rose-300 overflow-x-auto">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Avoid</p>
+          <pre className="p-4 bg-muted/50 border border-border rounded-md text-sm font-mono text-foreground overflow-x-auto">
             {wrong}
           </pre>
         </div>
 
         {/* Right */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs font-semibold uppercase tracking-wide">Correct</span>
-          </div>
-          <pre className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-sm font-mono text-emerald-700 dark:text-emerald-300 overflow-x-auto">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Prefer</p>
+          <pre className="p-4 bg-muted/50 border border-border rounded-md text-sm font-mono text-foreground overflow-x-auto">
             {right}
           </pre>
         </div>
       </div>
 
       {why && (
-        <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            <span className="font-semibold">Why it matters:</span> {why}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <span className="font-medium text-foreground">Note:</span> {why}
+        </p>
       )}
     </div>
   );
@@ -290,17 +409,95 @@ function ChallengeBlock({ title, prompt, starter_code, solution, hints = [] }) {
 // CONTENT BLOCK RENDERER
 // ============================================
 
-function ContentBlock({ block }) {
+function ContentBlock({
+  block,
+  index = 0,
+  highlights = [],
+  onAddHighlight,
+  onRemoveHighlight,
+  onRegenerateBlock,
+  isRegenerating = false,
+  conceptId
+}) {
   const config = BLOCK_TYPES[block.type] || BLOCK_TYPES.concept;
-  const icon = BLOCK_ICONS[block.type] || BLOCK_ICONS.concept;
+  const blockId = `${conceptId}-${index}`;
+  const [selectionPopup, setSelectionPopup] = useState(null);
+  const contentRef = useRef(null);
+
+  // Handle text selection for highlighting
+  const handleMouseUp = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !contentRef.current) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    const selectedText = selection.toString().trim();
+    if (!selectedText) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    // Check if selection is within this content block
+    const range = selection.getRangeAt(0);
+    if (!contentRef.current.contains(range.commonAncestorContainer)) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    // Get position for popup
+    const rect = range.getBoundingClientRect();
+    setSelectionPopup({
+      x: rect.left + rect.width / 2 - 30,
+      y: rect.top,
+      text: selectedText,
+      range,
+    });
+  }, []);
+
+  const handleHighlight = useCallback(() => {
+    if (!selectionPopup || !block.content) return;
+
+    const { text } = selectionPopup;
+    const content = block.content || '';
+    const start = content.indexOf(text);
+
+    if (start !== -1) {
+      onAddHighlight?.({
+        id: Date.now().toString(),
+        blockId,
+        text,
+        start,
+        end: start + text.length,
+      });
+    }
+
+    window.getSelection()?.removeAllRanges();
+    setSelectionPopup(null);
+  }, [selectionPopup, block.content, blockId, onAddHighlight]);
+
+  const canRegenerate = block.type === 'concept' || block.type === 'insight';
 
   return (
-    <div className={`border rounded-lg p-4 ${config.color}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-muted-foreground">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: index * 0.05 }}
+      className="border-b border-border pb-6 last:border-0 last:pb-0"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {config.label}
-        </span>
+        </p>
+        {canRegenerate && onRegenerateBlock && (
+          <button
+            onClick={() => onRegenerateBlock(block, index)}
+            disabled={isRegenerating}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {isRegenerating ? 'Regenerating...' : 'Explain differently'}
+          </button>
+        )}
       </div>
 
       {block.type === 'code' && (
@@ -339,12 +536,29 @@ function ContentBlock({ block }) {
       )}
 
       {(block.type === 'concept' || block.type === 'insight') && (
-        <div className="space-y-2">
-          {block.title && <h4 className="text-sm font-medium text-foreground">{block.title}</h4>}
-          <p className="text-sm text-foreground/90 leading-relaxed">{block.content}</p>
+        <div ref={contentRef} onMouseUp={handleMouseUp}>
+          {block.title && <h4 className="text-sm font-semibold text-foreground mb-2">{block.title}</h4>}
+          <p className="text-sm text-muted-foreground leading-relaxed select-text">
+            <HighlightedText
+              text={block.content}
+              highlights={highlights}
+              blockId={blockId}
+              onRemoveHighlight={onRemoveHighlight}
+            />
+          </p>
         </div>
       )}
-    </div>
+
+      <AnimatePresence>
+        {selectionPopup && (
+          <SelectionPopup
+            position={selectionPopup}
+            onHighlight={handleHighlight}
+            onClose={() => setSelectionPopup(null)}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -352,44 +566,33 @@ function ContentBlock({ block }) {
 // SIDEBAR CONCEPT ITEM
 // ============================================
 
-function SidebarItem({ idea, isActive, isCompleted, onClick }) {
-  const config = DIFFICULTY_CONFIG[idea.difficulty] || DIFFICULTY_CONFIG.foundational;
+function SidebarItem({ idea, isActive, isCompleted, onClick, index }) {
+  const difficultyLabel = DIFFICULTY_LABELS[idea.difficulty] || DIFFICULTY_LABELS.foundational;
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 rounded-lg transition-all ${
+      className={`w-full text-left px-3 py-2.5 transition-colors ${
         isActive
-          ? 'bg-primary/10 border-l-2 border-primary'
-          : 'hover:bg-muted/50 border-l-2 border-transparent'
+          ? 'bg-muted'
+          : 'hover:bg-muted/50'
       }`}
     >
-      <div className="flex items-start gap-2">
-        {isCompleted ? (
-          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-        ) : (
-          <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex-shrink-0 mt-0.5" />
-        )}
+      <div className="flex items-baseline gap-3">
+        <span className={`text-xs font-medium tabular-nums ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+          {String(index + 1).padStart(2, '0')}
+        </span>
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium truncate ${isCompleted ? 'text-muted-foreground' : 'text-foreground'}`}>
+          <p className={`text-sm truncate ${isCompleted ? 'text-muted-foreground' : isActive ? 'font-medium text-foreground' : 'text-foreground'}`}>
             {idea.title}
           </p>
-          {idea.subtitle && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{idea.subtitle}</p>
-          )}
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${config.color}`}>
-              {config.label}
-            </span>
-            {idea.time_estimate && (
-              <span className="text-[10px] text-muted-foreground">{idea.time_estimate} min</span>
-            )}
-          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {difficultyLabel}{idea.time_estimate ? ` · ${idea.time_estimate} min` : ''}
+          </p>
         </div>
+        {isCompleted && (
+          <span className="text-xs text-muted-foreground">Done</span>
+        )}
       </div>
     </button>
   );
@@ -403,60 +606,45 @@ function SkillProgress({ skillAreas = [], completedIds }) {
   if (!skillAreas || skillAreas.length === 0) return null;
 
   return (
-    <div className="p-4 border border-border rounded-lg bg-card">
-      <h4 className="text-sm font-semibold text-foreground mb-3">Skill Progress</h4>
-      <div className="space-y-3">
-        {skillAreas.slice(0, 4).map((area, idx) => {
-          const completed = area.concepts?.filter(c => completedIds.has(c)).length || 0;
-          const total = area.concepts?.length || 1;
-          const percent = Math.round((completed / total) * 100);
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Progress</p>
+      {skillAreas.slice(0, 4).map((area, idx) => {
+        const completed = area.concepts?.filter(c => completedIds.has(c)).length || 0;
+        const total = area.concepts?.length || 1;
+        const percent = Math.round((completed / total) * 100);
 
-          return (
-            <div key={idx}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-muted-foreground">{area.name}</span>
-                <span className="text-xs font-medium text-foreground">{percent}%</span>
-              </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percent}%` }}
-                  transition={{ duration: 0.5 }}
-                  className="h-full bg-primary rounded-full"
-                />
-              </div>
+        return (
+          <div key={idx}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-muted-foreground">{area.name}</span>
+              <span className="text-xs text-muted-foreground">{percent}%</span>
             </div>
-          );
-        })}
-      </div>
+            <div className="h-1 bg-muted rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${percent}%` }}
+                transition={{ duration: 0.5 }}
+                className="h-full bg-foreground/40 rounded-full"
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ============================================
-// TTS CONTROL BUTTON
+// TTS CONTROL BUTTON (TEXT-BASED)
 // ============================================
 
-function TTSControl({ text, isPlaying, onPlay, onStop }) {
+function TTSControl({ isPlaying, onPlay, onStop }) {
   return (
     <button
       onClick={isPlaying ? onStop : onPlay}
-      className={`p-2 rounded-lg transition-colors ${
-        isPlaying
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
-      }`}
-      title={isPlaying ? 'Stop reading' : 'Read aloud'}
+      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
     >
-      {isPlaying ? (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-      ) : (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-        </svg>
-      )}
+      {isPlaying ? 'Stop' : 'Listen'}
     </button>
   );
 }
@@ -465,8 +653,16 @@ function TTSControl({ text, isPlaying, onPlay, onStop }) {
 // MAIN CONTENT AREA
 // ============================================
 
-function MainContent({ idea, isCompleted }) {
-  const config = DIFFICULTY_CONFIG[idea?.difficulty] || DIFFICULTY_CONFIG.foundational;
+function MainContent({
+  idea,
+  isCompleted,
+  highlights,
+  onAddHighlight,
+  onRemoveHighlight,
+  onRegenerateBlock,
+  regeneratingBlockIndex
+}) {
+  const difficultyLabel = DIFFICULTY_LABELS[idea?.difficulty] || DIFFICULTY_LABELS.foundational;
   const blocks = idea?.blocks || [];
   const { isSpeaking, speak, stop, isSupported } = useTextToSpeech();
 
@@ -504,78 +700,79 @@ function MainContent({ idea, isCompleted }) {
   if (!idea) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <p>Select a concept from the sidebar</p>
+        <p className="text-sm">Select a concept to begin</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <article className="space-y-8">
       {/* Header */}
-      <div className="border-b border-border pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-semibold text-foreground">{idea.title}</h2>
-              {isSupported && (
-                <TTSControl
-                  isPlaying={isSpeaking}
-                  onPlay={handleSpeak}
-                  onStop={stop}
-                />
-              )}
-            </div>
-            {idea.subtitle && (
-              <p className="text-sm text-muted-foreground mt-1">{idea.subtitle}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>
-              {config.label}
-            </span>
-            {idea.time_estimate && (
-              <span className="px-2 py-1 rounded text-xs font-medium bg-muted text-muted-foreground">
-                {idea.time_estimate} min
-              </span>
-            )}
-          </div>
+      <header>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
+          <span>{difficultyLabel}</span>
+          {idea.time_estimate && (
+            <>
+              <span>·</span>
+              <span>{idea.time_estimate} min read</span>
+            </>
+          )}
+          {isSupported && (
+            <>
+              <span>·</span>
+              <TTSControl isPlaying={isSpeaking} onPlay={handleSpeak} onStop={stop} />
+            </>
+          )}
         </div>
-      </div>
+        <h2 className="text-xl font-semibold text-foreground tracking-tight">{idea.title}</h2>
+        {idea.subtitle && (
+          <p className="text-sm text-muted-foreground mt-1">{idea.subtitle}</p>
+        )}
+      </header>
 
       {/* Content Blocks */}
-      <div className="space-y-4">
-        {displayBlocks.map((block, idx) => (
-          <ContentBlock key={idx} block={block} />
-        ))}
-      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={idea?.id || 'default'}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="space-y-6"
+        >
+          {displayBlocks.map((block, idx) => (
+            <ContentBlock
+              key={idx}
+              block={block}
+              index={idx}
+              conceptId={idea.id}
+              highlights={highlights}
+              onAddHighlight={onAddHighlight}
+              onRemoveHighlight={onRemoveHighlight}
+              onRegenerateBlock={onRegenerateBlock}
+              isRegenerating={regeneratingBlockIndex === idx}
+            />
+          ))}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Legacy analogy support */}
       {idea.analogy && !blocks.some(b => b.type === 'insight') && (
-        <div className="border border-indigo-500/30 bg-indigo-500/5 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Think of it like...
-            </span>
-          </div>
-          <p className="text-sm text-foreground/90">{idea.analogy}</p>
+        <div className="border-l-2 border-border pl-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Analogy
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{idea.analogy}</p>
         </div>
       )}
 
-      {/* Completed indicator (no manual button needed) */}
+      {/* Completed indicator */}
       {isCompleted && (
-        <div className="pt-4 border-t border-border">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <span className="text-sm font-medium">Completed</span>
-          </div>
-        </div>
+        <p className="text-xs text-muted-foreground pt-4 border-t border-border">
+          Section completed
+        </p>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -586,50 +783,269 @@ function MainContent({ idea, isCompleted }) {
 function CompletionState({ topic, nextTopics = [], onGoToQuiz, onGoToFlashcards }) {
   return (
     <div className="space-y-6">
-      <div className="text-center py-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-4">
-          <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-semibold text-foreground">Section Complete</h2>
+      <div className="py-8">
+        <h2 className="text-lg font-semibold text-foreground">All concepts complete</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          You've completed all concepts in {topic || 'this section'}
+          You've finished reviewing {topic || 'this section'}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          onClick={onGoToFlashcards}
-          className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-left"
-        >
-          <p className="font-medium text-foreground">Practice with Flashcards</p>
-          <p className="text-xs text-muted-foreground mt-1">Reinforce your understanding</p>
-        </button>
-        <button
-          onClick={onGoToQuiz}
-          className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors text-left"
-        >
-          <p className="font-medium text-foreground">Take the Quiz</p>
-          <p className="text-xs text-muted-foreground mt-1">Test your knowledge</p>
-        </button>
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Continue with</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onGoToFlashcards}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
+          >
+            Flashcards
+          </button>
+          <button
+            onClick={onGoToQuiz}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
+          >
+            Quiz
+          </button>
+        </div>
       </div>
 
       {nextTopics && nextTopics.length > 0 && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Suggested Next Topics</h4>
-          <div className="flex flex-wrap gap-2">
-            {nextTopics.map((t, i) => (
-              <span key={i} className="px-3 py-1 bg-muted rounded-full text-sm text-foreground">
-                {t}
-              </span>
-            ))}
-          </div>
+        <div className="pt-4 border-t border-border">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Related topics</p>
+          <p className="text-sm text-foreground">
+            {nextTopics.join(', ')}
+          </p>
         </div>
       )}
     </div>
   );
 }
+
+// ============================================
+// SAVE AS NOTES UTILITY
+// ============================================
+
+function generateNotesMarkdown(topic, summary, keyIdeas, highlights = []) {
+  const date = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  let md = `# ${topic || 'Learning Notes'}\n\n`;
+  md += `*Generated on ${date}*\n\n`;
+
+  if (summary) {
+    md += `## Overview\n\n${summary}\n\n`;
+  }
+
+  md += `---\n\n`;
+
+  keyIdeas.forEach((idea, ideaIdx) => {
+    md += `## ${ideaIdx + 1}. ${idea.title}\n\n`;
+
+    if (idea.subtitle) {
+      md += `*${idea.subtitle}*\n\n`;
+    }
+
+    const blocks = idea.blocks || [];
+    if (blocks.length > 0) {
+      blocks.forEach(block => {
+        if (block.type === 'concept' || block.type === 'insight') {
+          if (block.title) md += `### ${block.title}\n\n`;
+          if (block.content) md += `${block.content}\n\n`;
+        } else if (block.type === 'code') {
+          if (block.title) md += `### ${block.title}\n\n`;
+          if (block.code) md += `\`\`\`${block.language || ''}\n${block.code}\n\`\`\`\n\n`;
+          if (block.explanation) md += `${block.explanation}\n\n`;
+        } else if (block.type === 'mistake') {
+          md += `### Common Pitfall${block.title ? `: ${block.title}` : ''}\n\n`;
+          if (block.wrong) md += `**Avoid:**\n\`\`\`\n${block.wrong}\n\`\`\`\n\n`;
+          if (block.right) md += `**Prefer:**\n\`\`\`\n${block.right}\n\`\`\`\n\n`;
+          if (block.why) md += `**Why:** ${block.why}\n\n`;
+        } else if (block.type === 'comparison') {
+          if (block.title) md += `### ${block.title}\n\n`;
+          if (block.items?.length > 0) {
+            md += `| Feature | ${block.items.map(i => i.name).join(' | ')} |\n`;
+            md += `| --- | ${block.items.map(() => '---').join(' | ')} |\n`;
+            md += `| Description | ${block.items.map(i => i.description || '').join(' | ')} |\n`;
+            md += `| When to use | ${block.items.map(i => i.when_to_use || '').join(' | ')} |\n\n`;
+          }
+        } else if (block.type === 'challenge') {
+          md += `### Exercise${block.title ? `: ${block.title}` : ''}\n\n`;
+          if (block.prompt) md += `**Challenge:** ${block.prompt}\n\n`;
+          if (block.starter_code) md += `**Starter code:**\n\`\`\`\n${block.starter_code}\n\`\`\`\n\n`;
+        }
+      });
+    } else if (idea.explanation) {
+      md += `${idea.explanation}\n\n`;
+    }
+
+    if (idea.analogy) {
+      md += `> **Analogy:** ${idea.analogy}\n\n`;
+    }
+
+    md += `---\n\n`;
+  });
+
+  // Add highlights section if any
+  if (highlights.length > 0) {
+    md += `## Highlights\n\n`;
+    highlights.forEach((h, idx) => {
+      md += `${idx + 1}. "${h.text}"\n`;
+    });
+    md += `\n`;
+  }
+
+  return md;
+}
+
+function downloadNotes(topic, summary, keyIdeas, highlights) {
+  const markdown = generateNotesMarkdown(topic, summary, keyIdeas, highlights);
+  const blob = new Blob([markdown], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(topic || 'learning-notes').toLowerCase().replace(/\s+/g, '-')}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ============================================
+// SMART SUGGESTIONS (MEMOIZED)
+// ============================================
+
+// Suggestion configurations aligned with cognitive states
+const SUGGESTION_CONFIG = {
+  struggling: {
+    primaryText: "Take your time. Would you like to see some examples first?",
+    primaryAction: 'examples',
+    primaryLabel: 'See Examples',
+    tone: 'supportive',
+  },
+  confused: {
+    primaryText: "Let's try a different approach. Visual aids might help.",
+    primaryAction: 'mindmap',
+    primaryLabel: 'View Mind Map',
+    tone: 'supportive',
+  },
+  flow: {
+    primaryText: "You're making good progress. Ready to test your understanding?",
+    primaryAction: 'quiz',
+    primaryLabel: 'Take a Quick Quiz',
+    tone: 'neutral',
+  },
+  bored: {
+    primaryText: "Ready for a challenge? Test what you know.",
+    primaryAction: 'quiz',
+    primaryLabel: 'Challenge Yourself',
+    tone: 'challenging',
+  },
+  mastering: {
+    primaryText: "Excellent progress. Push yourself with the quiz.",
+    primaryAction: 'quiz',
+    primaryLabel: 'Test Your Mastery',
+    tone: 'challenging',
+  },
+};
+
+const SmartSuggestions = memo(function SmartSuggestions({
+  onOpenTab,
+  progress,
+  allCompleted,
+  cognitiveState,
+}) {
+  if (!onOpenTab) return null;
+
+  // Get suggestion config based on cognitive state, with fallback
+  const config = SUGGESTION_CONFIG[cognitiveState] || SUGGESTION_CONFIG.flow;
+
+  // Determine if we should show the primary suggestion
+  // - Don't show if user just started (progress < 20%)
+  // - Always show if completed
+  const showPrimarySuggestion = progress >= 20 || allCompleted;
+
+  // For struggling/confused states, show supportive suggestions regardless of progress
+  const isNeedingSupport = cognitiveState === 'struggling' || cognitiveState === 'confused';
+
+  return (
+    <div className="mt-8 pt-6 border-t border-border">
+      {/* Primary suggestion - context and state aware */}
+      {(showPrimarySuggestion || isNeedingSupport) && !allCompleted && (
+        <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+          <p className="text-sm text-foreground">{config.primaryText}</p>
+          <button
+            onClick={() => onOpenTab(config.primaryAction)}
+            className={`mt-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              config.tone === 'challenging'
+                ? 'bg-foreground text-background hover:bg-foreground/90'
+                : 'border border-border hover:bg-muted'
+            }`}
+          >
+            {config.primaryLabel}
+          </button>
+        </div>
+      )}
+
+      {/* Completion state */}
+      {allCompleted && (
+        <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+          <p className="text-sm text-foreground">
+            {cognitiveState === 'mastering'
+              ? "You've mastered this material. Challenge yourself further."
+              : "Great work completing all sections. Reinforce what you learned."}
+          </p>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => onOpenTab('flashcards')}
+              className="px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
+            >
+              Practice with Flashcards
+            </button>
+            <button
+              onClick={() => onOpenTab('quiz')}
+              className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
+            >
+              Take Quiz
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Secondary options - always available */}
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+        {allCompleted ? 'More options' : 'Explore'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => onOpenTab('examples')}
+          className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
+        >
+          Examples
+        </button>
+        <button
+          onClick={() => onOpenTab('quiz')}
+          className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
+        >
+          Quiz
+        </button>
+        <button
+          onClick={() => onOpenTab('flashcards')}
+          className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
+        >
+          Flashcards
+        </button>
+        <button
+          onClick={() => onOpenTab('mindmap')}
+          className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
+        >
+          Mind Map
+        </button>
+      </div>
+    </div>
+  );
+});
 
 // ============================================
 // MAIN COMPONENT
@@ -645,10 +1061,52 @@ export default function LearnTabView({
   onGoToFlashcards,
   onGoToMindMap,
   learningContent,
+  onRegenerateBlock,
+  onOpenTab, // New: handles opening tabs dynamically
+  cognitiveState = 'flow', // 'struggling' | 'confused' | 'flow' | 'bored' | 'mastering'
 }) {
   const [activeConceptId, setActiveConceptId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [regeneratingBlockIndex, setRegeneratingBlockIndex] = useState(null);
   const mainContentRef = useRef(null);
+
+  // Highlight state with localStorage persistence
+  const [highlights, setHighlights] = useState(() => loadHighlights(topic));
+
+  // Update highlights when topic changes
+  useEffect(() => {
+    setHighlights(loadHighlights(topic));
+  }, [topic]);
+
+  // Save highlights when they change
+  useEffect(() => {
+    if (topic) {
+      saveHighlights(topic, highlights);
+    }
+  }, [highlights, topic]);
+
+  const handleAddHighlight = useCallback((highlight) => {
+    setHighlights(prev => [...prev, highlight]);
+  }, []);
+
+  const handleRemoveHighlight = useCallback((highlightId) => {
+    setHighlights(prev => prev.filter(h => h.id !== highlightId));
+  }, []);
+
+  const handleRegenerateBlock = useCallback(async (block, blockIndex) => {
+    if (!onRegenerateBlock || regeneratingBlockIndex !== null) return;
+
+    setRegeneratingBlockIndex(blockIndex);
+    try {
+      await onRegenerateBlock(activeConceptId, block, blockIndex);
+    } finally {
+      setRegeneratingBlockIndex(null);
+    }
+  }, [onRegenerateBlock, activeConceptId, regeneratingBlockIndex]);
+
+  const handleSaveNotes = useCallback(() => {
+    downloadNotes(topic, summary, keyIdeas, highlights);
+  }, [topic, summary, keyIdeas, highlights]);
 
   // Safely access additional properties
   const skillAreas = learningContent?.skill_areas || [];
@@ -693,41 +1151,36 @@ export default function LearnTabView({
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] min-h-[500px] border border-border rounded-lg overflow-hidden bg-card">
+    <div className="flex h-[calc(100vh-200px)] min-h-[500px] border border-border rounded-md overflow-hidden">
       {/* Sidebar */}
-      <div className={`border-r border-border bg-muted/30 flex flex-col transition-all ${
-        sidebarCollapsed ? 'w-12' : 'w-72'
+      <aside className={`border-r border-border flex flex-col transition-all ${
+        sidebarCollapsed ? 'w-14' : 'w-64'
       }`}>
         {/* Sidebar Header */}
-        <div className="p-3 border-b border-border flex items-center justify-between">
+        <div className="px-3 py-3 border-b border-border flex items-center justify-between">
           {!sidebarCollapsed && (
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Concepts</h3>
-              <p className="text-xs text-muted-foreground">{readCards.size}/{keyIdeas.length} complete</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contents</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{readCards.size} of {keyIdeas.length}</p>
             </div>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1.5 hover:bg-muted rounded transition-colors"
+            className="p-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
           >
-            <svg className={`w-4 h-4 text-muted-foreground transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
+            {sidebarCollapsed ? '→' : '←'}
           </button>
         </div>
 
         {/* Progress */}
         {!sidebarCollapsed && (
           <div className="px-3 py-2 border-b border-border">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium text-foreground">{progress}%</span>
-            </div>
             <div className="h-1 bg-muted rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                className="h-full bg-primary rounded-full"
+                className="h-full bg-foreground/30 rounded-full"
               />
             </div>
           </div>
@@ -735,47 +1188,38 @@ export default function LearnTabView({
 
         {/* Concept List */}
         {!sidebarCollapsed && (
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {keyIdeas.map(idea => (
+          <nav className="flex-1 overflow-y-auto">
+            {keyIdeas.map((idea, idx) => (
               <SidebarItem
                 key={idea.id}
                 idea={idea}
+                index={idx}
                 isActive={activeConceptId === idea.id}
                 isCompleted={readCards.has(idea.id)}
                 onClick={() => handleConceptClick(idea.id)}
               />
             ))}
-          </div>
+          </nav>
         )}
 
-        {/* Collapsed Icons */}
+        {/* Collapsed List */}
         {sidebarCollapsed && (
-          <div className="flex-1 overflow-y-auto py-2">
+          <nav className="flex-1 overflow-y-auto py-2">
             {keyIdeas.map((idea, idx) => (
               <button
                 key={idea.id}
                 onClick={() => handleConceptClick(idea.id)}
-                className={`w-full p-2 flex items-center justify-center ${
-                  activeConceptId === idea.id ? 'bg-primary/10' : 'hover:bg-muted'
+                className={`w-full py-2 text-xs font-medium transition-colors ${
+                  activeConceptId === idea.id
+                    ? 'text-foreground bg-muted'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 }`}
                 title={idea.title}
               >
-                {readCards.has(idea.id) ? (
-                  <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                ) : (
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${
-                    activeConceptId === idea.id ? 'border-primary text-primary' : 'border-muted-foreground/30 text-muted-foreground'
-                  }`}>
-                    {idx + 1}
-                  </div>
-                )}
+                {String(idx + 1).padStart(2, '0')}
               </button>
             ))}
-          </div>
+          </nav>
         )}
 
         {/* Skill Progress */}
@@ -784,56 +1228,75 @@ export default function LearnTabView({
             <SkillProgress skillAreas={skillAreas} completedIds={readCards} />
           </div>
         )}
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <div ref={mainContentRef} className="flex-1 overflow-y-auto p-6">
+      <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 lg:p-8">
         {/* Overview Banner */}
         {!allCompleted && activeConceptId === keyIdeas[0]?.id && summary && (
-          <div className="mb-6 p-4 bg-muted/50 rounded-lg border border-border">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-foreground mb-1">About this topic</h3>
-                <p className="text-sm text-muted-foreground">{summary}</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                {estimatedTime && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    ~{estimatedTime} min
-                  </span>
-                )}
-                <span>{keyIdeas.length} concepts</span>
-              </div>
+          <div className="mb-8 pb-6 border-b border-border">
+            <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
+            <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+              {estimatedTime && <span>{estimatedTime} min total</span>}
+              <span>{keyIdeas.length} sections</span>
+              {prerequisites.length > 0 && (
+                <span>Prerequisites: {prerequisites.join(', ')}</span>
+              )}
             </div>
-            {prerequisites.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border">
-                <span className="text-xs text-muted-foreground">Prerequisites: </span>
-                {prerequisites.map((p, i) => (
-                  <span key={i} className="text-xs text-foreground">{p}{i < prerequisites.length - 1 ? ', ' : ''}</span>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
-        {/* Main Content or Completion */}
-        {allCompleted ? (
-          <CompletionState
-            topic={topic}
-            nextTopics={nextTopics}
-            onGoToQuiz={onGoToQuiz}
-            onGoToFlashcards={onGoToFlashcards}
-          />
-        ) : (
-          <MainContent
-            idea={activeConcept}
-            isCompleted={readCards.has(activeConceptId)}
-          />
+        {/* Completion Banner */}
+        {allCompleted && (
+          <div className="mb-8 pb-6 border-b border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm font-medium text-foreground">All sections complete</p>
+            </div>
+            <p className="text-sm text-muted-foreground">Select any section to review, or continue with practice below.</p>
+          </div>
         )}
-      </div>
+
+        {/* Main Content */}
+        <MainContent
+          idea={activeConcept}
+          isCompleted={readCards.has(activeConceptId)}
+          highlights={highlights}
+          onAddHighlight={handleAddHighlight}
+          onRemoveHighlight={handleRemoveHighlight}
+          onRegenerateBlock={handleRegenerateBlock}
+          regeneratingBlockIndex={regeneratingBlockIndex}
+        />
+
+        {/* Save as Notes Button */}
+        {keyIdeas.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
+            <div>
+              <button
+                onClick={handleSaveNotes}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Save as notes
+              </button>
+              {highlights.length > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({highlights.length} highlight{highlights.length !== 1 ? 's' : ''} included)
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Smart Suggestions - Memoized and aligned with cognitive state */}
+        <SmartSuggestions
+          onOpenTab={onOpenTab}
+          progress={progress}
+          allCompleted={allCompleted}
+          cognitiveState={cognitiveState}
+        />
+      </main>
     </div>
   );
 }

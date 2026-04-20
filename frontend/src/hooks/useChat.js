@@ -184,12 +184,10 @@ export function useChat(
         });
       }
 
-      // 3. Generate learning content in parallel (non-blocking)
-      generateLearningContent(text, userId, false, accessToken).catch(err => {
-        console.warn("Learning content generation failed:", err);
-      });
+      // Note: Learning content is fetched by LearningPage when user navigates there
+      // This prevents duplicate fetches and race conditions between hook instances
 
-      // 4. Start streaming response with personalization data
+      // 3. Start streaming response with personalization data
       await startStream(
         newContext,
         () => {},
@@ -227,7 +225,7 @@ export function useChat(
           setMessages([...newContext, ...enrichedMsgs]);
           setIsStreaming(false);
         },
-        { userId, behavior: behaviorData, preferences, accessToken }
+        { userId, behavior: behaviorData, preferences, accessToken, conversationId: activeConversationId }
       );
     } catch (error) {
       if (createdConversation && !savedUserMessage && userId && activeConversationId) {
@@ -243,7 +241,6 @@ export function useChat(
   }, [
     accessToken,
     assets,
-    generateLearningContent,
     messages,
     onConversationCreated,
     saveMessage,

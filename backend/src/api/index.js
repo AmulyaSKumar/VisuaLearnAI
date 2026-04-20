@@ -11,6 +11,8 @@ import assetRoutes from './assets/routes.js';
 import feedbackRoutes from './feedback/routes.js';
 import learningContentRoutes from './learning/index.js';
 import ttsRoutes from './tts/routes.js';
+import documentRoutes from './documents/routes.js';
+import simulationRoutes from './simulation/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
 
@@ -157,10 +159,12 @@ export function registerRoutes(app) {
    * POST /api/learning-content - Generate comprehensive learning content
    * POST /api/learning-content/quiz-answer - Process quiz answers
    * POST /api/learning-content/track-interaction - Track user interactions
+   * POST /api/learning-content/regenerate-block - Regenerate a single block
    */
   router.post('/learning-content', requireAuth, rateLimitLearningContent);
   router.post('/learning-content/quiz-answer', requireAuth);
   router.post('/learning-content/track-interaction', requireAuth);
+  router.post('/learning-content/regenerate-block', requireAuth, rateLimitLearningContent);
   router.use('/', learningContentRoutes);
 
   /**
@@ -169,6 +173,25 @@ export function registerRoutes(app) {
    */
   router.post('/tts', requireAuth, rateLimitTts);
   router.use('/tts', ttsRoutes);
+
+  /**
+   * Documents API (RAG) - Protected
+   * POST /api/documents/upload - Upload PDF document
+   * GET /api/documents - List user's documents
+   * GET /api/documents/:id - Get document status
+   * DELETE /api/documents/:id - Delete document
+   * POST /api/documents/:id/query - Query document with RAG
+   * GET /api/documents/:id/summary - Get document summary
+   */
+  router.use('/documents', requireAuth, documentRoutes);
+
+  /**
+   * Simulation API - Protected + Rate Limited
+   * POST /api/simulation - Generate algorithm simulation
+   * GET /api/simulation/types - List available simulation types
+   */
+  router.post('/simulation', requireAuth, rateLimitLearningContent);
+  router.use('/', simulationRoutes);
 
   /**
    * Admin API - Requires admin user
@@ -297,6 +320,8 @@ export function registerRoutes(app) {
         'POST /api/chat',
         'POST /api/tool-result',
         'POST /api/learning-content',
+        'POST /api/simulation',
+        'GET /api/simulation/types',
         'POST /api/tts',
         'POST /api/plan',
         'POST /api/generate-assets',

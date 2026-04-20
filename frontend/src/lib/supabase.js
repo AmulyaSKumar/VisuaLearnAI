@@ -103,6 +103,33 @@ export async function signInWithEmail(email, password) {
 }
 
 /**
+ * Sign in with Google OAuth
+ */
+export async function signInWithGoogle() {
+  if (!hasSupabaseConfig) {
+    return { success: false, error: missingConfigMessage };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/chat/new`,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Google sign in error:', error);
+    return { success: false, error: getFriendlyAuthError(error, 'Unable to sign in with Google') };
+  }
+}
+
+/**
  * Sign out current user
  */
 export async function signOut() {
@@ -455,6 +482,11 @@ export async function getFlashcardProgress(userId, conversationId) {
       .eq('conversation_id', conversationId);
 
     if (error) {
+      // Gracefully handle missing table - return empty progress
+      if (error.message?.includes('schema cache') || error.code === '42P01') {
+        console.debug('Flashcard progress table not found, using local storage');
+        return {};
+      }
       throw new Error(error.message);
     }
 
@@ -506,13 +538,18 @@ export async function updateFlashcardProgress(userId, conversationId, cardId, pr
       .single();
 
     if (error) {
+      // Gracefully handle missing table - just skip saving
+      if (error.message?.includes('schema cache') || error.code === '42P01') {
+        console.debug('Flashcard progress table not found, progress not saved');
+        return null;
+      }
       throw new Error(error.message);
     }
 
     return data;
   } catch (error) {
     console.error('Update flashcard progress error:', error);
-    throw error;
+    return null; // Don't throw, just return null
   }
 }
 
@@ -531,13 +568,61 @@ export async function getDueCardsCount(userId) {
       .lte('next_review_date', today.toISOString());
 
     if (error) {
+      // Gracefully handle missing table
+      if (error.message?.includes('schema cache') || error.code === '42P01') {
+        return 0;
+      }
       throw new Error(error.message);
     }
 
     return count || 0;
   } catch (error) {
-    console.error('Get due cards count error:', error);
+    console.debug('Get due cards count error:', error.message);
     return 0;
+  }
+}
+
+/**
+ * Update assistant message learning content in DB
+ * Fetches latest metadata first to prevent overwrites
+ */
+export async function updateAssistantMessageContent(conversationId, newLearningContent) {
+  try {
+    const { data: msg, error: fetchError } = await supabase
+      .from('messages')
+      .select('id, metadata')
+      .eq('conversation_id', conversationId)
+      .eq('role', 'assistant')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (fetchError || !msg) {
+      console.warn('No assistant message found to update');
+      return null;
+    }
+
+    const existingLearningContent = msg.metadata?.learningContent || {};
+    const mergedLearningContent = {
+      ...existingLearningContent,
+      ...newLearningContent,
+    };
+
+    const updatedMetadata = {
+      ...msg.metadata,
+      learningContent: mergedLearningContent
+    };
+
+    const { error: updateError } = await supabase
+      .from('messages')
+      .update({ metadata: updatedMetadata })
+      .eq('id', msg.id);
+
+    if (updateError) throw updateError;
+    return true;
+  } catch (error) {
+    console.error('Failed to update message content:', error);
+    return null;
   }
 }
 

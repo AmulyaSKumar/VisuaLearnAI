@@ -87,10 +87,10 @@ export default function ChatWindow({
     }
   }, [isStreaming, location.state, messages.length, sendMessage]);
 
-  // Track follow-ups when sending messages (with per-query preferences)
-  const handleSendMessage = useCallback((text, preferences = {}) => {
+  // Track follow-ups when sending messages
+  const handleSendMessage = useCallback((text) => {
     behaviorTracking.trackFollowUp();
-    sendMessage(text, preferences);
+    sendMessage(text);
   }, [behaviorTracking, sendMessage]);
 
   // Handle learning plan step click
@@ -123,7 +123,23 @@ export default function ChatWindow({
   // Handle widget interactions
   const handleWidgetInteraction = useCallback((data) => {
     behaviorTracking.trackWidgetInteraction(data.widgetId, data.action, data.data);
-  }, [behaviorTracking]);
+    if (userId) {
+      trackInteraction(
+        userId,
+        data.action === 'widget_analytics' ? 'widget_analytics' : 'widget_interaction',
+        {
+          ...data.data,
+          widgetId: data.widgetId,
+          action: data.action,
+          decisionId: data.decisionId || personalizationMeta?.decisionId || null,
+          selectedAction: data.selectedAction || personalizationMeta?.selectedAction || null,
+          topicKey: data.topicKey || personalizationMeta?.topicKey || null,
+          eventId: data.data?.eventId || `${data.widgetId}:${data.action}:${Date.now()}`,
+        },
+        accessToken,
+      );
+    }
+  }, [accessToken, behaviorTracking, personalizationMeta, trackInteraction, userId]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -275,7 +291,7 @@ export default function ChatWindow({
         />
         <div className="text-center mt-2 sm:mt-3">
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            VisuaLearn AI adapts to your learning style. Check important info.
+            VisuaLearn adapts based on your progress and recent performance.
           </p>
         </div>
       </div>

@@ -46,10 +46,7 @@ Server runs on `http://localhost:3001`
 npm test
 ```
 
-### Create Demo User
-```bash
-node scripts/setup-demo-user.js
-```
+
 
 ## 📁 Directory Structure
 

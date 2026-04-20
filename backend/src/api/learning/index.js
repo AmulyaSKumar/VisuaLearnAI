@@ -2,10 +2,21 @@
  * Learning Content API
  * Generates comprehensive structured learning content
  * Works alongside chat API for enhanced learning experience
+ * Supports RAG (Retrieval-Augmented Generation) from uploaded documents
  */
 import { Router } from 'express';
-import { learningContentAgent } from '../../agents/learning-content.js';
+import { learningContentAgent, regenerateBlockAgent } from '../../agents/learning-content.js';
 import { analyzeUserProfile } from '../../agents/personalization.js';
+import {
+  recordBanditInteraction,
+  recordBanditQuizAnswer,
+  resolveBanditDecision,
+} from '../../agents/personalization-bandit.js';
+import {
+  getDocument,
+  retrieveChunks,
+  formatChunksAsContext,
+} from '../../services/rag/index.js';
 
 const router = Router();
 
@@ -160,25 +171,120 @@ function buildFallbackLearningContent(query, profile = {}, error = null) {
 }
 
 /**
+ * Build type-specific fallback content for lazy loading
+ */
+function buildFallbackForContentType(query, contentType, profile = {}) {
+  const topic = query.trim();
+
+  switch (contentType) {
+    case 'learn':
+      return {
+        topic,
+        title: `Understanding ${topic}`,
+        summary: `A simplified overview of ${topic}.`,
+        key_ideas: [
+          {
+            id: 'idea_1',
+            title: 'Core Concept',
+            subtitle: 'Foundation of the topic',
+            difficulty: 'foundational',
+            blocks: [
+              { type: 'concept', title: 'Overview', content: `${topic} involves understanding key principles.` }
+            ]
+          }
+        ],
+        degraded: true
+      };
+
+    case 'examples':
+      return {
+        examples: [
+          {
+            id: 'ex_1',
+            title: `Basic ${topic} Example`,
+            description: `A starter example for ${topic}.`,
+            scenario: `Learn the basics of ${topic} with this simple example.`,
+            code: `// ${topic} example\nconsole.log("Hello, ${topic}!");`,
+            language: 'javascript',
+            explanation: 'A simple starting point.',
+            involves_ai: false
+          }
+        ],
+        degraded: true
+      };
+
+    case 'quiz':
+      return {
+        quiz: [
+          {
+            type: 'mcq',
+            question: `What is the best approach to learning ${topic}?`,
+            options: ['Practice regularly', 'Skip the basics', 'Memorize without understanding', 'Avoid examples'],
+            correct: 'A',
+            explanation: 'Regular practice is key to mastering any topic.'
+          }
+        ],
+        degraded: true
+      };
+
+    case 'flashcards-mindmap':
+      return {
+        flashcards: [
+          { front: `What is ${topic}?`, back: `${topic} is a concept worth understanding.`, difficulty: 'beginner' },
+          { front: `Why learn ${topic}?`, back: `It provides foundational knowledge for related topics.`, difficulty: 'beginner' }
+        ],
+        mind_map: {
+          root: topic,
+          branches: [
+            { label: 'Basics', children: ['Definition', 'Core Concepts'] },
+            { label: 'Applications', children: ['Use Cases', 'Examples'] }
+          ]
+        },
+        degraded: true
+      };
+
+    default:
+      return { degraded: true, error: `Unknown content type: ${contentType}` };
+  }
+}
+
+/**
  * POST /api/learning-content
  * Generate comprehensive learning content for a topic
+ * Supports lazy loading via contentType parameter:
+ * - 'learn': key_ideas + summary
+ * - 'examples': examples only
+ * - 'flashcards-mindmap': flashcards + mind_map
+ * - 'quiz': quiz questions only
+ * - undefined: all content (legacy behavior)
  */
 router.post('/learning-content', async (req, res) => {
-  const { query, userId, forceRefresh = false } = req.body;
+  const { query, userId, forceRefresh = false, contentType, preferences, documentId } = req.body;
 
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Query is required' });
   }
 
-  console.log(`[LearningContent] Generating for: "${query.slice(0, 50)}..."`);
+  const typeLabel = contentType ? ` (${contentType})` : ' (all)';
+  const docLabel = documentId ? ` [doc:${documentId.slice(0, 8)}]` : '';
+  console.log(`[LearningContent] Generating${typeLabel}${docLabel} for: "${query.slice(0, 50)}..."`);
+  if (preferences) {
+    console.log(`[LearningContent] Preferences:`, preferences);
+  }
 
   try {
-    // Check cache
-    const cacheKey = getCacheKey(query, userId);
+    // Build cache key that includes contentType, preferences, and documentId for proper caching
+    const baseCacheKey = getCacheKey(query, userId);
+    const prefKey = preferences ? `${preferences.mode || 'balanced'}-${preferences.style || 'visual'}` : 'default';
+    const docKey = documentId ? `:doc-${documentId}` : '';
+    const cacheKey = contentType
+      ? `${baseCacheKey}:${contentType}:${prefKey}${docKey}`
+      : `${baseCacheKey}:${prefKey}${docKey}`;
+
     if (!forceRefresh) {
       const cached = contentCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        console.log('[LearningContent] Returning cached content');
+        console.log(`[LearningContent] Returning cached content${typeLabel}`);
         return res.json({ success: true, content: cached.content, cached: true });
       }
     }
@@ -193,10 +299,75 @@ router.post('/learning-content', async (req, res) => {
       }
     }
 
-    // Generate learning content
-    const result = await learningContentAgent.run({ query, profile });
+    // Merge preferences into profile for agent access
+    const mergedProfile = {
+      ...profile,
+      mode: preferences?.mode || profile.mode || 'balanced',
+      style: preferences?.style || profile.style || 'visual',
+    };
+
+    // RAG: Retrieve context from document if documentId is provided
+    let contextChunks = null;
+    let documentContext = null;
+    if (documentId) {
+      try {
+        // Verify document exists and is ready
+        const document = await getDocument(documentId);
+        if (!document) {
+          return res.status(404).json({ error: 'Document not found' });
+        }
+        if (document.user_id !== userId) {
+          return res.status(403).json({ error: 'Access denied to document' });
+        }
+        if (document.status !== 'ready') {
+          return res.status(400).json({
+            error: 'Document not ready',
+            status: document.status,
+            message: document.status === 'processing'
+              ? 'Document is still being processed. Please wait.'
+              : 'Document processing failed.',
+          });
+        }
+
+        // Retrieve relevant chunks
+        const chunks = await retrieveChunks(documentId, query, 5);
+        if (chunks && chunks.length > 0) {
+          contextChunks = chunks;
+          documentContext = formatChunksAsContext(chunks);
+          console.log(`[LearningContent] RAG: Retrieved ${chunks.length} chunks from document`);
+          console.log(`[LearningContent] RAG: Chunk previews:`, chunks.map((c, i) => `[${i+1}] ${c.text.slice(0, 100)}...`));
+        } else {
+          console.warn(`[LearningContent] RAG: NO CHUNKS FOUND for query "${query.slice(0, 50)}..."`);
+          console.warn(`[LearningContent] RAG: Model will be told document has no relevant info`);
+        }
+      } catch (e) {
+        console.error('[LearningContent] RAG retrieval failed:', e.message);
+        // Continue without context - but mark documentId so agents know a doc was selected
+      }
+    }
+
+    // Generate learning content (pass contentType for lazy loading, context for RAG)
+    // IMPORTANT: Pass documentId so agents can detect "document selected but no chunks found"
+    const result = await learningContentAgent.run({
+      query,
+      profile: mergedProfile,
+      contentType,
+      documentId,       // Pass ID so agents know a document was selected
+      documentContext,  // RAG context (formatted text)
+      contextChunks,    // Raw chunks for reference
+    });
 
     if (!result.success || !result.result) {
+      // For specific content types, return type-specific fallback
+      if (contentType) {
+        const fallback = buildFallbackForContentType(query, contentType, profile);
+        return res.json({
+          success: true,
+          content: fallback,
+          degraded: true,
+        });
+      }
+
       const fallbackContent = buildFallbackLearningContent(query, profile, result.error);
       contentCache.set(cacheKey, {
         content: fallbackContent,
@@ -230,6 +401,17 @@ router.post('/learning-content', async (req, res) => {
 
   } catch (error) {
     console.error('[LearningContent] Error:', error.message);
+
+    // For specific content types, return type-specific fallback
+    if (contentType) {
+      const fallback = buildFallbackForContentType(query, contentType, {});
+      return res.json({
+        success: true,
+        content: fallback,
+        degraded: true,
+      });
+    }
+
     const fallbackContent = buildFallbackLearningContent(query, {}, error.message);
     res.json({
       success: true,
@@ -244,16 +426,27 @@ router.post('/learning-content', async (req, res) => {
  * Process quiz answer and return feedback
  */
 router.post('/learning-content/quiz-answer', async (req, res) => {
-  const { questionId, selectedAnswer, correctAnswer, userId } = req.body;
+  const { questionId, selectedAnswer, correctAnswer, userId, decisionId = null } = req.body;
 
   const isCorrect = selectedAnswer === correctAnswer;
+
+  if (decisionId) {
+    recordBanditQuizAnswer({
+      decisionId,
+      isCorrect,
+      source: 'quiz_answer',
+      eventId: questionId || null,
+    });
+    resolveBanditDecision(decisionId);
+  }
 
   // Could update user's weak/strong topics here
   // For now, just return the result
   res.json({
     success: true,
     isCorrect,
-    questionId
+    questionId,
+    decisionId,
   });
 });
 
@@ -262,13 +455,74 @@ router.post('/learning-content/quiz-answer', async (req, res) => {
  * Track user interactions with learning content
  */
 router.post('/learning-content/track-interaction', async (req, res) => {
-  const { userId, interactionType, data } = req.body;
+  const { userId, interactionType, data = {}, decisionId = null } = req.body;
 
   // Log interaction for analytics
   console.log(`[LearningContent] Interaction: ${interactionType}`, data);
 
+  if (decisionId || data.decisionId) {
+    const resolvedDecisionId = decisionId || data.decisionId;
+    const updatedDecision = recordBanditInteraction({
+      decisionId: resolvedDecisionId,
+      interactionType,
+      data,
+      source: 'learning_track_interaction',
+      eventId: data.eventId || null,
+    });
+
+    if (updatedDecision?.learningComponent != null && updatedDecision?.completionComponent != null) {
+      resolveBanditDecision(resolvedDecisionId);
+    }
+  }
+
   // Could store in database for adaptive learning
-  res.json({ success: true });
+  res.json({ success: true, decisionId: decisionId || data.decisionId || null });
+});
+
+/**
+ * POST /api/learning-content/regenerate-block
+ * Regenerate a single content block with a different explanation style
+ */
+router.post('/learning-content/regenerate-block', async (req, res) => {
+  const { query, block, preferences } = req.body;
+
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Query is required' });
+  }
+
+  if (!block || !block.type) {
+    return res.status(400).json({ error: 'Block with type is required' });
+  }
+
+  console.log(`[LearningContent] Regenerating block for: "${query.slice(0, 50)}..."`);
+
+  try {
+    const result = await regenerateBlockAgent.run({
+      query,
+      block,
+      profile: preferences || {}
+    });
+
+    if (!result.success || !result.result) {
+      return res.status(500).json({
+        error: result.error || 'Failed to regenerate block',
+        success: false
+      });
+    }
+
+    res.json({
+      success: true,
+      block: result.result,
+      executionTime: result.executionTime
+    });
+
+  } catch (error) {
+    console.error('[LearningContent] Regenerate block error:', error.message);
+    res.status(500).json({
+      error: 'Failed to regenerate block',
+      success: false
+    });
+  }
 });
 
 export default router;

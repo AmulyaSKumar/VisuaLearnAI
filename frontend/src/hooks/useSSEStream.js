@@ -8,16 +8,17 @@ export function useSSEStream() {
 
   const textBufferRef = useRef("");
   const factCheckRef = useRef(null);
+  const personalizationMetaRef = useRef(null);
 
   /**
    * Start streaming chat with personalization support
    * @param {Array} contextMessages - Conversation messages
    * @param {Function} onDelta - Called on each text delta
    * @param {Function} onComplete - Called when stream completes
-   * @param {Object} options - { userId, behavior, preferences, accessToken }
+   * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId }
    */
   const startStream = useCallback(async (contextMessages, onDelta, onComplete, options = {}) => {
-    const { userId, behavior, preferences, accessToken } = options;
+    const { userId, behavior, preferences, accessToken, conversationId } = options;
 
     setCurrentMessage({ role: "assistant", text: "", widgets: [], loadingWidget: false });
     setIsLoadingWidget(false);
@@ -25,6 +26,7 @@ export function useSSEStream() {
     setFactCheckResult(null);
     textBufferRef.current = "";
     factCheckRef.current = null;
+    personalizationMetaRef.current = null;
 
     const formattedMessages = contextMessages.map(m => {
       if (m.type === "widget") {
@@ -53,7 +55,7 @@ export function useSSEStream() {
       const response = await fetch("http://localhost:3001/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ messages: formattedMessages, userId, behavior, preferences }),
+        body: JSON.stringify({ messages: formattedMessages, userId, behavior, preferences, conversationId }),
       });
 
       if (!response.ok) throw new Error("Failed to start stream");
@@ -80,6 +82,7 @@ export function useSSEStream() {
             // Handle personalization metadata
             if (data.type === "personalization_meta") {
               setPersonalizationMeta(data);
+              personalizationMetaRef.current = data;
             }
 
             // Handle fact check result
@@ -115,7 +118,10 @@ export function useSSEStream() {
                 id: Date.now().toString(),
                 toolId: data.id,
                 title: widgetData.title,
-                code: widgetData.widget_code
+                code: widgetData.widget_code,
+                decisionId: personalizationMetaRef.current?.decisionId || null,
+                selectedAction: personalizationMetaRef.current?.selectedAction || null,
+                topicKey: personalizationMetaRef.current?.topicKey || null,
               };
               
               finalWidgets.push(newWidget);
@@ -133,7 +139,9 @@ export function useSSEStream() {
                 setCurrentMessage,
                 setIsLoadingWidget,
                 streamUserId,
-                streamToken
+                streamToken,
+                conversationId,
+                personalizationMetaRef.current
               );
               return;
             }
@@ -165,7 +173,20 @@ export function useSSEStream() {
     }
   }, []);
 
-  const continueWithToolResult = async (originalContext, assistantToolMsg, toolId, textRef, widgetsList, onComplete, setCurrent, setLoading, userId = null, accessToken = null) => {
+  const continueWithToolResult = async (
+    originalContext,
+    assistantToolMsg,
+    toolId,
+    textRef,
+    widgetsList,
+    onComplete,
+    setCurrent,
+    setLoading,
+    userId = null,
+    accessToken = null,
+    conversationId = null,
+    personalization = null
+  ) => {
     let localFactCheck = null;
 
     try {
@@ -185,7 +206,16 @@ export function useSSEStream() {
       const response = await fetch("http://localhost:3001/api/tool-result", {
         method: "POST",
         headers,
-        body: JSON.stringify({ messages: newMessages, userId }),
+        body: JSON.stringify({
+          messages: newMessages,
+          userId,
+          conversationId,
+          bandit: personalization ? {
+            decisionId: personalization.decisionId || null,
+            selectedAction: personalization.selectedAction || null,
+            topicKey: personalization.topicKey || null,
+          } : null,
+        }),
       });
 
       const reader = response.body.getReader();

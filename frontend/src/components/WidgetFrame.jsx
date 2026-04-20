@@ -70,6 +70,60 @@ export default function WidgetFrame({ widget, onInteraction }) {
 
   useEffect(() => {
     const handleMessage = (e) => {
+      if (iframeRef.current && e.source === iframeRef.current.contentWindow) {
+        if (e.data?.type === 'widget_analytics') {
+          const analytics = e.data.data || {};
+          setStats(prev => ({
+            ...prev,
+            progress: Math.max(prev.progress, Math.round((analytics.completionRate || 0) * 100)),
+            hintsUsed: analytics.hintsUsed ?? prev.hintsUsed,
+            errorsCount: analytics.errorsCount ?? prev.errorsCount,
+            interactionCount: analytics.interactions ?? prev.interactionCount,
+          }));
+
+          if (onInteraction) {
+            onInteraction({
+              widgetId: widget.id,
+              action: 'widget_analytics',
+              data: analytics,
+              stats,
+              decisionId: widget.decisionId || null,
+              selectedAction: widget.selectedAction || null,
+              topicKey: widget.topicKey || null,
+            });
+          }
+          return;
+        }
+
+        const interactionType = e.data?.type;
+        const isInteractionEvent = interactionType && interactionType !== 'resize';
+        if (isInteractionEvent && interactionType !== 'widget_analytics') {
+          const mappedAction = interactionType;
+          setStats(prev => {
+            const updated = { ...prev, interactionCount: prev.interactionCount + 1 };
+            if (mappedAction === 'hint_used') updated.hintsUsed = prev.hintsUsed + 1;
+            if (mappedAction === 'quiz_answer' && e.data?.correct === false) updated.errorsCount = prev.errorsCount + 1;
+            if (mappedAction === 'step_change' && e.data?.to) {
+              updated.progress = Math.max(prev.progress, Math.min(99, Math.round((e.data.to / 7) * 100)));
+            }
+            return updated;
+          });
+
+          if (onInteraction) {
+            onInteraction({
+              widgetId: widget.id,
+              action: mappedAction,
+              data: e.data,
+              stats,
+              decisionId: widget.decisionId || null,
+              selectedAction: widget.selectedAction || null,
+              topicKey: widget.topicKey || null,
+            });
+          }
+          return;
+        }
+      }
+
       if (e.data?.type === 'resize' && e.data?.id === widget.id) {
         setHeight(Math.max(400, Math.min(e.data.height + 20, 800))); // Min 400px, Max 800px
       }
@@ -86,7 +140,15 @@ export default function WidgetFrame({ widget, onInteraction }) {
         });
         // Notify parent
         if (onInteraction) {
-          onInteraction({ widgetId: widget.id, action, data, stats });
+          onInteraction({
+            widgetId: widget.id,
+            action,
+            data,
+            stats,
+            decisionId: widget.decisionId || null,
+            selectedAction: widget.selectedAction || null,
+            topicKey: widget.topicKey || null,
+          });
         }
       }
     };

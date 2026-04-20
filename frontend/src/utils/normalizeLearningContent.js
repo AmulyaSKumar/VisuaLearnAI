@@ -56,15 +56,63 @@ function ensureArray(value) {
   return [];
 }
 
+function normalizeContentBlock(block, index) {
+  if (!block || typeof block !== 'object') {
+    return null;
+  }
+
+  const type = extractString(block.type, 'concept').toLowerCase();
+  const title = extractString(block.title, '');
+
+  const normalized = {
+    type,
+    title,
+  };
+
+  // Preserve type-specific fields
+  switch (type) {
+    case 'concept':
+    case 'insight':
+      normalized.content = extractString(block.content || block.text || block.body, '');
+      break;
+    case 'code':
+      normalized.code = extractString(block.code, '');
+      normalized.language = extractString(block.language, 'javascript');
+      normalized.explanation = extractString(block.explanation, '');
+      break;
+    case 'mistake':
+      normalized.wrong = extractString(block.wrong || block.incorrect, '');
+      normalized.right = extractString(block.right || block.correct, '');
+      normalized.why = extractString(block.why || block.explanation, '');
+      break;
+    case 'comparison':
+      normalized.items = ensureArray(block.items);
+      break;
+    case 'challenge':
+      normalized.prompt = extractString(block.prompt || block.question, '');
+      normalized.starter_code = extractString(block.starter_code || block.starterCode, '');
+      normalized.solution = extractString(block.solution, '');
+      normalized.hints = ensureArray(block.hints);
+      break;
+    default:
+      // Preserve any content field
+      normalized.content = extractString(block.content || block.text || block.body, '');
+  }
+
+  return normalized;
+}
+
 function normalizeKeyIdea(idea, index) {
   if (!idea || typeof idea !== 'object') {
     return {
       id: `idea_${index}`,
       title: extractString(idea, `Key idea ${index + 1}`),
+      subtitle: '',
       explanation: '',
-      difficulty: 'medium',
+      difficulty: 'foundational',
       analogy: '',
-      emoji: '💡'
+      time_estimate: 3,
+      blocks: []
     };
   }
 
@@ -72,7 +120,11 @@ function normalizeKeyIdea(idea, index) {
   const titleRaw = idea.title || idea.name || idea.concept;
   const title = extractString(titleRaw, `Key idea ${index + 1}`);
 
-  // Extract explanation with fallbacks
+  // Extract subtitle
+  const subtitleRaw = idea.subtitle || idea.hook || idea.tagline;
+  const subtitle = extractString(subtitleRaw, '');
+
+  // Extract explanation with fallbacks (for legacy content without blocks)
   const explanationRaw = idea.explanation || idea.description || idea.content || idea.text;
   const explanation = extractString(explanationRaw, '');
 
@@ -80,21 +132,32 @@ function normalizeKeyIdea(idea, index) {
   const analogyRaw = idea.analogy || idea.think_of_it_like;
   const analogy = extractString(analogyRaw, '');
 
-  // Extract emoji
-  const emojiRaw = idea.emoji || idea.icon;
-  const emoji = extractString(emojiRaw, '💡');
-
   // Extract difficulty
-  const difficultyRaw = idea.difficulty || idea.importance;
-  const difficulty = extractString(difficultyRaw, 'medium');
+  const difficultyRaw = idea.difficulty || idea.importance || idea.level;
+  let difficulty = extractString(difficultyRaw, 'foundational').toLowerCase();
+  // Normalize difficulty values
+  if (!['foundational', 'medium', 'high', 'beginner', 'intermediate', 'advanced'].includes(difficulty)) {
+    difficulty = 'foundational';
+  }
+
+  // Extract time estimate
+  const timeEstimate = idea.time_estimate || idea.timeEstimate || idea.duration || 3;
+
+  // IMPORTANT: Extract and normalize blocks array
+  const blocksRaw = idea.blocks || idea.content_blocks || idea.contentBlocks || [];
+  const blocks = ensureArray(blocksRaw)
+    .map(normalizeContentBlock)
+    .filter(Boolean);
 
   return {
     id: idea.id || `idea_${index}`,
     title,
+    subtitle,
     explanation,
     difficulty,
     analogy,
-    emoji
+    time_estimate: typeof timeEstimate === 'number' ? timeEstimate : parseInt(timeEstimate, 10) || 3,
+    blocks
   };
 }
 
@@ -104,9 +167,17 @@ function normalizeExample(example, index) {
       id: `ex_${index}`,
       title: extractString(example, `Example ${index + 1}`),
       description: '',
+      scenario: '',
+      code: '',
+      language: 'javascript',
+      explanation: '',
       real_world_context: '',
-      icon: '💡',
-      involves_ai: false
+      search_keywords: [],
+      involves_ai: false,
+      buggy_version: '',
+      bug_explanation: '',
+      challenge_question: '',
+      challenge_options: []
     };
   }
 
@@ -115,16 +186,31 @@ function normalizeExample(example, index) {
   const title = extractString(titleRaw, `Example ${index + 1}`);
 
   // Extract description
-  const descRaw = example.description || example.scenario || example.content;
+  const descRaw = example.description || example.summary;
   const description = extractString(descRaw, '');
 
+  // Extract scenario (the full context story)
+  const scenarioRaw = example.scenario || example.context || example.story;
+  const scenario = extractString(scenarioRaw, '');
+
+  // Extract code
+  const codeRaw = example.code || example.codeExample || example.code_example;
+  const code = extractString(codeRaw, '');
+
+  // Extract language
+  const language = extractString(example.language, 'javascript');
+
+  // Extract explanation
+  const explanationRaw = example.explanation || example.codeExplanation;
+  const explanation = extractString(explanationRaw, '');
+
   // Extract real world context
-  const contextRaw = example.real_world_context || example.realWorldContext || example.explanation || example.context;
+  const contextRaw = example.real_world_context || example.realWorldContext || example.context_description;
   const real_world_context = extractString(contextRaw, '');
 
-  // Extract icon
-  const iconRaw = example.icon || example.emoji;
-  const icon = extractString(iconRaw, '💡');
+  // Extract search keywords
+  const searchKeywordsRaw = example.search_keywords || example.searchKeywords || example.keywords;
+  const search_keywords = ensureArray(searchKeywordsRaw).map(kw => extractString(kw, '')).filter(Boolean);
 
   // Handle involves_ai - could be boolean or string
   let involves_ai = false;
@@ -137,13 +223,37 @@ function normalizeExample(example, index) {
     involves_ai = Boolean(aiVal);
   }
 
+  // Extract buggy version for "Spot the Bug" game
+  const buggyVersionRaw = example.buggy_version || example.buggyVersion || example.buggy_code;
+  const buggy_version = extractString(buggyVersionRaw, '');
+
+  // Extract bug explanation
+  const bugExplanationRaw = example.bug_explanation || example.bugExplanation || example.bug_fix;
+  const bug_explanation = extractString(bugExplanationRaw, '');
+
+  // Extract challenge question for case study
+  const challengeQuestionRaw = example.challenge_question || example.challengeQuestion;
+  const challenge_question = extractString(challengeQuestionRaw, '');
+
+  // Extract challenge options
+  const challengeOptionsRaw = example.challenge_options || example.challengeOptions;
+  const challenge_options = ensureArray(challengeOptionsRaw).map(opt => extractString(opt, '')).filter(Boolean);
+
   return {
     id: example.id || `ex_${index}`,
     title,
     description,
+    scenario,
+    code,
+    language,
+    explanation,
     real_world_context,
-    icon,
-    involves_ai
+    search_keywords,
+    involves_ai,
+    buggy_version,
+    bug_explanation,
+    challenge_question,
+    challenge_options
   };
 }
 
@@ -201,33 +311,83 @@ function normalizeQuizQuestion(question, index) {
     return null;
   }
 
-  // Handle correct answer - convert index to letter if needed
-  let correct = question.correct || question.correctAnswer || question.answer || 'A';
-  if (typeof correct === 'number') {
-    correct = String.fromCharCode(65 + correct); // 0 -> 'A', 1 -> 'B', etc.
-  } else if (typeof correct === 'object') {
-    correct = extractString(correct, 'A');
+  // Extract question type (mcq, fill_blank, true_false, output_prediction, code_sandbox)
+  const type = extractString(question.type, 'mcq').toLowerCase();
+
+  // Base normalized question
+  const normalized = {
+    type,
+    explanation: extractString(question.explanation || question.hint, ''),
+    why_it_matters: extractString(question.why_it_matters || question.whyItMatters, ''),
+  };
+
+  // Handle type-specific fields
+  switch (type) {
+    case 'mcq':
+    default: {
+      // Extract question text
+      const questionRaw = question.question || question.text || question.q;
+      normalized.question = extractString(questionRaw, `Question ${index + 1}`);
+
+      // Extract options - handle both array of strings and array of objects
+      const optionsRaw = question.options || question.choices || question.answers;
+      const optionsArray = ensureArray(optionsRaw);
+      normalized.options = optionsArray.map(opt => extractString(opt, ''));
+
+      // Handle correct answer - convert index to letter if needed
+      let correct = question.correct || question.correctAnswer || question.answer || 'A';
+      if (typeof correct === 'number') {
+        correct = String.fromCharCode(65 + correct); // 0 -> 'A', 1 -> 'B', etc.
+      } else if (typeof correct === 'object') {
+        correct = extractString(correct, 'A');
+      }
+      normalized.correct = correct;
+      break;
+    }
+
+    case 'fill_blank': {
+      normalized.question = extractString(question.question || question.text, `Question ${index + 1}`);
+      normalized.correct_answer = extractString(question.correct_answer || question.correctAnswer || question.answer, '');
+      normalized.blank_position = extractString(question.blank_position || question.blankPosition, 'middle');
+      normalized.hint = extractString(question.hint, '');
+      break;
+    }
+
+    case 'true_false': {
+      normalized.statement = extractString(question.statement || question.question || question.text, '');
+      // Handle boolean correct value
+      const correctVal = question.correct ?? question.answer ?? true;
+      normalized.correct = typeof correctVal === 'boolean' ? correctVal :
+        (String(correctVal).toLowerCase() === 'true');
+      break;
+    }
+
+    case 'output_prediction': {
+      normalized.code = extractString(question.code, '');
+      normalized.language = extractString(question.language, 'javascript');
+
+      // Extract options
+      const optionsRaw = question.options || question.choices;
+      const optionsArray = ensureArray(optionsRaw);
+      normalized.options = optionsArray.map(opt => extractString(opt, ''));
+
+      // Extract correct - could be an option string or index
+      normalized.correct = extractString(question.correct || question.answer, '');
+      break;
+    }
+
+    case 'code_sandbox': {
+      normalized.task = extractString(question.task || question.prompt || question.question, '');
+      normalized.language = extractString(question.language, 'javascript');
+      normalized.starter_code = extractString(question.starter_code || question.starterCode, '');
+      normalized.solution = extractString(question.solution, '');
+      normalized.validation_keywords = ensureArray(question.validation_keywords || question.validationKeywords);
+      normalized.hints = ensureArray(question.hints);
+      break;
+    }
   }
 
-  // Extract question text
-  const questionRaw = question.question || question.text || question.q;
-  const questionText = extractString(questionRaw, `Question ${index + 1}`);
-
-  // Extract options - handle both array of strings and array of objects
-  const optionsRaw = question.options || question.choices || question.answers;
-  const optionsArray = ensureArray(optionsRaw);
-  const options = optionsArray.map(opt => extractString(opt, ''));
-
-  // Extract explanation
-  const explanationRaw = question.explanation || question.hint;
-  const explanation = extractString(explanationRaw, '');
-
-  return {
-    question: questionText,
-    options,
-    correct,
-    explanation
-  };
+  return normalized;
 }
 
 function normalizeMindMap(mindMap) {

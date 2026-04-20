@@ -1,6 +1,6 @@
 import { Router } from "express";
 import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
-import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT, createSystemPrompt } from "../tools.js";
+import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT, createSystemPrompt } from "../src/services/anthropic/prompts.js";
 import {
   analyzeUserProfile,
   updateLearningStyle,

@@ -5,11 +5,13 @@ import QuizView from './learning/QuizView';
 import InteractiveText from './learning/InteractiveText';
 import LearningPathView from './learning/LearningPathView';
 import ConceptsView from './learning/ConceptsView';
-import ExamplesView from './learning/ExamplesView';
+import ExamplesTabView from './learning/ExamplesTabView';
+import SimulationView from './learning/SimulationView';
 
 const TABS = [
   { id: 'text', label: 'Explanation', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { id: 'audio', label: 'Audio', icon: 'M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z' },
+  { id: 'simulation', label: 'Simulation', icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'mindmap', label: 'Mind Map', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
   { id: 'flashcards', label: 'Flashcards', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
   { id: 'quiz', label: 'Quiz', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
@@ -17,7 +19,7 @@ const TABS = [
   { id: 'examples', label: 'Examples', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
 ];
 
-export default function LearningWorkspace({ content, isLoading, userId, onInteraction }) {
+export default function LearningWorkspace({ content, isLoading, userId, onInteraction, accessToken }) {
   const [activeTab, setActiveTab] = useState('text');
   const [mode, setMode] = useState('balanced'); // simple, balanced, technical
 
@@ -70,6 +72,15 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
             audioMode={true}
           />
         );
+      case 'simulation':
+        return (
+          <SimulationView
+            topic={content.topic}
+            userId={userId}
+            onInteraction={onInteraction}
+            accessToken={accessToken}
+          />
+        );
       case 'mindmap':
         return (
           <MindMapView
@@ -102,9 +113,9 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
         );
       case 'examples':
         return (
-          <ExamplesView
+          <ExamplesTabView
             examples={content.examples}
-            tryThis={content.tryThis}
+            onInteraction={onInteraction}
           />
         );
       default:

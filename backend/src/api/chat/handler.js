@@ -2,6 +2,13 @@ import { Router } from "express";
 import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
 import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT } from "../../services/anthropic/prompts.js";
 import { analyzeUserProfile, getPersonalizationStrategy, getUserMetrics, explainAdaptiveDecision, getTopicHistory, adaptivePolicy } from "../../agents/personalization.js";
+import {
+  createBanditDecision,
+  getBanditActionPrompt,
+  getBanditDecisionEnvelope,
+  getBanditMode,
+  recordBanditInteraction,
+} from "../../agents/personalization-bandit.js";
 import { AdaptiveLearningEngine } from "../../agents/adaptive-learning-engine.js";
 import { FactCheckerAgent } from "../../agents/fact-checker.js";
 
@@ -199,6 +206,22 @@ ${escalation_applied?.level > 0 ? `- ESCALATION ACTIVE (Level ${escalation_appli
   return basePrompt + adaptiveInstructions;
 }
 
+function buildBanditReason(selectedAction, context = {}) {
+  const reasonMap = {
+    visual_widget: "Adapting with a visual-first explanation for this learning state.",
+    guided_steps: "Switching to guided steps because recent signals suggest the learner needs more support.",
+    quiz_check: "Adding a quick check because the learner appears ready to confirm understanding.",
+    text_explanation: "Using a clear text explanation to keep the response focused and stable.",
+  };
+
+  const contextNotes = [];
+  if (context.cognitiveState) contextNotes.push(`state: ${context.cognitiveState}`);
+  if (context.performanceTrend) contextNotes.push(`trend: ${context.performanceTrend}`);
+  if (context.topicStatus) contextNotes.push(`topic: ${context.topicStatus}`);
+
+  return `${reasonMap[selectedAction] || "Adapting based on recent performance."}${contextNotes.length ? ` (${contextNotes.join(', ')})` : ''}`;
+}
+
 const client = new AnthropicFoundry({
   apiKey: process.env.ANTHROPIC_API_KEY,
   baseURL: process.env.ANTHROPIC_BASE_URL,
@@ -300,7 +323,7 @@ function req_cleanup(res, stream, heartbeat, setAbort) {
 }
 
 router.post("/chat", async (req, res) => {
-  const { messages, userId } = req.body;
+  const { messages, userId, behavior = null, conversationId = null } = req.body;
   console.log("POST /api/chat", messages?.length, "messages", userId ? `user:${userId}` : "anonymous");
 
   if (!messages || !Array.isArray(messages)) {
@@ -344,6 +367,35 @@ router.post("/chat", async (req, res) => {
     // Get topic history for explanation
     const topicHistory = currentTopic && userId ? await getTopicHistory(userId, currentTopic) : null;
 
+    // Run bandit alongside the existing policy first; control can be enabled via env flag.
+    const banditMode = getBanditMode();
+    const banditEnvelope = getBanditDecisionEnvelope({
+      userId,
+      conversationId,
+      topic: currentTopic,
+      profile,
+      metrics,
+      adaptiveContext,
+      topicHistory,
+      behavior,
+    });
+    const banditDecision = createBanditDecision({
+      userId,
+      conversationId,
+      topicKey: banditEnvelope.topicInfo.topicKey,
+      topicLabel: banditEnvelope.topicInfo.topicLabel,
+      context: banditEnvelope.context,
+      selectedAction: banditEnvelope.selection.selectedAction,
+      decisionSource: banditEnvelope.selection.decisionSource,
+      confidenceLevel: banditEnvelope.selection.confidenceLevel,
+      epsilonUsed: banditEnvelope.selection.epsilonUsed,
+      shadow: !banditMode.controlEnabled,
+    });
+
+    if (banditMode.controlEnabled) {
+      systemPrompt += getBanditActionPrompt(banditDecision);
+    }
+
     // Run adaptive policy for decision context
     const policyDecision = adaptivePolicy({
       cognitiveState: adaptiveContext?.cognitive_state || 'flow',
@@ -361,19 +413,28 @@ router.post("/chat", async (req, res) => {
       policyDecision,
       topicHistory,
     });
+    explanation.reasons = Array.isArray(explanation.reasons) ? explanation.reasons : [];
+    explanation.reasons.unshift(buildBanditReason(banditDecision.selectedAction, banditEnvelope.context));
 
     // Send personalization metadata at start of stream
     sendSSE(res, {
       type: "personalization_meta",
       explanation,
       cognitiveState: adaptiveContext?.cognitive_state || 'flow',
-      topic: currentTopic,
+      topic: banditEnvelope.topicInfo.topicLabel || currentTopic,
+      topicKey: banditEnvelope.topicInfo.topicKey,
       strategy: {
         force_visual: strategy.force_visual,
         response_length: strategy.response_length,
         explanation_style: strategy.explanation_style,
         interaction_mode: strategy.interaction_mode,
       },
+      decisionId: banditDecision.id,
+      selectedAction: banditDecision.selectedAction,
+      decisionSource: banditDecision.decisionSource,
+      confidenceLevel: banditDecision.confidenceLevel,
+      banditMode: banditMode.controlEnabled ? "control" : "shadow",
+      adaptationReason: buildBanditReason(banditDecision.selectedAction, banditEnvelope.context),
     });
 
     const stream = client.messages.stream({
@@ -486,7 +547,12 @@ router.post("/chat", async (req, res) => {
 });
 
 router.post("/tool-result", async (req, res) => {
-  const { messages, userId } = req.body;
+  const {
+    messages,
+    userId,
+    conversationId = null,
+    bandit = null,
+  } = req.body;
   console.log("POST /api/tool-result", messages?.length, "messages", userId ? `user:${userId}` : "anonymous");
 
   if (!messages || !Array.isArray(messages)) {
@@ -509,7 +575,23 @@ router.post("/tool-result", async (req, res) => {
 
     // Generate personalization strategy with query context and metrics
     const strategy = getPersonalizationStrategy(profile, userQuery, metrics);
-    const systemPrompt = buildPersonalizedPrompt(strategy, profile, currentTopic);
+    let systemPrompt = buildPersonalizedPrompt(strategy, profile, currentTopic);
+    const banditMode = getBanditMode();
+    if (banditMode.controlEnabled && bandit?.selectedAction) {
+      systemPrompt += getBanditActionPrompt({
+        selectedAction: bandit.selectedAction,
+      });
+    }
+
+    if (bandit?.decisionId && bandit?.interactionData) {
+      recordBanditInteraction({
+        decisionId: bandit.decisionId,
+        interactionType: bandit.interactionType || 'tool_result',
+        data: bandit.interactionData,
+        source: 'tool_result',
+        eventId: bandit.eventId || null,
+      });
+    }
 
     const stream = client.messages.stream({
       model,

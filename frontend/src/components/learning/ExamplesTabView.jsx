@@ -36,8 +36,20 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
       .slice(0, 4);
   }, [examples]);
 
-  const hasAIExamples = examples.some(ex => ex.involves_ai);
-  const canPlayGame = gameExamples.length >= 4 && hasAIExamples;
+  // Check for balanced AI/non-AI examples for meaningful game
+  const aiExamplesCount = examples.filter(ex => ex.involves_ai).length;
+  const nonAiExamplesCount = examples.filter(ex => !ex.involves_ai).length;
+  const canPlayAIGame = gameExamples.length >= 4 && aiExamplesCount >= 1 && nonAiExamplesCount >= 1 && aiExamplesCount !== examples.length;
+
+  // For non-AI topics, we can play "Spot the Bug" instead
+  const buggyExamples = useMemo(() => {
+    return examples.filter(ex => ex.buggy_version && ex.bug_explanation);
+  }, [examples]);
+  const canPlayBugGame = buggyExamples.length >= 2;
+
+  // Selected buggy example for the bug game
+  const [currentBugExample, setCurrentBugExample] = useState(null);
+  const [bugGameRevealed, setBugGameRevealed] = useState(false);
 
   const handleExampleSelect = (exampleId) => {
     if (showResults) return;
@@ -78,7 +90,16 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
     setSelectedExamples(new Set());
     setShowResults(false);
     setScore(0);
+    setCurrentBugExample(null);
+    setBugGameRevealed(false);
     setViewMode(VIEW_MODES.browse);
+  };
+
+  const startBugGame = () => {
+    const randomExample = buggyExamples[Math.floor(Math.random() * buggyExamples.length)];
+    setCurrentBugExample(randomExample);
+    setBugGameRevealed(false);
+    setViewMode(VIEW_MODES.game);
   };
 
   const toggleCardExpanded = (cardId) => {
@@ -126,11 +147,8 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
 
   if (!examples || examples.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-        <p>No examples available for this topic</p>
+      <div className="py-12 text-center">
+        <p className="text-sm text-muted-foreground">No examples available for this topic</p>
       </div>
     );
   }
@@ -140,24 +158,17 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
     return (
       <div className="space-y-6">
         {/* Case Study Header */}
-        <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground">{activeCaseStudy.title}</h3>
-              <p className="text-sm text-muted-foreground">Interactive Case Study</p>
-            </div>
-            <button
-              onClick={resetGame}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Exit
-            </button>
+        <div className="flex items-center justify-between pb-4 border-b border-border">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Case Study</p>
+            <h3 className="font-semibold text-foreground">{activeCaseStudy.title}</h3>
           </div>
+          <button
+            onClick={resetGame}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Exit
+          </button>
         </div>
 
         {/* Progress Steps */}
@@ -165,10 +176,8 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
           {[0, 1, 2].map((step) => (
             <div
               key={step}
-              className={`flex-1 h-2 rounded-full ${
-                step <= caseStudyStep
-                  ? 'bg-indigo-500'
-                  : 'bg-muted'
+              className={`flex-1 h-1 rounded-full ${
+                step <= caseStudyStep ? 'bg-foreground/40' : 'bg-muted'
               }`}
             />
           ))}
@@ -178,75 +187,52 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
         <AnimatePresence mode="wait">
           <motion.div
             key={caseStudyStep}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="bg-card border border-border rounded-xl p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="border border-border rounded-md p-6"
           >
             {caseStudyStep === 0 && (
               <div className="space-y-4">
-                <h4 className="font-medium text-foreground">The Scenario</h4>
-                <p className="text-muted-foreground">{activeCaseStudy.description}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scenario</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{activeCaseStudy.description}</p>
                 {activeCaseStudy.real_world_context && (
-                  <div className="p-4 bg-muted/30 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">Real-world context:</span>{' '}
-                      {activeCaseStudy.real_world_context}
-                    </p>
-                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed border-l-2 border-border pl-4">
+                    {activeCaseStudy.real_world_context}
+                  </p>
                 )}
                 <button
                   onClick={() => setCaseStudyStep(1)}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
                 >
-                  Continue to Analysis
+                  Continue
                 </button>
               </div>
             )}
 
             {caseStudyStep === 1 && (
-              <div className="space-y-4">
-                <h4 className="font-medium text-foreground">What do you think?</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Based on the scenario, answer the following:
-                </p>
+              <div className="space-y-6">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Questions</p>
 
                 {/* Question 1 */}
                 <div className="space-y-3">
                   <p className="text-sm font-medium text-foreground">
-                    Does this example involve AI technology?
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Yes', 'No'].map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => handleCaseStudyAnswer(0, option === 'Yes')}
-                        className={`p-3 rounded-lg border-2 font-medium transition-all ${
-                          caseStudyAnswers[0] === (option === 'Yes')
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Question 2 */}
-                <div className="space-y-3 pt-4">
-                  <p className="text-sm font-medium text-foreground">
-                    What is the main benefit of this application?
+                    {activeCaseStudy.challenge_question || "What problem does this example solve?"}
                   </p>
                   <div className="space-y-2">
-                    {['Efficiency', 'Accuracy', 'Cost Savings', 'User Experience'].map((option, idx) => (
+                    {(activeCaseStudy.challenge_options || [
+                      "Organizing data efficiently",
+                      "Finding specific items quickly",
+                      "Processing large datasets",
+                      "Simplifying complex operations"
+                    ]).map((option, idx) => (
                       <button
                         key={option}
-                        onClick={() => handleCaseStudyAnswer(1, idx)}
-                        className={`w-full p-3 rounded-lg border-2 text-left font-medium transition-all ${
-                          caseStudyAnswers[1] === idx
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border hover:border-primary/50'
+                        onClick={() => handleCaseStudyAnswer(0, idx)}
+                        className={`w-full p-3 rounded-md border text-left text-sm transition-colors ${
+                          caseStudyAnswers[0] === idx
+                            ? 'border-foreground bg-muted font-medium'
+                            : 'border-border hover:bg-muted/50'
                         }`}
                       >
                         {option}
@@ -258,69 +244,41 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
                 <button
                   onClick={() => setCaseStudyStep(2)}
                   disabled={caseStudyAnswers[0] === undefined}
-                  className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     caseStudyAnswers[0] !== undefined
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-foreground text-background hover:bg-foreground/90'
                       : 'bg-muted text-muted-foreground cursor-not-allowed'
                   }`}
                 >
-                  See Results
+                  Continue
                 </button>
               </div>
             )}
 
             {caseStudyStep === 2 && (
-              <div className="space-y-4">
-                <div className={`p-4 rounded-lg ${
-                  caseStudyAnswers[0] === activeCaseStudy.involves_ai
-                    ? 'bg-green-500/10 border border-green-500/30'
-                    : 'bg-amber-500/10 border border-amber-500/30'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {caseStudyAnswers[0] === activeCaseStudy.involves_ai ? (
-                      <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    )}
-                    <span className={`font-medium ${
-                      caseStudyAnswers[0] === activeCaseStudy.involves_ai
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-amber-600 dark:text-amber-400'
-                    }`}>
-                      {caseStudyAnswers[0] === activeCaseStudy.involves_ai ? 'Correct!' : 'Not quite'}
-                    </span>
-                  </div>
-                  <p className="text-sm text-foreground">
-                    This example {activeCaseStudy.involves_ai ? 'does involve' : 'does not involve'} AI technology.
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Summary</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Understanding how this concept applies in real-world contexts helps you make better decisions.
                     {activeCaseStudy.real_world_context && (
-                      <span className="block mt-2 text-muted-foreground">{activeCaseStudy.real_world_context}</span>
+                      <span className="block mt-2">{activeCaseStudy.real_world_context}</span>
                     )}
                   </p>
                 </div>
 
-                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Key Takeaway</p>
-                      <p className="text-sm text-foreground mt-1">
-                        Understanding whether a system uses AI helps you evaluate its capabilities, limitations, and ethical considerations.
-                      </p>
-                    </div>
+                {activeCaseStudy.explanation && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Explanation</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{activeCaseStudy.explanation}</p>
                   </div>
-                </div>
+                )}
 
                 <button
                   onClick={completeCaseStudy}
-                  className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
                 >
-                  Complete Case Study
+                  Complete
                 </button>
               </div>
             )}
@@ -332,29 +290,109 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
 
   // Game Mode
   if (viewMode === VIEW_MODES.game) {
+    // Bug Game Mode
+    if (currentBugExample) {
+      return (
+        <div className="space-y-6">
+          {/* Bug Game Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-border">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Exercise</p>
+              <h3 className="font-semibold text-foreground">Spot the Bug</h3>
+            </div>
+            <button
+              onClick={resetGame}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Exit
+            </button>
+          </div>
+
+          {/* Bug Code Display */}
+          <div className="border border-border rounded-md overflow-hidden">
+            <div className="px-4 py-3 border-b border-border">
+              <h4 className="text-sm font-medium text-foreground">{currentBugExample.title}</h4>
+            </div>
+            <pre className="p-4 overflow-x-auto text-sm font-mono bg-muted/30">
+              <code className="text-foreground">{currentBugExample.buggy_version}</code>
+            </pre>
+          </div>
+
+          {/* Reveal / Results */}
+          {!bugGameRevealed ? (
+            <div className="flex gap-3">
+              <button
+                onClick={resetGame}
+                className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => setBugGameRevealed(true)}
+                className="px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
+              >
+                Reveal
+              </button>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-4"
+            >
+              {/* Bug Explanation */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Issue</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{currentBugExample.bug_explanation}</p>
+              </div>
+
+              {/* Correct Code */}
+              {currentBugExample.code && (
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div className="px-4 py-2 border-b border-border">
+                    <p className="text-xs font-medium text-muted-foreground">Correct version</p>
+                  </div>
+                  <pre className="p-4 overflow-x-auto text-sm font-mono bg-muted/30">
+                    <code className="text-foreground">{currentBugExample.code}</code>
+                  </pre>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={startBugGame}
+                  className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={resetGame}
+                  className="px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      );
+    }
+
+    // AI Game Mode
     return (
       <div className="space-y-6">
         {/* Game Header */}
-        <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">Is this AI?</h3>
-              <p className="text-sm text-muted-foreground">
-                Select the examples that involve artificial intelligence
-              </p>
-            </div>
+        <div className="flex items-center justify-between pb-4 border-b border-border">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Exercise</p>
+            <h3 className="font-semibold text-foreground">Identify AI examples</h3>
           </div>
-
-          {!showResults && (
-            <p className="text-xs text-muted-foreground">
-              Click on examples you think involve AI, then submit your answers
-            </p>
-          )}
+          <button
+            onClick={resetGame}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Exit
+          </button>
         </div>
 
         {/* Game Cards */}
@@ -484,8 +522,8 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
   // Regular Examples View
   return (
     <div className="space-y-6">
-      {/* Game CTA */}
-      {canPlayGame && (
+      {/* Game CTA - Show AI game or Bug game based on content */}
+      {canPlayAIGame && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -506,6 +544,35 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
             </div>
             <button
               onClick={() => setViewMode(VIEW_MODES.game)}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm"
+            >
+              Play Now
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Spot the Bug CTA - Show for non-AI topics with buggy examples */}
+      {!canPlayAIGame && canPlayBugGame && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-4"
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-foreground">Play "Spot the Bug"</h4>
+                <p className="text-sm text-muted-foreground">Find common mistakes in code examples</p>
+              </div>
+            </div>
+            <button
+              onClick={startBugGame}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm"
             >
               Play Now
@@ -597,7 +664,10 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
                           Explore Case Study
                         </button>
                         <a
-                          href={`https://www.google.com/search?q=${encodeURIComponent(example.title)}+explained`}
+                          href={`https://www.google.com/search?q=${encodeURIComponent(
+                            example.search_keywords?.[0] ||
+                            (example.real_world_context ? example.real_world_context.split(' ').slice(0, 5).join(' ') : example.title)
+                          )}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 px-3 py-2 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors"

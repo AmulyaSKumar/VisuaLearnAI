@@ -13,7 +13,7 @@ export default function AdaptiveFeedbackBanner({
 
   if (!personalizationMeta || !isVisible) return null;
 
-  const { explanation, cognitiveState, topic, strategy } = personalizationMeta;
+  const { explanation, cognitiveState, topic, strategy, selectedAction, adaptationReason, confidenceLevel } = personalizationMeta;
 
   // State configuration
   const stateConfig = {
@@ -164,6 +164,32 @@ export default function AdaptiveFeedbackBanner({
                   <span>{change.label}</span>
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {(selectedAction || adaptationReason) && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+              Bandit Decision
+            </p>
+            <div className="space-y-1 text-xs">
+              {selectedAction && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Action:</span>
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                    {selectedAction.replace(/_/g, ' ')}
+                  </span>
+                  {confidenceLevel && (
+                    <span className="text-[10px] text-muted-foreground">
+                      confidence: {confidenceLevel}
+                    </span>
+                  )}
+                </div>
+              )}
+              {adaptationReason && (
+                <p className="text-muted-foreground">{adaptationReason}</p>
+              )}
             </div>
           </div>
         )}
