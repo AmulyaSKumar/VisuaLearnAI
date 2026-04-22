@@ -18,6 +18,8 @@ export function AuthProvider({ children }) {
     let isMounted = true;
 
     const unsubscribe = onAuthStateChange((event, newSession) => {
+      console.log('[AuthContext] Auth state changed:', event, newSession?.user?.email);
+
       if (!isMounted) {
         return;
       }
@@ -26,11 +28,17 @@ export function AuthProvider({ children }) {
       setUser(newSession?.user || null);
       setError(null);
 
+      // Important: Set loading to false when we get auth state
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        setIsLoading(false);
+      }
     });
 
     async function initAuth() {
+      console.log('[AuthContext] Initializing auth...');
       try {
         const { session: initialSession, user: initialUser, error: sessionError } = await getSession();
+        console.log('[AuthContext] Got session:', initialUser?.email || 'no user', sessionError);
 
         if (!isMounted) {
           return;
@@ -40,13 +48,14 @@ export function AuthProvider({ children }) {
         setUser(initialUser);
         setError(sessionError || null);
       } catch (err) {
-        console.error('Auth initialization error:', err);
+        console.error('[AuthContext] Auth initialization error:', err);
 
         if (isMounted) {
           setError(err.message);
         }
       } finally {
         if (isMounted) {
+          console.log('[AuthContext] Auth loading complete');
           setIsLoading(false);
         }
       }

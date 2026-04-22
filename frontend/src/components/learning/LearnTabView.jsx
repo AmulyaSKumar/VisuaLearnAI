@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import ListenButton from './ListenButton';
 
 // ============================================
 // PROFESSIONAL CONTENT BLOCK LABELS
@@ -634,20 +634,6 @@ function SkillProgress({ skillAreas = [], completedIds }) {
   );
 }
 
-// ============================================
-// TTS CONTROL BUTTON (TEXT-BASED)
-// ============================================
-
-function TTSControl({ isPlaying, onPlay, onStop }) {
-  return (
-    <button
-      onClick={isPlaying ? onStop : onPlay}
-      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-    >
-      {isPlaying ? 'Stop' : 'Listen'}
-    </button>
-  );
-}
 
 // ============================================
 // MAIN CONTENT AREA
@@ -664,7 +650,6 @@ function MainContent({
 }) {
   const difficultyLabel = DIFFICULTY_LABELS[idea?.difficulty] || DIFFICULTY_LABELS.foundational;
   const blocks = idea?.blocks || [];
-  const { isSpeaking, speak, stop, isSupported } = useTextToSpeech();
 
   // Generate fallback blocks if none exist
   const displayBlocks = blocks.length > 0 ? blocks : [
@@ -687,16 +672,6 @@ function MainContent({
     return text;
   }, [idea, displayBlocks]);
 
-  const handleSpeak = useCallback(() => {
-    const text = getReadableContent();
-    if (text) speak(text);
-  }, [getReadableContent, speak]);
-
-  // Stop TTS when switching concepts
-  useEffect(() => {
-    return () => stop();
-  }, [idea?.id, stop]);
-
   if (!idea) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -705,24 +680,24 @@ function MainContent({
     );
   }
 
+  const readableText = getReadableContent();
+
   return (
     <article className="space-y-8">
       {/* Header */}
       <header>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
-          <span>{difficultyLabel}</span>
-          {idea.time_estimate && (
-            <>
-              <span>·</span>
-              <span>{idea.time_estimate} min read</span>
-            </>
-          )}
-          {isSupported && (
-            <>
-              <span>·</span>
-              <TTSControl isPlaying={isSpeaking} onPlay={handleSpeak} onStop={stop} />
-            </>
-          )}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>{difficultyLabel}</span>
+            {idea.time_estimate && (
+              <>
+                <span>·</span>
+                <span>{idea.time_estimate} min read</span>
+              </>
+            )}
+          </div>
+          {/* Listen Button - prominently placed */}
+          <ListenButton text={readableText} variant="default" />
         </div>
         <h2 className="text-xl font-semibold text-foreground tracking-tight">{idea.title}</h2>
         {idea.subtitle && (

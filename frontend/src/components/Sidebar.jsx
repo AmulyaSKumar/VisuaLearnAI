@@ -317,7 +317,7 @@ export default function Sidebar({
                         <button
                           type="button"
                           onClick={() => handleRenameStart(conversation)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50 text-foreground/70 hover:bg-muted hover:text-foreground dark:bg-white/10 dark:text-white/70 dark:hover:bg-white/20 dark:hover:text-white"
                           title="Rename session"
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -328,7 +328,7 @@ export default function Sidebar({
                         <button
                           type="button"
                           onClick={() => handleDeleteStart(conversation.id)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-transparent text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/10"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50 text-foreground/70 hover:bg-red-100 hover:text-red-600 dark:bg-white/10 dark:text-white/70 dark:hover:bg-red-500/20 dark:hover:text-red-400"
                           title="Delete session"
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

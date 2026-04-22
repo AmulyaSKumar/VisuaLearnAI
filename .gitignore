@@ -29,3 +29,5 @@ npm-debug.log*
 
 # Lock files (using npm)
 bun.lock
+
+.mcp.json

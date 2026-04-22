@@ -25,15 +25,26 @@ export default function LoginPage() {
     setGoogleLoading(true);
 
     try {
+      console.log('[LoginPage] Starting Google sign-in...');
       const result = await signInWithGoogle();
+      console.log('[LoginPage] Sign-in result:', result);
 
       if (!result.success) {
         setError(result.error || 'Google sign in failed');
+        setGoogleLoading(false);
+        return;
       }
-      // OAuth will redirect, so no need to navigate manually
+
+      // OAuth should redirect automatically, but if not, show error
+      setTimeout(() => {
+        if (googleLoading) {
+          setError('Redirect did not happen. Please check if Google OAuth is configured in Supabase Dashboard.');
+          setGoogleLoading(false);
+        }
+      }, 5000);
     } catch (err) {
+      console.error('[LoginPage] Google sign-in error:', err);
       setError(err.message || 'An error occurred');
-    } finally {
       setGoogleLoading(false);
     }
   };

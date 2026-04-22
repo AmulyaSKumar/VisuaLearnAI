@@ -11,7 +11,7 @@ import FlashcardsView from "../components/learning/FlashcardsView";
 import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
-import { LearnSkeleton, FlashcardSkeleton, QuizSkeleton, MindMapSkeleton, ExamplesSkeleton } from "../components/learning/SkeletonLoader";
+import EngagingLoader from "../components/learning/EngagingLoader";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -416,42 +416,10 @@ function LearningPageContent() {
   }, [userQuery, conversation?.title, accessToken, depthLevel, regenerateBlock]);
 
 
-  // Loading messages for each view type
-  const loadingMessages = {
-    learn: 'Preparing your lesson...',
-    examples: 'Finding relevant examples...',
-    flashcards: 'Creating flashcards...',
-    quiz: 'Generating quiz questions...',
-    mindmap: 'Building mind map...',
-  };
-
-  // Render skeleton loader based on active tab
-  const renderSkeleton = () => {
-    const message = loadingMessages[activeTab] || 'Loading...';
-    const SkeletonWithMessage = ({ children }) => (
-      <div>
-        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          {message}
-        </div>
-        {children}
-      </div>
-    );
-
-    switch (activeTab) {
-      case 'learn':
-        return <SkeletonWithMessage><LearnSkeleton /></SkeletonWithMessage>;
-      case 'examples':
-        return <SkeletonWithMessage><ExamplesSkeleton /></SkeletonWithMessage>;
-      case 'flashcards':
-        return <SkeletonWithMessage><FlashcardSkeleton /></SkeletonWithMessage>;
-      case 'quiz':
-        return <SkeletonWithMessage><QuizSkeleton /></SkeletonWithMessage>;
-      case 'mindmap':
-        return <SkeletonWithMessage><MindMapSkeleton /></SkeletonWithMessage>;
-      default:
-        return <SkeletonWithMessage><LearnSkeleton /></SkeletonWithMessage>;
-    }
+  // Render engaging loader based on active tab
+  const renderLoader = () => {
+    const topic = learningContent?.topic || conversation?.title || userQuery;
+    return <EngagingLoader tabType={activeTab} topic={topic} />;
   };
 
   // Check if a specific tab is loading (use local loadingTabs state)
@@ -476,7 +444,7 @@ function LearningPageContent() {
   const renderTabContent = () => {
     // Show initial loading state
     if (isLoading) {
-      return renderSkeleton();
+      return renderLoader();
     }
 
     // Show error UI for failed tab loads
@@ -502,7 +470,7 @@ function LearningPageContent() {
 
     // Show tab-specific loading state for lazy loading
     if (isTabLoading(activeTab) || (isLearningContentLoading && !loadedTabs.has(activeTab))) {
-      return renderSkeleton();
+      return renderLoader();
     }
 
     switch (activeTab) {

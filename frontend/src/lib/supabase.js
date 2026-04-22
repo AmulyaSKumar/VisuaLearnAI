@@ -111,21 +111,41 @@ export async function signInWithGoogle() {
   }
 
   try {
+    console.log('[Auth] Starting Google OAuth...');
+    console.log('[Auth] Redirect URL:', `${window.location.origin}/chat/new`);
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/chat/new`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
 
+    console.log('[Auth] OAuth response:', { data, error });
+
     if (error) {
+      console.error('[Auth] OAuth error:', error);
       throw new Error(error.message);
     }
 
+    // If we get here without redirect, something's wrong
+    if (!data?.url) {
+      console.error('[Auth] No redirect URL returned from Supabase');
+      return {
+        success: false,
+        error: 'Google sign-in failed. Make sure Google provider is enabled in Supabase Dashboard → Authentication → Providers → Google'
+      };
+    }
+
+    console.log('[Auth] Redirecting to:', data.url);
     return { success: true, data };
   } catch (error) {
-    console.error('Google sign in error:', error);
-    return { success: false, error: getFriendlyAuthError(error, 'Unable to sign in with Google') };
+    console.error('[Auth] Google sign in error:', error);
+    return { success: false, error: getFriendlyAuthError(error, 'Unable to sign in with Google. Check if Google provider is enabled in Supabase.') };
   }
 }
 

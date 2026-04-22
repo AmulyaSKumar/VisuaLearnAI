@@ -413,8 +413,10 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
                 disabled={showResults}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${
                   showResults
-                    ? example.involves_ai
-                      ? 'border-green-500 bg-green-500/10'
+                    ? isCorrect
+                      ? example.involves_ai
+                        ? 'border-green-500 bg-green-500/10'
+                        : 'border-border bg-card'
                       : isWrong
                         ? 'border-red-500 bg-red-500/10'
                         : 'border-border bg-card'
