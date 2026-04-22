@@ -79,7 +79,7 @@ export default function InputBar({ onSend, inputDisabled = false, onVoiceStart }
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
-        className="w-full relative flex items-center bg-sidebar border border-sidebar-border rounded-xl focus-within:ring-1 focus-within:ring-ring focus-within:border-ring shadow-sm overflow-hidden"
+        className="w-full relative flex items-center neu-pressed rounded-xl overflow-hidden"
       >
         <input
           type="text"
@@ -88,17 +88,17 @@ export default function InputBar({ onSend, inputDisabled = false, onVoiceStart }
           onKeyDown={handleKeyDown}
           placeholder={showPlaceholder ? PLACEHOLDERS[placeholderIndex] : ""}
           disabled={inputDisabled}
-          className={`flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm sm:text-[15px] py-3 sm:py-4 px-4 text-foreground placeholder:text-muted-foreground disabled:opacity-50 transition-opacity ${
+          className={`flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm sm:text-[15px] py-4 sm:py-5 px-5 text-foreground placeholder:text-muted-foreground disabled:opacity-50 transition-opacity ${
             showPlaceholder ? "placeholder:opacity-100" : "placeholder:opacity-0"
           }`}
         />
 
-        <div className="flex items-center gap-1 sm:gap-2 pr-2">
+        <div className="flex items-center gap-2 pr-3">
           {displayText && (
             <button
               type="button"
               onClick={handleClear}
-              className="w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent flex items-center justify-center transition-colors"
+              className="w-9 h-9 neu-btn rounded-lg text-muted-foreground hover:text-foreground flex items-center justify-center"
               title="Clear"
             >
               <svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -111,10 +111,10 @@ export default function InputBar({ onSend, inputDisabled = false, onVoiceStart }
             <button
               type="button"
               onClick={handleVoiceClick}
-              className={`w-10 h-10 min-h-[44px] min-w-[44px] rounded-md flex items-center justify-center transition-colors ${
+              className={`w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center transition-all ${
                 isListening
-                  ? "bg-rose-500 hover:bg-rose-600 text-white animate-pulse"
-                  : "bg-sidebar-accent hover:bg-sidebar-border text-foreground"
+                  ? "neu-btn-primary animate-pulse"
+                  : "neu-btn text-foreground"
               }`}
               title={isListening ? "Stop listening" : "Voice input"}
             >
@@ -126,7 +126,7 @@ export default function InputBar({ onSend, inputDisabled = false, onVoiceStart }
             <button
               type="submit"
               disabled={inputDisabled}
-              className="w-10 h-10 min-h-[44px] min-w-[44px] rounded-md bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center transition-colors disabled:opacity-50"
+              className="w-11 h-11 min-h-[44px] min-w-[44px] neu-btn-primary rounded-xl flex items-center justify-center disabled:opacity-50"
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.14645 2.14645C7.34171 1.95118 7.65829 1.95118 7.85355 2.14645L11.8536 6.14645C12.0488 6.34171 12.0488 6.65829 11.8536 6.85355C11.6583 7.04882 11.3417 7.04882 11.1464 6.85355L8 3.70711L8 12.5C8 12.7761 7.77614 13 7.5 13C7.22386 13 7 12.7761 7 12.5L7 3.70711L3.85355 6.85355C3.65829 7.04882 3.34171 7.04882 3.14645 6.85355C2.95118 6.65829 2.95118 6.34171 3.14645 6.14645L7.14645 2.14645Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
             </button>

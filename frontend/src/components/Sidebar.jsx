@@ -129,7 +129,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-[280px] h-full bg-sidebar border-r border-sidebar-border flex flex-col pt-4 pb-4">
+    <div className="w-[280px] h-full bg-sidebar flex flex-col pt-4 pb-4 neu-raised-lg">
       <div className="px-4 mb-6 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 group min-h-[44px]">
           <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
@@ -164,7 +164,7 @@ export default function Sidebar({
             navigate("/chat/new");
             onClose?.();
           }}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-3 min-h-[44px] rounded-lg text-sm font-medium transition-all hover:opacity-90 shadow-sm"
+          className="w-full flex items-center justify-center gap-2 neu-btn-primary px-3 min-h-[44px] text-sm font-medium"
         >
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
@@ -203,10 +203,10 @@ export default function Sidebar({
                   key={conversation.id}
                   ref={isDeleteConfirming ? deleteContainerRef : null}
                   data-conversation-item-id={conversation.id}
-                  className={`group/item rounded-lg border border-transparent px-2 py-2 min-h-[44px] transition-colors ${
+                  className={`group/item rounded-xl px-2 py-2 min-h-[44px] transition-all ${
                     isActive
-                      ? "bg-sidebar-accent text-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                      ? "neu-pressed-sm text-foreground"
+                      : "text-sidebar-foreground hover:neu-raised-sm"
                   }`}
                 >
                   {isDeleteConfirming ? (
@@ -349,9 +349,9 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="px-4 pt-4 border-t border-sidebar-border mt-auto space-y-3">
+      <div className="px-4 pt-4 mt-auto space-y-3">
         {user && (
-          <div className="rounded-lg bg-sidebar-accent/50 p-2.5">
+          <div className="neu-pressed-sm p-2.5">
             <p className="text-[11px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">
               Account
             </p>
@@ -364,7 +364,7 @@ export default function Sidebar({
         <div className="flex items-center gap-2">
           <button
             onClick={toggleTheme}
-            className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent px-3 min-h-[44px] rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground neu-btn px-3 min-h-[44px]"
           >
             {theme === "dark" ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -391,7 +391,7 @@ export default function Sidebar({
               await signOut();
               navigate("/login");
             }}
-            className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-3 min-h-[44px] rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-destructive neu-btn px-3 min-h-[44px]"
             title="Sign out"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

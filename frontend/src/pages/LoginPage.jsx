@@ -131,7 +131,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo and Title */}
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center neu-circle">
             <svg className="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -144,16 +144,16 @@ export default function LoginPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="rounded-xl border border-border bg-card shadow-lg overflow-hidden">
+        <div className="neu-card overflow-hidden">
           {/* Tab Navigation */}
-          <div className="flex border-b border-border">
+          <div className="flex gap-2 mb-6 p-1 neu-pressed rounded-xl">
             <button
               type="button"
               onClick={() => switchMode('signin')}
-              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-colors ${
+              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-all rounded-lg ${
                 mode === 'signin'
-                  ? 'bg-background text-foreground border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  ? 'neu-raised-sm text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Sign In
@@ -161,10 +161,10 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => switchMode('signup')}
-              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-colors ${
+              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-all rounded-lg ${
                 mode === 'signup'
-                  ? 'bg-background text-foreground border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  ? 'neu-raised-sm text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Sign Up
@@ -172,7 +172,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error Message */}
             {error && (
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
@@ -196,7 +196,7 @@ export default function LoginPage() {
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
                 Email
               </label>
               <input
@@ -207,13 +207,13 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                className="w-full neu-input"
               />
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
                 Password
               </label>
               <input
@@ -224,14 +224,14 @@ export default function LoginPage() {
                 placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'}
                 required
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                className="w-full neu-input"
               />
             </div>
 
             {/* Confirm Password (Sign Up only) */}
             {mode === 'signup' && (
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-1.5">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-2">
                   Confirm Password
                 </label>
                 <input
@@ -242,7 +242,7 @@ export default function LoginPage() {
                   placeholder="Confirm your password"
                   required
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="w-full neu-input"
                 />
               </div>
             )}
@@ -251,7 +251,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !hasSupabaseConfig}
-              className="w-full rounded-lg bg-primary px-4 py-2.5 min-h-[44px] font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              className="w-full neu-btn-primary px-4 py-3 min-h-[48px] font-medium mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -267,12 +267,10 @@ export default function LoginPage() {
             </button>
 
             {/* Divider */}
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+            <div className="relative my-6">
+              <div className="neu-divider"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-card px-3 text-xs uppercase text-muted-foreground">Or continue with</span>
               </div>
             </div>
 
@@ -281,7 +279,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={googleLoading || !hasSupabaseConfig}
-              className="w-full flex items-center justify-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5 min-h-[44px] font-medium text-foreground transition-all hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 neu-btn px-4 py-3 min-h-[48px] font-medium text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {googleLoading ? (
                 <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">

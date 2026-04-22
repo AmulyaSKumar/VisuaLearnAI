@@ -656,7 +656,7 @@ function LearningPageContent() {
 
           {/* Dynamic Tab Bar - only shows when more than Learn tab exists */}
           {visibleTabs.length > 1 && (
-            <div className="flex gap-1 mt-3 border-t border-border pt-3">
+            <div className="flex gap-2 mt-4 p-1.5 neu-pressed rounded-xl">
               {visibleTabs.map(tabId => {
                 const isActive = activeTab === tabId;
                 const isLoading = loadingTabs.has(tabId);
@@ -666,12 +666,12 @@ function LearningPageContent() {
                   <button
                     key={tabId}
                     onClick={() => setActiveTab(tabId)}
-                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                    className={`px-4 py-2.5 text-sm font-medium transition-all rounded-lg ${
                       isActive
-                        ? 'bg-primary/10 text-primary'
+                        ? 'neu-raised-sm text-primary'
                         : hasError
-                          ? 'text-destructive hover:bg-destructive/10'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          ? 'text-destructive hover:neu-raised-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:neu-raised-sm'
                     }`}
                   >
                     {TAB_LABELS[tabId]}

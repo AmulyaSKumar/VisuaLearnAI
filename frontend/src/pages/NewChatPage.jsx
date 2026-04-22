@@ -215,9 +215,9 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
     <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
       <div className="w-full max-w-2xl space-y-6 sm:space-y-8">
         {/* Hero */}
-        <div className="text-center space-y-2 sm:space-y-3">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
-            <svg className="w-6 h-6 sm:w-8 sm:h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="text-center space-y-3 sm:space-y-4">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto neu-circle flex items-center justify-center">
+            <svg className="w-7 h-7 sm:w-9 sm:h-9 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
@@ -229,7 +229,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         </div>
 
         {/* Document Section */}
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="neu-card-sm overflow-hidden">
           {/* Document Header */}
           <button
             onClick={() => setShowDocuments(!showDocuments)}
@@ -405,20 +405,22 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             />
 
             {/* Suggestions */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-xs text-muted-foreground text-center font-medium uppercase tracking-wider">
                 Try these examples
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSuggestionClick(suggestion)}
-                    className="flex items-center gap-3 p-3 min-h-[44px] bg-muted/30 hover:bg-muted/50 border border-border/50 rounded-xl text-left transition-all group"
+                    className="flex items-center gap-3 p-4 min-h-[52px] neu-btn text-left group"
                   >
-                    <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                    <div className="w-8 h-8 neu-circle-pressed flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
                     <span className="text-sm text-foreground/80 group-hover:text-foreground">
                       {suggestion.text}
                     </span>
