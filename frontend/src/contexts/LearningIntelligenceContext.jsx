@@ -16,8 +16,12 @@ const DEFAULT_PROFILE = {
   // Current topic being studied
   currentTopic: null,
 
-  // Depth preference: 'simple' | 'balanced' | 'technical'
-  depthLevel: 'balanced',
+  // Depth preference: 'simple' | 'balanced' | 'deep'
+  // Starts at 'simple' for new users - will adapt based on performance
+  depthLevel: 'simple',
+
+  // Whether depth has been manually set by user (overrides auto-adaptation)
+  depthManuallySet: false,
 
   // Concept mastery tracking
   concepts: {},
@@ -47,6 +51,71 @@ const DEFAULT_PROFILE = {
 const WEAK_THRESHOLD = 0.4;
 const STRONG_THRESHOLD = 0.75;
 
+// Depth adaptation thresholds
+const DEPTH_THRESHOLDS = {
+  // If avg accuracy >= 80% after 5+ attempts, suggest 'deep'
+  toDeep: { minAccuracy: 0.8, minAttempts: 5 },
+  // If avg accuracy >= 60% after 3+ attempts, suggest 'balanced'
+  toBalanced: { minAccuracy: 0.6, minAttempts: 3 },
+  // If avg accuracy < 50% after 3+ attempts, suggest 'simple'
+  toSimple: { maxAccuracy: 0.5, minAttempts: 3 },
+};
+
+/**
+ * Calculate recommended depth based on user performance
+ * @param {Object} stats - User stats { totalAttempts, totalCorrect, totalQuizzes }
+ * @param {Array} quizHistory - Recent quiz results
+ * @returns {'simple' | 'balanced' | 'deep'}
+ */
+function calculateAdaptiveDepth(stats, quizHistory = []) {
+  const { totalAttempts, totalCorrect } = stats;
+
+  // Not enough data - stay at simple for new users
+  if (totalAttempts < 3) {
+    return 'simple';
+  }
+
+  // Calculate overall accuracy
+  const overallAccuracy = totalCorrect / totalAttempts;
+
+  // Look at recent quiz performance (last 3 quizzes)
+  const recentQuizzes = quizHistory.slice(0, 3);
+  let recentAccuracy = overallAccuracy; // Fallback to overall
+
+  if (recentQuizzes.length >= 2) {
+    const recentCorrect = recentQuizzes.reduce((sum, q) =>
+      sum + (q.score / 100) * q.totalQuestions, 0);
+    const recentTotal = recentQuizzes.reduce((sum, q) => sum + q.totalQuestions, 0);
+    recentAccuracy = recentTotal > 0 ? recentCorrect / recentTotal : overallAccuracy;
+  }
+
+  // Use weighted average: 60% recent, 40% overall
+  const weightedAccuracy = (recentAccuracy * 0.6) + (overallAccuracy * 0.4);
+
+  // Determine depth based on performance
+  if (totalAttempts >= DEPTH_THRESHOLDS.toDeep.minAttempts &&
+      weightedAccuracy >= DEPTH_THRESHOLDS.toDeep.minAccuracy) {
+    return 'deep';
+  }
+
+  if (totalAttempts >= DEPTH_THRESHOLDS.toBalanced.minAttempts &&
+      weightedAccuracy >= DEPTH_THRESHOLDS.toBalanced.minAccuracy) {
+    return 'balanced';
+  }
+
+  if (totalAttempts >= DEPTH_THRESHOLDS.toSimple.minAttempts &&
+      weightedAccuracy < DEPTH_THRESHOLDS.toSimple.maxAccuracy) {
+    return 'simple';
+  }
+
+  // Default progression: simple -> balanced after some attempts with decent accuracy
+  if (totalAttempts >= 3 && weightedAccuracy >= 0.5) {
+    return 'balanced';
+  }
+
+  return 'simple';
+}
+
 export function LearningIntelligenceProvider({ children }) {
   // Load profile from localStorage
   const [profile, setProfile] = useState(() => {
@@ -71,11 +140,53 @@ export function LearningIntelligenceProvider({ children }) {
   }, [profile]);
 
   // ============================================
-  // DEPTH LEVEL MANAGEMENT
+  // DEPTH LEVEL MANAGEMENT (Adaptive)
   // ============================================
 
-  const setDepthLevel = useCallback((level) => {
-    setProfile(prev => ({ ...prev, depthLevel: level }));
+  // Calculate recommended depth based on current performance
+  const recommendedDepth = useMemo(() => {
+    return calculateAdaptiveDepth(profile.stats, profile.quizHistory);
+  }, [profile.stats, profile.quizHistory]);
+
+  // Set depth level (marks as manually set, disabling auto-adaptation)
+  const setDepthLevel = useCallback((level, isManual = true) => {
+    setProfile(prev => ({
+      ...prev,
+      depthLevel: level,
+      depthManuallySet: isManual
+    }));
+  }, []);
+
+  // Auto-adapt depth based on performance (only if not manually set)
+  const autoAdaptDepth = useCallback(() => {
+    setProfile(prev => {
+      // Don't auto-adapt if user manually set a preference
+      if (prev.depthManuallySet) {
+        return prev;
+      }
+
+      const newDepth = calculateAdaptiveDepth(prev.stats, prev.quizHistory);
+
+      // Only change if different
+      if (newDepth !== prev.depthLevel) {
+        console.log(`[LearningIntelligence] Auto-adapting depth: ${prev.depthLevel} -> ${newDepth}`);
+        return { ...prev, depthLevel: newDepth };
+      }
+
+      return prev;
+    });
+  }, []);
+
+  // Reset manual override (re-enable auto-adaptation)
+  const resetDepthToAuto = useCallback(() => {
+    setProfile(prev => {
+      const autoDepth = calculateAdaptiveDepth(prev.stats, prev.quizHistory);
+      return {
+        ...prev,
+        depthLevel: autoDepth,
+        depthManuallySet: false
+      };
+    });
   }, []);
 
   // ============================================
@@ -208,7 +319,11 @@ export function LearningIntelligenceProvider({ children }) {
         }
       };
     });
-  }, [updateConceptMastery]);
+
+    // Trigger auto-adaptation after quiz results are recorded
+    // Use setTimeout to ensure state has updated
+    setTimeout(() => autoAdaptDepth(), 0);
+  }, [updateConceptMastery, autoAdaptDepth]);
 
   // ============================================
   // CONTENT RECOMMENDATIONS
@@ -327,12 +442,18 @@ export function LearningIntelligenceProvider({ children }) {
     // Profile data
     profile,
     depthLevel: profile.depthLevel,
+    depthManuallySet: profile.depthManuallySet,
+    recommendedDepth,
     weakAreas: profile.weakAreas,
     strongAreas: profile.strongAreas,
     stats: profile.stats,
 
-    // Actions
+    // Depth actions
     setDepthLevel,
+    autoAdaptDepth,
+    resetDepthToAuto,
+
+    // Learning actions
     updateConceptMastery,
     recordQuizResult,
     getRecommendations,
@@ -344,9 +465,16 @@ export function LearningIntelligenceProvider({ children }) {
     isConceptWeak: (id) => profile.concepts[id]?.confidence < WEAK_THRESHOLD,
     isConceptStrong: (id) => profile.concepts[id]?.confidence >= STRONG_THRESHOLD,
     getConceptConfidence: (id) => profile.concepts[id]?.confidence ?? 0.5,
+
+    // Depth helpers
+    isDepthAdaptive: !profile.depthManuallySet,
+    shouldSuggestDepthChange: recommendedDepth !== profile.depthLevel && !profile.depthManuallySet,
   }), [
     profile,
+    recommendedDepth,
     setDepthLevel,
+    autoAdaptDepth,
+    resetDepthToAuto,
     updateConceptMastery,
     recordQuizResult,
     getRecommendations,

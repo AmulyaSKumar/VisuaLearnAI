@@ -186,12 +186,12 @@ export function registerRoutes(app) {
   router.use('/documents', requireAuth, documentRoutes);
 
   /**
-   * Simulation API - Protected + Rate Limited
-   * POST /api/simulation - Generate algorithm simulation
-   * GET /api/simulation/types - List available simulation types
+   * Simulation API
+   * POST /api/simulation - Generate algorithm simulation (auth + rate limited)
+   * POST /api/simulation/detect - Detect if query supports simulation (no auth needed)
+   * GET /api/simulation/types - List available simulation types (no auth needed)
    */
-  router.post('/simulation', requireAuth, rateLimitLearningContent);
-  router.use('/', simulationRoutes);
+  router.use('/simulation', simulationRoutes);
 
   /**
    * Admin API - Requires admin user
@@ -321,6 +321,7 @@ export function registerRoutes(app) {
         'POST /api/tool-result',
         'POST /api/learning-content',
         'POST /api/simulation',
+        'POST /api/simulation/detect',
         'GET /api/simulation/types',
         'POST /api/tts',
         'POST /api/plan',

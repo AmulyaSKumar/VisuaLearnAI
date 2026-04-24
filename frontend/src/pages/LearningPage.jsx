@@ -51,7 +51,8 @@ function LearningPageContent() {
   const [error, setError] = useState(null);
   const [readCards, setReadCards] = useState(new Set());
   const [showDepthDropdown, setShowDepthDropdown] = useState(false);
-  const [visibleTabs, setVisibleTabs] = useState(['learn', 'simulation']); // Dynamic tabs - simulation always visible
+  // Only Learn tab by default, other tabs appear when user requests them
+  const [visibleTabs, setVisibleTabs] = useState(['learn']);
   const [loadingTabs, setLoadingTabs] = useState(new Set()); // Per-tab loading state
   const [loadedTabs, setLoadedTabs] = useState(new Set(['learn'])); // Track which tabs have content
   const [tabErrors, setTabErrors] = useState({}); // { tabId: "error message" }
@@ -124,10 +125,131 @@ function LearningPageContent() {
     fetchTabContent,
     isTabLoading: checkTabLoading,
     regenerateBlock,
+    simulationDetection: hookSimulationDetection,
+    clearContent,
   } = useLearningContent();
 
-  // Use stored content first, fallback to generated - normalize to handle field name variations
-  const rawContent = storedContent || generatedContent;
+  // Refs to avoid callbacks causing infinite loops in useEffect
+  const clearContentRef = useRef(clearContent);
+  useEffect(() => {
+    clearContentRef.current = clearContent;
+  }, [clearContent]);
+
+  const fetchTabContentRef = useRef(fetchTabContent);
+  useEffect(() => {
+    fetchTabContentRef.current = fetchTabContent;
+  }, [fetchTabContent]);
+
+  // State for simulation detection (from hook or local)
+  const [localSimulationDetection, setLocalSimulationDetection] = useState(null);
+  const simulationDetection = localSimulationDetection || hookSimulationDetection;
+  const [simulationAutoShown, setSimulationAutoShown] = useState(false);
+
+  // Ref to track if detection is in progress (prevent duplicate calls)
+  const detectionInProgressRef = useRef(false);
+  const localSimulationDetectionRef = useRef(localSimulationDetection);
+  useEffect(() => {
+    localSimulationDetectionRef.current = localSimulationDetection;
+  }, [localSimulationDetection]);
+
+  // API base URL
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // Run simulation detection for a query (used when loading from DB cache)
+  const runSimulationDetection = useCallback(async (query) => {
+    if (!query) {
+      console.log('[LearningPage] Simulation detection skipped: no query');
+      return;
+    }
+    // Use ref to check state without causing dependency changes
+    if (localSimulationDetectionRef.current) {
+      console.log('[LearningPage] Simulation detection skipped: already detected');
+      return;
+    }
+    // Prevent duplicate in-flight requests
+    if (detectionInProgressRef.current) {
+      console.log('[LearningPage] Simulation detection skipped: already in progress');
+      return;
+    }
+
+    detectionInProgressRef.current = true;
+    console.log('[LearningPage] Running simulation detection for:', query.slice(0, 50));
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      // Use dedicated lightweight detection endpoint
+      const response = await fetch(`${API_BASE}/api/simulation/detect`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query })
+      });
+
+      console.log('[LearningPage] Detection response status:', response.status);
+
+      const data = await response.json();
+      console.log('[LearningPage] Detection response data:', data);
+
+      if (data.success && data.supported) {
+        console.log('[LearningPage] Simulation SUPPORTED:', {
+          type: data.type,
+          algorithm: data.algorithm,
+          confidence: data.confidence
+        });
+        setLocalSimulationDetection({
+          supported: data.supported,
+          type: data.type,
+          algorithm: data.algorithm,
+          confidence: data.confidence,
+          reason: data.reason
+        });
+      } else {
+        console.log('[LearningPage] Simulation NOT supported:', data.reason || 'No match');
+      }
+    } catch (err) {
+      console.error('[LearningPage] Simulation detection failed:', err.message);
+      // Non-blocking - continue without detection
+    } finally {
+      detectionInProgressRef.current = false;
+    }
+  }, [accessToken, API_BASE]); // Removed localSimulationDetection - using ref instead
+
+  // Handle simulation detection - show tab and auto-activate when supported
+  useEffect(() => {
+    if (!simulationDetection?.supported || simulationAutoShown) return;
+
+    const { confidence } = simulationDetection;
+    console.log('[LearningPage] Simulation detection:', {
+      type: simulationDetection.type,
+      confidence,
+      algorithm: simulationDetection.algorithm
+    });
+
+    // Show simulation tab whenever supported (any confidence level)
+    setVisibleTabs(prev => {
+      if (prev.includes('simulation')) return prev;
+      return [...prev, 'simulation'];
+    });
+
+    // Auto-switch to simulation tab for high confidence detections
+    if (confidence > 0.6) {
+      setActiveTab('simulation');
+    }
+
+    setSimulationAutoShown(true);
+  }, [simulationDetection, simulationAutoShown]);
+
+  // Merge stored content with generated content (lazy loaded tabs)
+  // Generated content can add flashcards, quiz, etc. to stored learn content
+  const rawContent = useMemo(() => {
+    if (!storedContent && !generatedContent) return null;
+    // Merge: start with stored, overlay with generated
+    return { ...storedContent, ...generatedContent };
+  }, [storedContent, generatedContent]);
+
   const learningContent = useMemo(() => {
     if (!rawContent) {
       console.log('[LearningPage] No raw content yet');
@@ -138,7 +260,10 @@ function LearningPageContent() {
       hasContent: !!normalized,
       keyIdeasCount: normalized?.key_ideas?.length,
       topic: normalized?.topic?.slice(0, 30),
-      rawKeys: Object.keys(rawContent || {})
+      rawKeys: Object.keys(rawContent || {}),
+      hasFlashcards: !!normalized?.flashcards?.length,
+      hasQuiz: !!normalized?.quiz?.length,
+      hasMindMap: !!normalized?.mind_map
     });
     return normalized;
   }, [rawContent]);
@@ -151,6 +276,17 @@ function LearningPageContent() {
     }
 
     async function loadSession() {
+      // Reset all state first (synchronously before any async operations)
+      setLocalSimulationDetection(null);
+      localSimulationDetectionRef.current = null; // Also reset the ref
+      detectionInProgressRef.current = false; // Reset in-progress flag
+      setSimulationAutoShown(false);
+      clearContentRef.current(); // Use ref to avoid infinite loop
+      setStoredContent(null);
+      setVisibleTabs(['learn']);
+      setLoadedTabs(new Set(['learn']));
+      setTabErrors({});
+
       setIsLoading(true);
       setError(null);
 
@@ -185,28 +321,38 @@ function LearningPageContent() {
           setStoredContent(stored);
           setFactCheck(storedFact || stored.factCheck || null);
 
-          // Detect which content types ACTUALLY exist in DB (safe checks)
-          const availableTabs = ['learn']; // Learn always exists
+          // Track which tabs have content loaded from DB
+          const loadedFromDB = new Set(['learn']); // Learn always exists
           if (Array.isArray(stored.examples) && stored.examples.length > 0) {
-            availableTabs.push('examples');
+            loadedFromDB.add('examples');
           }
           if (Array.isArray(stored.flashcards) && stored.flashcards.length > 0) {
-            availableTabs.push('flashcards');
+            loadedFromDB.add('flashcards');
           }
           if (Array.isArray(stored.quiz) && stored.quiz.length > 0) {
-            availableTabs.push('quiz');
+            loadedFromDB.add('quiz');
           }
           if (stored.mind_map?.branches && Array.isArray(stored.mind_map.branches) && stored.mind_map.branches.length > 0) {
-            availableTabs.push('mindmap');
+            loadedFromDB.add('mindmap');
           }
 
-          setVisibleTabs(availableTabs);
-          setLoadedTabs(new Set(availableTabs));
+          // Keep all tabs visible, just mark which ones are loaded
+          setLoadedTabs(loadedFromDB);
+
+          // Run simulation detection for stored content
+          if (userMessage?.content) {
+            runSimulationDetection(userMessage.content);
+          }
         } else if (userMessage) {
           // Fallback: only fetch learn content initially (lazy loading)
           console.log('[LearningPage] Fetching learn content for:', userMessage.content?.slice(0, 30));
           // Pass preferences with mode based on depthLevel
-          fetchTabContent(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel });
+          // IMPORTANT: Await so loading state shows properly
+          // Use ref to avoid infinite loop (fetchTabContent changes on every render)
+          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel });
+
+          // Also run simulation detection for fresh content
+          runSimulationDetection(userMessage.content);
         }
       } catch (err) {
         console.error('Failed to load session:', err);
@@ -217,7 +363,9 @@ function LearningPageContent() {
     }
 
     loadSession();
-  }, [accessToken, conversationId, fetchTabContent, navigate, userId, depthLevel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection]);
+  // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   // Handle opening a tab (add to visible, fetch content if needed)
   const handleOpenTab = useCallback(async (tabId) => {
@@ -284,7 +432,8 @@ function LearningPageContent() {
         ? 'flashcards-mindmap'
         : tabId;
 
-      const newContent = await fetchTabContent(
+      // Use ref to avoid infinite loop (fetchTabContent changes on every render)
+      const newContent = await fetchTabContentRef.current(
         userQuery,
         apiContentType,
         userId,
@@ -375,7 +524,8 @@ function LearningPageContent() {
         return next;
       });
     }
-  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, fetchTabContent, conversationId]);
+  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId]);
+  // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   const handleReadCard = (cardId) => {
     setReadCards(prev => new Set(prev).add(cardId));
@@ -491,6 +641,7 @@ function LearningPageContent() {
             onRegenerateBlock={handleRegenerateBlock}
             onOpenTab={handleOpenTab}
             cognitiveState={derivedCognitiveState}
+            simulationDetection={simulationDetection}
           />
         );
 
@@ -558,6 +709,7 @@ function LearningPageContent() {
               userId={userId}
               onInteraction={handleInteraction}
               accessToken={accessToken}
+              simulationDetection={simulationDetection}
             />
           </>
         );
@@ -654,19 +806,19 @@ function LearningPageContent() {
             </div>
           </div>
 
-          {/* Dynamic Tab Bar - only shows when more than Learn tab exists */}
+          {/* Tab Bar - Shows when more than Learn tab exists */}
           {visibleTabs.length > 1 && (
-            <div className="flex gap-2 mt-4 p-1.5 neu-pressed rounded-xl">
+            <div className="flex gap-1.5 mt-4 p-1.5 neu-pressed rounded-xl overflow-x-auto">
               {visibleTabs.map(tabId => {
                 const isActive = activeTab === tabId;
-                const isLoading = loadingTabs.has(tabId);
+                const isTabLoading = loadingTabs.has(tabId);
                 const hasError = !!tabErrors[tabId];
 
                 return (
                   <button
                     key={tabId}
                     onClick={() => setActiveTab(tabId)}
-                    className={`px-4 py-2.5 text-sm font-medium transition-all rounded-lg ${
+                    className={`px-3 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap ${
                       isActive
                         ? 'neu-raised-sm text-primary'
                         : hasError
@@ -675,11 +827,11 @@ function LearningPageContent() {
                     }`}
                   >
                     {TAB_LABELS[tabId]}
-                    {isLoading && (
-                      <span className="ml-2 w-3 h-3 inline-block border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    {isTabLoading && (
+                      <span className="ml-1.5 w-3 h-3 inline-block border-2 border-current border-t-transparent rounded-full animate-spin" />
                     )}
-                    {hasError && !isLoading && (
-                      <span className="ml-1">!</span>
+                    {hasError && !isTabLoading && (
+                      <span className="ml-1 text-destructive">!</span>
                     )}
                   </button>
                 );

@@ -11,7 +11,7 @@ import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Register all middleware
+ * Register all middleware (except error handlers)
  * @param {express.Application} app - Express app instance
  */
 export function setupMiddleware(app) {
@@ -43,7 +43,14 @@ export function setupMiddleware(app) {
     });
   });
 
-  // Error handling (must be last)
+  // NOTE: Error handler should be registered AFTER routes in server.js
+}
+
+/**
+ * Register error handler middleware (must be called AFTER all routes)
+ * @param {express.Application} app - Express app instance
+ */
+export function setupErrorHandler(app) {
   app.use(errorHandler);
 }
 

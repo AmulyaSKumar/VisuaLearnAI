@@ -9,7 +9,7 @@ import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 
 import { config } from './config/environment.js';
-import { setupMiddleware } from './middleware/index.js';
+import { setupMiddleware, setupErrorHandler } from './middleware/index.js';
 import { registerRoutes } from './api/index.js';
 import { logger, createRequestLogger, getSentryRequestHandler, getSentryErrorHandler, flushSentry } from './services/logger.js';
 import { traceMiddleware } from './middleware/traceMiddleware.js';
@@ -38,8 +38,9 @@ setupMiddleware(app);
 // Register API routes
 registerRoutes(app);
 
-// Sentry error handler (must be after routes)
-app.use(getSentryErrorHandler());
+// Error handlers (must be AFTER all routes)
+setupErrorHandler(app);  // Application error handler
+app.use(getSentryErrorHandler());  // Sentry error handler (if enabled)
 
 /**
  * Native HTTP server with SSE & WebSocket support

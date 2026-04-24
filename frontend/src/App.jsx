@@ -10,6 +10,7 @@ import SignupPage from "./pages/SignupPage";
 import NewChatPage from "./pages/NewChatPage";
 import Dashboard from "./pages/Dashboard";
 import LearningPage from "./pages/LearningPage";
+import HomePage from "./pages/HomePage";
 import { useAuth } from "./contexts/AuthContext";
 import {
   deleteConversation,
@@ -203,13 +204,14 @@ function AppContent() {
     );
   }
 
-  // If not authenticated, show auth pages only
+  // If not authenticated, show public pages
   if (!user) {
     return (
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
@@ -217,18 +219,18 @@ function AppContent() {
   // If authenticated, show app with sidebar
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden selection:bg-primary/30">
-      {/* Mobile overlay */}
+      {/* Overlay when sidebar is open */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar - hidden on mobile unless open */}
+      {/* Sidebar - hidden by default, shown when sidebarOpen is true */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -245,21 +247,21 @@ function AppContent() {
       </div>
 
       <main className="flex-1 flex flex-col relative h-full">
-        {/* Mobile header with hamburger */}
-        <div className="flex-shrink-0 lg:hidden border-b border-border bg-card/50">
+        {/* Header with sidebar toggle */}
+        <div className="flex-shrink-0 border-b border-border bg-card/50">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="flex items-center justify-center w-11 h-11 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center justify-center w-11 h-11 -ml-2 neu-btn rounded-lg text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Open menu"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="font-semibold text-foreground">VisuaLearn</span>
-            <div className="w-11 h-11" /> {/* Spacer for balance */}
+            <div className="w-11 h-11" />
           </div>
         </div>
 

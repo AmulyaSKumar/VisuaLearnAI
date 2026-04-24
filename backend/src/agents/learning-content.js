@@ -33,7 +33,7 @@ const STYLE_INSTRUCTIONS = {
 };
 
 function getPersonalizationInstructions(profile) {
-  const mode = profile?.mode || 'balanced';
+  const mode = profile?.mode || 'simple';
   const style = profile?.style || 'visual';
 
   const modeInstruction = MODE_INSTRUCTIONS[mode] || MODE_INSTRUCTIONS.balanced;

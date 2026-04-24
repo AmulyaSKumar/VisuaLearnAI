@@ -17,6 +17,7 @@ import {
   retrieveChunks,
   formatChunksAsContext,
 } from '../../services/rag/index.js';
+import { classifySimulationIntent, mightBeSimulationRelated } from '../../simulation/classifier.js';
 
 const router = Router();
 
@@ -348,6 +349,9 @@ router.post('/learning-content', async (req, res) => {
 
     // Generate learning content (pass contentType for lazy loading, context for RAG)
     // IMPORTANT: Pass documentId so agents can detect "document selected but no chunks found"
+    console.log(`[LearningContent] Starting generation...`);
+    const startTime = Date.now();
+
     const result = await learningContentAgent.run({
       query,
       profile: mergedProfile,
@@ -356,6 +360,49 @@ router.post('/learning-content', async (req, res) => {
       documentContext,  // RAG context (formatted text)
       contextChunks,    // Raw chunks for reference
     });
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[LearningContent] Generation complete in ${elapsed}ms:`, {
+      success: result.success,
+      hasResult: !!result.result,
+      contentType,
+      error: result.error || null
+    });
+
+    // Run simulation detection using new dynamic simulation engine
+    // Only run for 'learn' content type or when no contentType specified (full content)
+    let simulationDetection = null;
+    if (!contentType || contentType === 'learn') {
+      try {
+        // Quick pre-filter to avoid unnecessary LLM calls
+        if (mightBeSimulationRelated(query)) {
+          const classification = await classifySimulationIntent(query);
+          simulationDetection = {
+            supported: classification.simulatable,
+            type: classification.type,
+            algorithm: classification.algorithm,
+            generatorKey: classification.generatorKey || classification.algorithm,
+            confidence: classification.confidence,
+            suggestedInputs: classification.inputs,
+            inputSchema: classification.inputSchema,
+            reason: classification.reason
+          };
+          console.log(`[LearningContent] Simulation detection:`, {
+            query: query.slice(0, 30),
+            supported: simulationDetection?.supported,
+            type: simulationDetection?.type,
+            algorithm: simulationDetection?.algorithm,
+            confidence: simulationDetection?.confidence,
+            cached: classification.cached
+          });
+        } else {
+          simulationDetection = { supported: false, reason: 'Query not simulation related' };
+        }
+      } catch (detectErr) {
+        console.warn('[LearningContent] Simulation detection failed:', detectErr.message);
+        // Non-blocking - continue without detection
+      }
+    }
 
     if (!result.success || !result.result) {
       // For specific content types, return type-specific fallback
@@ -396,6 +443,7 @@ router.post('/learning-content', async (req, res) => {
     res.json({
       success: true,
       content: result.result,
+      simulationDetection, // Include detection result for frontend tiered UI
       executionTime: result.executionTime
     });
 

@@ -15,8 +15,9 @@ const LIMITS = {
   asset: parseInt(process.env.RATE_LIMIT_ASSET || '5', 10),        // 5 requests/min
   tts: parseInt(process.env.RATE_LIMIT_TTS || '20', 10),           // 20 requests/min
   plan: parseInt(process.env.RATE_LIMIT_PLAN || '3', 10),          // 3 requests/min
-  global: parseInt(process.env.RATE_LIMIT_GLOBAL || '30', 10),     // 30 requests/min total
+  global: parseInt(process.env.RATE_LIMIT_GLOBAL || '60', 10),     // 60 requests/min total
   learningContent: parseInt(process.env.RATE_LIMIT_LEARNING || '5', 10), // 5 requests/min
+  simulation: parseInt(process.env.RATE_LIMIT_SIMULATION || '30', 10), // 30 requests/min for simulations
 };
 
 /**
@@ -85,8 +86,18 @@ const learningContentLimiter = new RateLimiterMemory({
 });
 
 /**
+ * Simulation rate limiter
+ * 30 requests per minute per user (more permissive for interactive simulations)
+ */
+const simulationLimiter = new RateLimiterMemory({
+  keyPrefix: 'rl_simulation',
+  points: LIMITS.simulation,
+  duration: 60,
+});
+
+/**
  * Global rate limiter
- * 30 requests per minute per user across all endpoints
+ * 60 requests per minute per user across all endpoints
  */
 const globalLimiter = new RateLimiterMemory({
   keyPrefix: 'rl_global',
@@ -103,6 +114,7 @@ const limiters = {
   tts: ttsLimiter,
   plan: planLimiter,
   learningContent: learningContentLimiter,
+  simulation: simulationLimiter,
   global: globalLimiter,
 };
 

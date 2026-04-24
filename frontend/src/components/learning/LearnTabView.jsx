@@ -930,6 +930,8 @@ const SmartSuggestions = memo(function SmartSuggestions({
   progress,
   allCompleted,
   cognitiveState,
+  showSimulationHint = false,
+  simulationType = null,
 }) {
   if (!onOpenTab) return null;
 
@@ -988,6 +990,25 @@ const SmartSuggestions = memo(function SmartSuggestions({
         </div>
       )}
 
+      {/* Simulation hint for medium confidence */}
+      {showSimulationHint && (
+        <div className="mb-4 p-3 bg-muted/30 border border-border rounded-lg">
+          <p className="text-sm text-muted-foreground mb-2">
+            This topic might work well as a visual simulation.
+          </p>
+          <button
+            onClick={() => onOpenTab('simulation')}
+            className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Try visualizing as a simulation?
+          </button>
+        </div>
+      )}
+
       {/* Secondary options - always available */}
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
         {allCompleted ? 'More options' : 'Explore'}
@@ -1039,6 +1060,7 @@ export default function LearnTabView({
   onRegenerateBlock,
   onOpenTab, // New: handles opening tabs dynamically
   cognitiveState = 'flow', // 'struggling' | 'confused' | 'flow' | 'bored' | 'mastering'
+  simulationDetection = null, // { supported, type, confidence, algorithm, reason }
 }) {
   const [activeConceptId, setActiveConceptId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1116,6 +1138,15 @@ export default function LearnTabView({
     : 0;
 
   const allCompleted = keyIdeas.length > 0 && readCards.size >= keyIdeas.length;
+
+  // Simulation hint logic: show for medium confidence (0.5-0.8)
+  const showSimulationHint = simulationDetection?.supported &&
+    simulationDetection.confidence >= 0.5 &&
+    simulationDetection.confidence < 0.8;
+
+  // Simulation available banner: show for high confidence (>0.8) auto-shown tabs
+  const showSimulationAvailable = simulationDetection?.supported &&
+    simulationDetection.confidence >= 0.8;
 
   if (!keyIdeas || keyIdeas.length === 0) {
     return (
@@ -1207,6 +1238,26 @@ export default function LearnTabView({
 
       {/* Main Content */}
       <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 lg:p-8">
+        {/* Simulation Available Banner (high confidence) */}
+        {showSimulationAvailable && (
+          <div className="mb-6 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span className="text-sm font-medium text-foreground">Simulation available for this topic</span>
+              </div>
+              <button
+                onClick={() => onOpenTab?.('simulation')}
+                className="px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-md transition-colors"
+              >
+                View Simulation
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Overview Banner */}
         {!allCompleted && activeConceptId === keyIdeas[0]?.id && summary && (
           <div className="mb-8 pb-6 border-b border-border">
@@ -1270,6 +1321,8 @@ export default function LearnTabView({
           progress={progress}
           allCompleted={allCompleted}
           cognitiveState={cognitiveState}
+          showSimulationHint={showSimulationHint}
+          simulationType={simulationDetection?.type}
         />
       </main>
     </div>

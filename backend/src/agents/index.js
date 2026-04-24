@@ -13,7 +13,8 @@ export { ImageGeneratorAgent } from './image-generator.js';
 export { FactCheckerAgent } from './fact-checker.js';
 export { AdaptiveWidgetGenerator } from './adaptive-widget-generator.js';
 export { AdaptiveLearningEngine } from './adaptive-learning-engine.js';
-export { SimulationAgent, simulationAgent } from './simulation-generator.js';
+// Old simulation agents removed - now using new dynamic simulation engine
+// See: backend/src/simulation/ for the new implementation
 
 /**
  * Agent Implementations:

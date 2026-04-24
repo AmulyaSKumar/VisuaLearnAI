@@ -95,6 +95,12 @@ export const rateLimitPlan = createRateLimitMiddleware('plan');
 export const rateLimitLearningContent = createRateLimitMiddleware('learningContent');
 
 /**
+ * Simulation rate limiter
+ * 30 requests/min + 60 global requests/min (more permissive for interactive simulations)
+ */
+export const rateLimitSimulation = createRateLimitMiddleware('simulation');
+
+/**
  * Generic rate limiter that only checks global limit
  * For endpoints that don't need specific limits
  */
@@ -130,5 +136,6 @@ export default {
   rateLimitTts,
   rateLimitPlan,
   rateLimitLearningContent,
+  rateLimitSimulation,
   rateLimitGeneric,
 };

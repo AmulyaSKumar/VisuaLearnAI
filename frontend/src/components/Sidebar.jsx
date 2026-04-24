@@ -317,7 +317,7 @@ export default function Sidebar({
                         <button
                           type="button"
                           onClick={() => handleRenameStart(conversation)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50 text-foreground/70 hover:bg-muted hover:text-foreground dark:bg-white/10 dark:text-white/70 dark:hover:bg-white/20 dark:hover:text-white"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg neu-btn-sm text-foreground/70 hover:text-primary"
                           title="Rename session"
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -328,7 +328,7 @@ export default function Sidebar({
                         <button
                           type="button"
                           onClick={() => handleDeleteStart(conversation.id)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50 text-foreground/70 hover:bg-red-100 hover:text-red-600 dark:bg-white/10 dark:text-white/70 dark:hover:bg-red-500/20 dark:hover:text-red-400"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg neu-btn-sm text-foreground/70 hover:text-destructive"
                           title="Delete session"
                         >
                           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -364,26 +364,10 @@ export default function Sidebar({
         <div className="flex items-center gap-2">
           <button
             onClick={toggleTheme}
-            className="flex-1 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground neu-btn px-3 min-h-[44px]"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center neu-btn rounded-xl"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {theme === "dark" ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" />
-                <line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
-            <span>{theme === "dark" ? "Light" : "Dark"}</span>
+            <span className="text-xl">{theme === "dark" ? "🌙" : "☀️"}</span>
           </button>
 
           <button

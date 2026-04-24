@@ -52,6 +52,9 @@ export function useLearningContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Simulation detection from API
+  const [simulationDetection, setSimulationDetection] = useState(null);
+
   // In-flight request tracking
   const inFlightRequestRef = useRef({});
   const lastQueryRef = useRef(null);
@@ -124,13 +127,18 @@ export function useLearningContent() {
         setContentByTab(prev => ({ ...prev, [tabKey]: data.content }));
         setFetchedTabs(prev => new Set([...prev, tabType]));
 
+        // Extract simulation detection for learn content type
+        if (tabType === 'learn' && data.simulationDetection) {
+          setSimulationDetection(data.simulationDetection);
+        }
+
         // Also update legacy combined content
         setContent(prev => ({
           ...prev,
           ...data.content,
         }));
 
-        return data.content;
+        return { content: data.content, simulationDetection: data.simulationDetection };
       } catch (err) {
         console.error(`Learning content error (${tabType}):`, err);
         setError(err.message);
@@ -197,6 +205,11 @@ export function useLearningContent() {
 
         // Store all content
         setContent(data.content);
+
+        // Extract simulation detection
+        if (data.simulationDetection) {
+          setSimulationDetection(data.simulationDetection);
+        }
 
         // Also populate per-tab state
         setContentByTab({
@@ -378,6 +391,7 @@ export function useLearningContent() {
     setContentByTab({ learn: null, examples: null, flashcardsMindmap: null, quiz: null });
     setFetchedTabs(new Set());
     setError(null);
+    setSimulationDetection(null);
     lastQueryRef.current = null;
   }, []);
 
@@ -391,6 +405,9 @@ export function useLearningContent() {
     contentByTab,
     loadingTabs,
     fetchedTabs,
+
+    // Simulation detection
+    simulationDetection,
 
     // Methods
     generateContent,

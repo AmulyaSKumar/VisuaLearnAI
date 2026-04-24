@@ -3,23 +3,56 @@ import useSimulation from '../../hooks/useSimulation';
 import ArraySimulation from './simulation/ArraySimulation';
 import GraphSimulation from './simulation/GraphSimulation';
 import TreeSimulation from './simulation/TreeSimulation';
+import GenericSimulation from './simulation/GenericSimulation';
 
 /**
  * SimulationView - Main controller for algorithm simulation playback
- * Supports play/pause, step navigation, and speed control
+ * Supports play/pause, step navigation, speed control, and input editing
+ *
+ * NEW FEATURES:
+ * - User-editable inputs with live regeneration
+ * - Enhanced visualization with sorted/current/visited highlights
+ * - Complexity display
+ * - Algorithm title and description
  */
-export default function SimulationView({ topic, userId, onInteraction, accessToken }) {
-  const { simulation, loading, error, source, isValid, stepCount, refetch } = useSimulation(topic, { accessToken });
+export default function SimulationView({ topic, userId, onInteraction, accessToken, simulationDetection }) {
+  const {
+    simulation,
+    loading,
+    error,
+    source,
+    isValid,
+    stepCount,
+    refetch,
+    detectionSource,
+    detectionConfidence,
+    // New features
+    generatorKey,
+    userInputs,
+    inputSchema,
+    updateInput,
+    regenerateWithInputs
+  } = useSimulation(topic, {
+    accessToken,
+    detection: simulationDetection
+  });
 
   const [currentStep, setCurrentStep] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1000); // ms per step
+  const [speed, setSpeed] = useState(1000);
+  const [showInputEditor, setShowInputEditor] = useState(false);
+  const [editingInputs, setEditingInputs] = useState({});
 
   // Reset step when simulation changes
   useEffect(() => {
     setCurrentStep(0);
     setPlaying(false);
   }, [simulation]);
+
+  // Sync editing inputs with userInputs
+  useEffect(() => {
+    setEditingInputs(userInputs || {});
+  }, [userInputs]);
 
   // Auto-advance when playing
   useEffect(() => {
@@ -28,7 +61,7 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
     const interval = setInterval(() => {
       setCurrentStep(prev => {
         if (prev >= simulation.steps.length - 1) {
-          setPlaying(false); // Stop at end
+          setPlaying(false);
           return prev;
         }
         return prev + 1;
@@ -38,12 +71,10 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
     return () => clearInterval(interval);
   }, [playing, simulation, speed]);
 
-  // CRITICAL: Stop autoplay on manual interaction
   const handleStepChange = useCallback((newStep) => {
-    setPlaying(false); // Always stop autoplay
+    setPlaying(false);
     setCurrentStep(newStep);
 
-    // Track interaction for analytics/personalization
     if (onInteraction) {
       onInteraction({
         type: 'simulation_step',
@@ -70,7 +101,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
 
   const handleTogglePlay = () => {
     if (!playing && currentStep >= (simulation?.steps?.length || 1) - 1) {
-      // If at end, reset to start before playing
       setCurrentStep(0);
     }
     setPlaying(!playing);
@@ -81,6 +111,31 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
         step: currentStep
       });
     }
+  };
+
+  // Handle input changes and regeneration
+  const handleInputChange = (key, value) => {
+    setEditingInputs(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleRegenerate = () => {
+    // Parse array input if it's a string
+    const processedInputs = { ...editingInputs };
+    if (inputSchema) {
+      for (const [key, schema] of Object.entries(inputSchema)) {
+        if (schema.type === 'array' && typeof processedInputs[key] === 'string') {
+          processedInputs[key] = processedInputs[key]
+            .replace(/[\[\]]/g, '')
+            .split(/[,\s]+/)
+            .map(s => s.trim())
+            .filter(s => s !== '')
+            .map(Number)
+            .filter(n => !isNaN(n));
+        }
+      }
+    }
+    regenerateWithInputs(processedInputs);
+    setShowInputEditor(false);
   };
 
   // Loading state
@@ -130,51 +185,173 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
   }
 
   const stepData = simulation.steps[currentStep];
+  const irStepData = simulation.ir?.steps?.[currentStep];
+
+  // Merge step data for visualization
+  const mergedStepData = {
+    ...stepData,
+    // Include new IR highlights if available
+    highlights: irStepData?.highlights || stepData?.highlights || {},
+    variables: irStepData?.state?.variables || stepData?.variables || {},
+    // Include state data for graph/tree visualizations
+    state: irStepData?.state || stepData?.state || {},
+    meta: irStepData?.meta || stepData?.meta || {}
+  };
 
   // Render type-specific visualization
   const renderVisualization = () => {
     switch (simulation.type) {
       case 'array_sort':
+      case 'array_search':
+      case 'array':
         return (
           <ArraySimulation
-            step={stepData}
+            step={mergedStepData}
             initialArray={simulation.initialArray}
           />
         );
       case 'graph_traversal':
+      case 'graph':
         return (
           <GraphSimulation
-            step={stepData}
+            step={mergedStepData}
             nodes={simulation.nodes}
             edges={simulation.edges}
           />
         );
       case 'tree_traversal':
+      case 'tree':
         return (
           <TreeSimulation
-            step={stepData}
+            step={mergedStepData}
             nodes={simulation.nodes}
           />
         );
       default:
-        return <div className="text-muted-foreground">Unknown simulation type: {simulation.type}</div>;
+        return (
+          <GenericSimulation
+            step={mergedStepData}
+            steps={simulation.steps}
+            currentStepIndex={currentStep}
+          />
+        );
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* Source indicator (debug info) */}
+      {/* Header with title and complexity */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          {simulation.title && (
+            <h3 className="text-lg font-semibold text-foreground">{simulation.title}</h3>
+          )}
+          {simulation.complexity && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Time: {simulation.complexity.time} • Space: {simulation.complexity.space}
+            </p>
+          )}
+        </div>
+
+        {/* Edit button */}
+        {inputSchema && (
+          <button
+            onClick={() => setShowInputEditor(!showInputEditor)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-md transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit Input
+          </button>
+        )}
+      </div>
+
+      {/* Input Editor Panel */}
+      {showInputEditor && inputSchema && (
+        <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Edit Simulation Input</span>
+            <button
+              onClick={() => setShowInputEditor(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {Object.entries(inputSchema).map(([key, schema]) => (
+            <div key={key} className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                {schema.label || key}
+                {schema.description && (
+                  <span className="ml-1 text-muted-foreground/70">({schema.description})</span>
+                )}
+              </label>
+              {schema.type === 'array' ? (
+                <input
+                  type="text"
+                  value={Array.isArray(editingInputs[key]) ? editingInputs[key].join(', ') : editingInputs[key] || ''}
+                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  placeholder="e.g., 5, 3, 8, 2, 7"
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              ) : schema.type === 'number' ? (
+                <input
+                  type="number"
+                  value={editingInputs[key] || ''}
+                  onChange={(e) => handleInputChange(key, Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={editingInputs[key] || ''}
+                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              )}
+            </div>
+          ))}
+
+          <button
+            onClick={handleRegenerate}
+            className="w-full py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          >
+            Regenerate Simulation
+          </button>
+        </div>
+      )}
+
+      {/* Source indicator */}
       {source && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className={`
-            px-1.5 py-0.5 rounded text-[10px] font-medium uppercase
-            ${source === 'cache' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
-              source === 'fallback' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
-              'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'}
+            px-1.5 py-0.5 rounded text-[10px] font-medium
+            ${source === 'cache' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+              source === 'template' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+              source === 'fallback' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+              'bg-muted text-muted-foreground'}
           `}>
-            {source}
+            {source === 'cache' ? 'Cached' :
+             source === 'template' ? 'Instant' :
+             source === 'fallback' ? 'Basic' :
+             'Generated'}
           </span>
+
+          {detectionSource === 'backend' && detectionConfidence && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              Auto-detected ({Math.round(detectionConfidence * 100)}% confidence)
+            </span>
+          )}
+
           <span>{stepCount} steps</span>
+
+          {generatorKey && (
+            <span className="text-muted-foreground/70">• {generatorKey}</span>
+          )}
         </div>
       )}
 
@@ -193,7 +370,7 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             Step {currentStep + 1} of {stepCount}
           </div>
           <p className="text-sm text-foreground">
-            {stepData?.description || 'No description available'}
+            {stepData?.description || irStepData?.meta?.description || 'No description available'}
           </p>
         </div>
       </div>
@@ -210,7 +387,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
       <div className="flex items-center gap-2 flex-wrap">
         {/* Navigation buttons */}
         <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-          {/* Reset */}
           <button
             onClick={handleReset}
             disabled={currentStep === 0}
@@ -222,7 +398,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             </svg>
           </button>
 
-          {/* Previous */}
           <button
             onClick={handlePrev}
             disabled={currentStep === 0}
@@ -234,7 +409,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             </svg>
           </button>
 
-          {/* Play/Pause */}
           <button
             onClick={handleTogglePlay}
             className="p-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
@@ -252,7 +426,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             )}
           </button>
 
-          {/* Next */}
           <button
             onClick={handleNext}
             disabled={currentStep >= stepCount - 1}
@@ -264,7 +437,6 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             </svg>
           </button>
 
-          {/* Skip to end */}
           <button
             onClick={() => handleStepChange(stepCount - 1)}
             disabled={currentStep >= stepCount - 1}

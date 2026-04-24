@@ -9,16 +9,18 @@ import { AppError } from '../utils/errors.js';
 
 /**
  * Express error handling middleware
- * Must be registered last
+ * Must be registered last (after all routes)
  */
 export function errorHandler(err, req, res, next) {
-  // Log error
-  logger.error('Error:', {
-    message: err.message,
-    status: err.status || 500,
+  // Log error with full details
+  logger.error('Request error:', {
+    message: err?.message || 'Unknown error',
+    name: err?.name || 'Error',
+    status: err?.status || 500,
+    code: err?.code,
     method: req.method,
     path: req.path,
-    stack: err.stack,
+    stack: err?.stack,
   });
 
   // Handle known errors
