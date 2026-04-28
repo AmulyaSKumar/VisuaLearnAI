@@ -40,6 +40,12 @@ const ALGORITHM_ALIASES = {
   'selection': 'selection_sort',
   'selection_sort': 'selection_sort',
 
+  // Heap Sort
+  'heap sort': 'heap_sort',
+  'heapsort': 'heap_sort',
+  'heap': 'heap_sort',
+  'heap_sort': 'heap_sort',
+
   // Binary Search
   'binary search': 'binary_search',
   'binarysearch': 'binary_search',
@@ -91,6 +97,14 @@ const ALGORITHM_ALIASES = {
   'postorder traversal': 'postorder_traversal',
   'postorder_traversal': 'postorder_traversal',
 
+  'levelorder': 'levelorder_traversal',
+  'level-order': 'levelorder_traversal',
+  'level order': 'levelorder_traversal',
+  'levelorder traversal': 'levelorder_traversal',
+  'levelorder_traversal': 'levelorder_traversal',
+  'level order traversal': 'levelorder_traversal',
+  'bfs tree': 'levelorder_traversal',
+
   // BST Operations
   'bst insert': 'bst_insert',
   'bst insertion': 'bst_insert',
@@ -112,11 +126,24 @@ const ALGORITHM_ALIASES = {
   'dp knapsack': 'dp_knapsack',
   'dp_knapsack': 'dp_knapsack',
 
-  // Pathfinding
-  'a*': 'astar',
-  'a star': 'astar',
-  'astar': 'astar',
-  'a* search': 'astar',
+  // Grid - Pathfinding
+  'a*': 'a_star',
+  'a star': 'a_star',
+  'astar': 'a_star',
+  'a* search': 'a_star',
+  'a_star': 'a_star',
+  'pathfinding': 'a_star',
+  'path finding': 'a_star',
+  'maze solving': 'a_star',
+  'maze': 'a_star',
+
+  // Grid - Flood Fill
+  'flood fill': 'flood_fill',
+  'floodfill': 'flood_fill',
+  'flood_fill': 'flood_fill',
+  'bucket fill': 'flood_fill',
+  'paint bucket': 'flood_fill',
+  'fill algorithm': 'flood_fill',
 
   // Scheduling
   'round robin': 'round_robin',
@@ -151,37 +178,169 @@ const ALGORITHM_ALIASES = {
   "newton's method": 'newtons_method',
   'newtons method': 'newtons_method',
   'newtons_method': 'newtons_method',
+
+  // Graph - Additional
+  'bellman ford': 'bellman_ford',
+  'bellman-ford': 'bellman_ford',
+  'bellman_ford': 'bellman_ford',
+  'negative weight shortest path': 'bellman_ford',
+
+  'floyd warshall': 'floyd_warshall',
+  'floyd-warshall': 'floyd_warshall',
+  'floyd_warshall': 'floyd_warshall',
+  'all pairs shortest path': 'floyd_warshall',
+
+  'prims': 'prims',
+  "prim's": 'prims',
+  "prim's algorithm": 'prims',
+  'prim': 'prims',
+
+  'kruskals': 'kruskals',
+  "kruskal's": 'kruskals',
+  "kruskal's algorithm": 'kruskals',
+  'kruskal': 'kruskals',
+  'union find': 'kruskals',
+
+  'minimum spanning tree': 'prims',
+  'mst': 'prims',
+
+  // DP - Additional
+  'lcs': 'lcs',
+  'longest common subsequence': 'lcs',
+  'common subsequence': 'lcs',
+
+  'lis': 'lis',
+  'longest increasing subsequence': 'lis',
+  'increasing subsequence': 'lis',
+
+  'edit distance': 'edit_distance',
+  'edit_distance': 'edit_distance',
+  'levenshtein': 'edit_distance',
+  'levenshtein distance': 'edit_distance',
+  'string distance': 'edit_distance',
+
+  // Scheduling - Additional
+  'priority': 'priority_scheduling',
+  'priority scheduling': 'priority_scheduling',
+  'priority_scheduling': 'priority_scheduling',
+
+  'srtf': 'srtf',
+  'shortest remaining time first': 'srtf',
+  'shortest remaining time': 'srtf',
+  'preemptive sjf': 'srtf',
+
+  // Stack
+  'stack': 'stack_operations',
+  'stack operations': 'stack_operations',
+  'stack_operations': 'stack_operations',
+  'push pop': 'stack_operations',
+  'lifo': 'stack_operations',
+
+  // Linked List
+  'linked list': 'linkedlist_insert',
+  'linkedlist': 'linkedlist_insert',
+  'linked list insert': 'linkedlist_insert',
+  'linkedlist_insert': 'linkedlist_insert',
+  'linkedlist insert': 'linkedlist_insert',
+
+  'linked list delete': 'linkedlist_delete',
+  'linkedlist_delete': 'linkedlist_delete',
+  'linkedlist delete': 'linkedlist_delete',
+
+  'linked list reverse': 'linkedlist_reverse',
+  'linkedlist_reverse': 'linkedlist_reverse',
+  'linkedlist reverse': 'linkedlist_reverse',
+  'reverse linked list': 'linkedlist_reverse',
+
+  // Heap
+  'min heap': 'min_heap',
+  'min_heap': 'min_heap',
+  'minheap': 'min_heap',
+  'minimum heap': 'min_heap',
+
+  'max heap': 'max_heap',
+  'max_heap': 'max_heap',
+  'maxheap': 'max_heap',
+  'maximum heap': 'max_heap',
+
+  // Turing Machine
+  'turing machine': 'turing_machine',
+  'turing_machine': 'turing_machine',
+  'tm': 'turing_machine',
+  'tape machine': 'turing_machine',
 };
 
 /**
  * Type mappings for algorithms
  */
 const TYPE_MAPPINGS = {
+  // Array
   'bubble_sort': 'array',
   'quick_sort': 'array',
   'merge_sort': 'array',
   'insertion_sort': 'array',
   'selection_sort': 'array',
+  'heap_sort': 'array',
   'binary_search': 'array',
   'linear_search': 'array',
+
+  // Graph
   'bfs': 'graph',
   'dfs': 'graph',
   'dijkstra': 'graph',
+  'bellman_ford': 'graph',
+  'floyd_warshall': 'graph',
+  'prims': 'graph',
+  'kruskals': 'graph',
+
+  // Tree
   'inorder_traversal': 'tree',
   'preorder_traversal': 'tree',
   'postorder_traversal': 'tree',
+  'levelorder_traversal': 'tree',
   'bst_insert': 'tree',
   'bst_search': 'tree',
-  'dp_fibonacci': 'grid',
-  'dp_knapsack': 'grid',
-  'astar': 'grid',
+
+  // Grid
+  'flood_fill': 'grid',
+  'a_star': 'grid',
+
+  // DP
+  'dp_fibonacci': 'dp',
+  'dp_knapsack': 'dp',
+  'lcs': 'dp',
+  'lis': 'dp',
+  'edit_distance': 'dp',
+
+  // Timeline/Scheduling
   'round_robin': 'timeline',
   'fcfs': 'timeline',
   'sjf': 'timeline',
+  'priority_scheduling': 'timeline',
+  'srtf': 'timeline',
+
+  // State Machine
   'dfa': 'state_machine',
   'nfa': 'state_machine',
+
+  // Math
   'gradient_descent': 'math',
   'newtons_method': 'math',
+
+  // Stack
+  'stack_operations': 'stack',
+
+  // Linked List
+  'linkedlist_insert': 'linkedlist',
+  'linkedlist_delete': 'linkedlist',
+  'linkedlist_reverse': 'linkedlist',
+
+  // Heap
+  'min_heap': 'heap',
+  'max_heap': 'heap',
+
+  // Turing Machine
+  'turing_machine': 'turing',
 };
 
 /**
@@ -256,15 +415,19 @@ export function fuzzyMatchGenerator(input, registry) {
  */
 export function getAllAliases() {
   const categories = {
-    sorting: ['bubble_sort', 'quick_sort', 'merge_sort', 'insertion_sort', 'selection_sort'],
+    sorting: ['bubble_sort', 'quick_sort', 'merge_sort', 'insertion_sort', 'selection_sort', 'heap_sort'],
     searching: ['binary_search', 'linear_search'],
-    graph: ['bfs', 'dfs', 'dijkstra'],
-    tree: ['inorder_traversal', 'preorder_traversal', 'postorder_traversal', 'bst_insert', 'bst_search'],
-    dynamic_programming: ['dp_fibonacci', 'dp_knapsack'],
-    pathfinding: ['astar'],
-    scheduling: ['round_robin', 'fcfs', 'sjf'],
-    automata: ['dfa', 'nfa'],
+    graph: ['bfs', 'dfs', 'dijkstra', 'bellman_ford', 'floyd_warshall', 'prims', 'kruskals'],
+    tree: ['inorder_traversal', 'preorder_traversal', 'postorder_traversal', 'levelorder_traversal', 'bst_insert', 'bst_search'],
+    grid: ['flood_fill', 'a_star'],
+    dp: ['dp_fibonacci', 'dp_knapsack', 'lcs', 'lis', 'edit_distance'],
+    timeline: ['round_robin', 'fcfs', 'sjf', 'priority_scheduling', 'srtf'],
+    state_machine: ['dfa', 'nfa'],
     math: ['gradient_descent', 'newtons_method'],
+    stack: ['stack_operations'],
+    linkedlist: ['linkedlist_insert', 'linkedlist_delete', 'linkedlist_reverse'],
+    heap: ['min_heap', 'max_heap'],
+    turing: ['turing_machine'],
   };
 
   const result = {};

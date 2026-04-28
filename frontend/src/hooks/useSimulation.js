@@ -51,9 +51,25 @@ function detectSimulationTypeFallback(topic) {
     lower.includes('inorder') ||
     lower.includes('preorder') ||
     lower.includes('postorder') ||
+    lower.includes('levelorder') ||
+    lower.includes('level order') ||
     lower.includes('traversal')
   ) {
     return { type: 'tree_traversal', algorithm: extractAlgorithm(lower, 'tree') };
+  }
+
+  // Grid algorithms
+  if (
+    lower.includes('grid') ||
+    lower.includes('flood') ||
+    lower.includes('fill') ||
+    lower.includes('a*') ||
+    lower.includes('astar') ||
+    lower.includes('a star') ||
+    lower.includes('pathfind') ||
+    lower.includes('maze')
+  ) {
+    return { type: 'grid', algorithm: extractAlgorithm(lower, 'grid') };
   }
 
   return null;
@@ -67,7 +83,8 @@ const VALID_ALGORITHMS = {
   array_sort: ['bubble', 'quick', 'merge', 'insertion', 'selection', 'heap'],
   array_search: ['binary', 'linear'],
   graph_traversal: ['bfs', 'dfs', 'dijkstra'],
-  tree_traversal: ['inorder', 'preorder', 'postorder', 'levelorder']
+  tree_traversal: ['inorder', 'preorder', 'postorder', 'levelorder'],
+  grid: ['flood_fill', 'a_star', 'pathfinding']
 };
 
 /**
@@ -80,6 +97,7 @@ const ALGORITHM_TO_GENERATOR_KEY = {
   'merge': 'merge_sort',
   'insertion': 'insertion_sort',
   'selection': 'selection_sort',
+  'heap': 'heap_sort',
   // Search
   'binary': 'binary_search',
   'linear': 'linear_search',
@@ -91,6 +109,11 @@ const ALGORITHM_TO_GENERATOR_KEY = {
   'inorder': 'inorder_traversal',
   'preorder': 'preorder_traversal',
   'postorder': 'postorder_traversal',
+  'levelorder': 'levelorder_traversal',
+  // Grid
+  'flood_fill': 'flood_fill',
+  'a_star': 'a_star',
+  'pathfinding': 'a_star',
 };
 
 /**
@@ -145,7 +168,15 @@ function extractAlgorithm(text, category) {
     if (text.includes('inorder') || text.includes('in-order')) return 'inorder';
     if (text.includes('preorder') || text.includes('pre-order')) return 'preorder';
     if (text.includes('postorder') || text.includes('post-order')) return 'postorder';
+    if (text.includes('levelorder') || text.includes('level-order') || text.includes('level order')) return 'levelorder';
     return 'inorder'; // default
+  }
+  if (category === 'grid') {
+    if (text.includes('flood') || text.includes('fill')) return 'flood_fill';
+    if (text.includes('a*') || text.includes('astar') || text.includes('a star')) return 'a_star';
+    if (text.includes('pathfind') || text.includes('path find')) return 'a_star';
+    if (text.includes('maze')) return 'a_star';
+    return 'flood_fill'; // default
   }
   return null;
 }
@@ -639,6 +670,31 @@ function convertIRToLegacy(ir) {
         inserted: step.highlights?.inserted,
         found: step.highlights?.found,
         notFound: step.highlights?.notFound,
+        // Highlight data
+        highlights: step.highlights || {},
+        // Description
+        description: step.meta?.description || ''
+      })),
+      // Keep new IR for enhanced features
+      ir,
+      // New metadata
+      title: ir.title,
+      complexity: ir.complexity,
+      inputSchema: ir.inputs?.schema
+    };
+  }
+
+  // Convert grid type
+  if (ir.type === 'grid') {
+    const gridData = ir.initial_state?.grid || ir.inputs?.values?.grid || {};
+    return {
+      type: 'grid',
+      algorithm: ir.algorithm,
+      grid: gridData,
+      steps: ir.steps.map((step, idx) => ({
+        step: idx + 1,
+        // State data
+        state: step.state || {},
         // Highlight data
         highlights: step.highlights || {},
         // Description

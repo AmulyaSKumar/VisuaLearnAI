@@ -90,9 +90,11 @@ async function persistSessionState(userId, conversationId, state) {
 }
 
 function getBanditConfig() {
+  // BANDIT IS NOW AUTHORITATIVE - control enabled by default
+  // Shadow mode disabled by default (only for A/B testing or debugging)
   return {
-    shadowEnabled: process.env.PERSONALIZATION_BANDIT_SHADOW !== 'false',
-    controlEnabled: process.env.PERSONALIZATION_BANDIT_CONTROL === 'true',
+    shadowEnabled: process.env.PERSONALIZATION_BANDIT_SHADOW === 'true',
+    controlEnabled: process.env.PERSONALIZATION_BANDIT_CONTROL !== 'false',
     timeoutMs: Number(process.env.PERSONALIZATION_BANDIT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
   };
 }

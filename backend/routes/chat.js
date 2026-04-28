@@ -1,11 +1,15 @@
 import { Router } from "express";
 import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
-import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT, createSystemPrompt } from "../src/services/anthropic/prompts.js";
+import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT } from "../src/services/anthropic/prompts.js";
+import { analyzeUserProfile, getUserMetrics } from "../src/agents/personalization.js";
 import {
-  analyzeUserProfile,
-  updateLearningStyle,
-  detectKnowledgeLevel,
-} from "../src/agents/personalization.js";
+  bandit,
+  getBanditDecision,
+  recordRewardFromInteraction,
+  enforceAction,
+  getActionInstructions,
+} from "../src/bandit/index.js";
+import { getCognitiveState } from "../src/services/learningState.js";
 import { cache } from "../src/services/cache.js";
 import { logger } from "../src/services/logger.js";
 
@@ -13,6 +17,25 @@ const router = Router();
 
 // Cache TTL for profiles (5 min)
 const PROFILE_CACHE_TTL = 300;
+
+/**
+ * Extract current topic from user query
+ */
+function extractCurrentTopic(query = '') {
+  const lowerQuery = query.toLowerCase();
+  const patterns = [
+    /(?:about|learn|understand|explain|help with|studying|topic:?)\s+([a-z\s]{3,30})/i,
+    /(?:what is|how does|why does|how do|can you explain)\s+([a-z\s]{3,30})/i,
+    /\b(math|mathematics|algebra|calculus|geometry|physics|chemistry|biology|history|programming|javascript|python|react|css|html|database|sql|machine learning|ai|data science)\b/i,
+  ];
+  for (const pattern of patterns) {
+    const match = lowerQuery.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim().toLowerCase();
+    }
+  }
+  return null;
+}
 
 /**
  * Get cached user profile using Redis
@@ -38,18 +61,20 @@ async function getCachedProfile(userId) {
     return value;
   } catch (err) {
     logger.error({ error: err, userId }, 'Failed to get cached profile');
-    // Fallback to direct fetch
     return analyzeUserProfile(userId);
   }
 }
 
 /**
- * Invalidate profile cache
- * @param {string} userId - User ID
+ * Get cognitive state for bandit context
  */
-async function invalidateProfileCache(userId) {
-  if (!userId) return;
-  await cache.del(`profile:${userId}`);
+async function getCognitiveStateForBandit(userId, topic) {
+  try {
+    const result = await getCognitiveState(userId, topic);
+    return result?.cognitiveState || 'flow';
+  } catch (err) {
+    return 'flow';
+  }
 }
 
 const client = new AnthropicFoundry({
@@ -152,8 +177,8 @@ function req_cleanup(res, stream, heartbeat, setAbort) {
 }
 
 router.post("/chat", async (req, res) => {
-  const { messages, userId, behavior, preferences = {} } = req.body;
-  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), preferences }, "POST /api/chat");
+  const { messages, userId, behavior, conversationId = null } = req.body;
+  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8) }, "POST /api/chat");
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "messages array is required" });
@@ -162,23 +187,43 @@ router.post("/chat", async (req, res) => {
   setupSSE(res);
 
   let aborted = false;
-  let widgetCount = 0; // Track widgets for behavior update
+  let banditDecision = null;
 
   try {
-    // Fetch user profile (fast, cached)
+    // Initialize bandit if not ready
+    if (!bandit.isReady()) {
+      await bandit.initialize();
+    }
+
+    // Extract topic from last user message
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    const userQuery = typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : '';
+    const currentTopic = extractCurrentTopic(userQuery);
+
+    // Fetch user profile and metrics (used as CONTEXT for bandit, not for prompt shaping)
     const profile = await getCachedProfile(userId);
+    const metrics = userId ? await getUserMetrics(userId) : null;
+    const cognitiveState = await getCognitiveStateForBandit(userId, currentTopic);
 
-    // Merge per-query preferences with profile
-    const mergedProfile = {
-      ...profile,
-      preferences: {
-        ...profile?.preferences,
-        mode: preferences.mode || profile?.preferences?.mode || 'balanced',
-        style: preferences.style || profile?.preferences?.style || 'visual',
-      }
-    };
+    // BANDIT IS AUTHORITATIVE - Get decision using new LinUCB-based system
+    banditDecision = await getBanditDecision({
+      userId,
+      topic: currentTopic,
+      profile,
+      adaptiveContext: { cognitive_state: cognitiveState },
+      metrics: {
+        engagementLevel: metrics?.engagementLevel || 'medium',
+        topicStatus: metrics?.topicStatus || 'neutral',
+        performanceTrend: metrics?.performanceTrend || 'stable',
+      },
+      conversationId,
+    });
 
-    const systemPrompt = createSystemPrompt(mergedProfile, preferences);
+    // Build system prompt using ONLY bandit action (no style-based personalization)
+    const actionInstructions = getActionInstructions(banditDecision.selectedAction);
+    const systemPrompt = `${SYSTEM_PROMPT}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
+
+    logger.info({ selectedAction: banditDecision.selectedAction, topic: currentTopic, source: banditDecision.decisionSource }, "Bandit decision");
 
     const stream = client.messages.stream({
       model,
@@ -194,15 +239,21 @@ router.post("/chat", async (req, res) => {
       }
     }, 15000);
 
+    // Collect response text and tool calls for enforcement
+    let responseText = "";
+    const toolCalls = [];
+
     stream.on("text", (text) => {
-      if (!aborted) sendSSE(res, { type: "text_delta", text });
+      if (!aborted) {
+        responseText += text;
+        sendSSE(res, { type: "text_delta", text });
+      }
     });
 
     stream.on("contentBlock", (block) => {
       if (block.type === "tool_use" && !aborted) {
-        // Track widget generation
-        if (block.name === "show_widget") widgetCount++;
-
+        // Collect tool calls for enforcement validation
+        toolCalls.push({ name: block.name, id: block.id, input: block.input });
         sendSSE(res, {
           type: "tool_use",
           id: block.id,
@@ -234,23 +285,32 @@ router.post("/chat", async (req, res) => {
 
     stream.on("end", () => {
       if (!aborted) {
+        // ENFORCEMENT: Validate response matches selected action
+        const enforcement = enforceAction(
+          banditDecision.id,
+          banditDecision.selectedAction,
+          responseText,
+          toolCalls
+        );
+
+        // Send enforcement result to client
+        sendSSE(res, {
+          type: "enforcement_result",
+          decisionId: banditDecision.id,
+          originalAction: banditDecision.selectedAction,
+          enforced: enforcement.enforced,
+          violations: enforcement.violations || [],
+          fallback: enforcement.fallback || null,
+        });
+
+        if (!enforcement.enforced) {
+          logger.warn({ violations: enforcement.violations }, "Enforcement failed");
+        }
+
         sendSSE(res, { type: "done" });
         clearInterval(heartbeat);
         res.end();
         aborted = true;
-
-        // Update learning style async (non-blocking)
-        if (userId) {
-          const behaviorData = {
-            widgetInteractions: widgetCount,
-            avgMessageLength: behavior?.avgMessageLength || 0,
-            followUpCount: behavior?.followUpCount || 0,
-          };
-          // Fire and forget - don't await
-          updateLearningStyle(userId, messages, behaviorData).catch(() => {});
-          // Invalidate cache so next request gets fresh profile
-          invalidateProfileCache(userId).catch(() => {});
-        }
       }
     });
 
@@ -276,7 +336,7 @@ router.post("/chat", async (req, res) => {
 });
 
 router.post("/tool-result", async (req, res) => {
-  const { messages, userId } = req.body;
+  const { messages, userId, bandit: banditData = null } = req.body;
   logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8) }, "POST /api/tool-result");
 
   if (!messages || !Array.isArray(messages)) {
@@ -288,9 +348,26 @@ router.post("/tool-result", async (req, res) => {
   let aborted = false;
 
   try {
-    // Use same personalized prompt as /chat
-    const profile = await getCachedProfile(userId);
-    const systemPrompt = createSystemPrompt(profile);
+    // Record bandit interaction if provided (reward signal)
+    if (banditData?.decisionId && banditData?.interactionData) {
+      try {
+        await recordRewardFromInteraction(
+          banditData.decisionId,
+          banditData.interactionType || 'tool_result',
+          banditData.interactionData,
+          null // topicHistory
+        );
+      } catch (err) {
+        logger.warn({ error: err }, "Failed to record bandit interaction");
+      }
+    }
+
+    // Build system prompt using ONLY bandit action (no profile-based personalization)
+    let systemPrompt = SYSTEM_PROMPT;
+    if (banditData?.selectedAction) {
+      const actionInstructions = getActionInstructions(banditData.selectedAction);
+      systemPrompt += `\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
+    }
 
     const stream = client.messages.stream({
       model,

@@ -9,6 +9,7 @@ import './quick-sort.js';
 import './merge-sort.js';
 import './insertion-sort.js';
 import './selection-sort.js';
+import './heap-sort.js';
 
 // Search algorithms
 import './binary-search.js';

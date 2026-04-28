@@ -360,7 +360,6 @@ function AdaptiveAnimation() {
 function LiveResponseAnimation() {
   const [step, setStep] = useState(0);
   const responses = [
-    "Photosynthesis is the process by which plants convert sunlight into energy...",
     "Let me create a visual explanation for you...",
     "Here's an interactive simulation →"
   ];
@@ -381,7 +380,7 @@ function LiveResponseAnimation() {
         className="flex justify-end"
       >
         <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-sm text-sm max-w-[80%]">
-          How does photosynthesis work?
+          How does selection sort   work?
         </div>
       </motion.div>
 

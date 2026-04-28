@@ -66,7 +66,13 @@ export const config = {
 
   // CORS
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+      : [
+          'http://localhost:5173',
+          'http://localhost:3000',
+          'https://visualearn-ai.vercel.app',
+        ],
   },
 
   // Logging

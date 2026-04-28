@@ -3,6 +3,15 @@ import useSimulation from '../../hooks/useSimulation';
 import ArraySimulation from './simulation/ArraySimulation';
 import GraphSimulation from './simulation/GraphSimulation';
 import TreeSimulation from './simulation/TreeSimulation';
+import GridSimulation from './simulation/GridSimulation';
+import DPSimulation from './simulation/DPSimulation';
+import TimelineSimulation from './simulation/TimelineSimulation';
+import StateMachineSimulation from './simulation/StateMachineSimulation';
+import MathSimulation from './simulation/MathSimulation';
+import StackSimulation from './simulation/StackSimulation';
+import LinkedListSimulation from './simulation/LinkedListSimulation';
+import HeapSimulation from './simulation/HeapSimulation';
+import TuringMachineSimulation from './simulation/TuringMachineSimulation';
 import GenericSimulation from './simulation/GenericSimulation';
 
 /**
@@ -225,6 +234,73 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
           <TreeSimulation
             step={mergedStepData}
             nodes={simulation.nodes}
+          />
+        );
+      case 'grid':
+      case 'grid_pathfinding':
+      case 'grid_fill':
+        return (
+          <GridSimulation
+            step={mergedStepData}
+            grid={simulation.grid || simulation.ir?.inputs?.values?.grid}
+          />
+        );
+      case 'dp':
+      case 'dynamic_programming':
+        return (
+          <DPSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'timeline':
+      case 'scheduling':
+        return (
+          <TimelineSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'state_machine':
+      case 'automata':
+      case 'dfa':
+      case 'nfa':
+        return (
+          <StateMachineSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'math':
+      case 'optimization':
+        return (
+          <MathSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'stack':
+        return (
+          <StackSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'linkedlist':
+      case 'linked_list':
+        return (
+          <LinkedListSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'heap':
+      case 'min_heap':
+      case 'max_heap':
+        return (
+          <HeapSimulation
+            step={mergedStepData}
+          />
+        );
+      case 'turing':
+      case 'turing_machine':
+        return (
+          <TuringMachineSimulation
+            step={mergedStepData}
           />
         );
       default:

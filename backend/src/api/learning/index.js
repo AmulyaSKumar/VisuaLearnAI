@@ -6,12 +6,16 @@
  */
 import { Router } from 'express';
 import { learningContentAgent, regenerateBlockAgent } from '../../agents/learning-content.js';
-import { analyzeUserProfile } from '../../agents/personalization.js';
+import { analyzeUserProfile, getUserMetrics } from '../../agents/personalization.js';
 import {
-  recordBanditInteraction,
-  recordBanditQuizAnswer,
-  resolveBanditDecision,
-} from '../../agents/personalization-bandit.js';
+  bandit,
+  getBanditDecision,
+  recordReward,
+  recordRewardFromInteraction,
+  enforceLearningContentAction,
+  getActionInstructions,
+} from '../../bandit/index.js';
+import { getCognitiveState } from '../../services/learningState.js';
 import {
   getDocument,
   retrieveChunks,
@@ -274,6 +278,11 @@ router.post('/learning-content', async (req, res) => {
   }
 
   try {
+    // Initialize bandit if not ready
+    if (!bandit.isReady()) {
+      await bandit.initialize();
+    }
+
     // Build cache key that includes contentType, preferences, and documentId for proper caching
     const baseCacheKey = getCacheKey(query, userId);
     const prefKey = preferences ? `${preferences.mode || 'balanced'}-${preferences.style || 'visual'}` : 'default';
@@ -286,19 +295,39 @@ router.post('/learning-content', async (req, res) => {
       const cached = contentCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
         console.log(`[LearningContent] Returning cached content${typeLabel}`);
-        return res.json({ success: true, content: cached.content, cached: true });
+        return res.json({ success: true, content: cached.content, cached: true, banditDecision: cached.banditDecision });
       }
     }
 
-    // Get user profile for personalization
+    // Get user profile and metrics for bandit context
     let profile = {};
+    let metrics = {};
+    let cognitiveState = 'flow';
     if (userId) {
       try {
         profile = await analyzeUserProfile(userId) || {};
+        metrics = await getUserMetrics(userId) || {};
+        const cogState = await getCognitiveState(userId, query);
+        cognitiveState = cogState?.cognitiveState || 'flow';
       } catch (e) {
-        console.warn('[LearningContent] Could not fetch profile:', e.message);
+        console.warn('[LearningContent] Could not fetch profile/metrics:', e.message);
       }
     }
+
+    // STEP 1: Create bandit decision FIRST (before any content generation)
+    const banditDecision = await getBanditDecision({
+      userId,
+      topic: query,
+      profile,
+      adaptiveContext: { cognitive_state: cognitiveState },
+      metrics: {
+        engagementLevel: metrics?.engagementLevel || 'medium',
+        topicStatus: metrics?.topicStatus || 'neutral',
+        performanceTrend: metrics?.performanceTrend || 'stable',
+      },
+    });
+
+    console.log(`[LearningContent] Bandit decision: ${banditDecision.selectedAction} (source: ${banditDecision.decisionSource})`);
 
     // Merge preferences into profile for agent access
     const mergedProfile = {
@@ -347,10 +376,13 @@ router.post('/learning-content', async (req, res) => {
       }
     }
 
-    // Generate learning content (pass contentType for lazy loading, context for RAG)
-    // IMPORTANT: Pass documentId so agents can detect "document selected but no chunks found"
-    console.log(`[LearningContent] Starting generation...`);
+    // STEP 2: Generate learning content with bandit action
+    // IMPORTANT: Pass banditAction so content matches the selected approach
+    console.log(`[LearningContent] Starting generation with action: ${banditDecision.selectedAction}...`);
     const startTime = Date.now();
+
+    // Get action-specific instructions for content generation
+    const actionInstructions = getActionInstructions(banditDecision.selectedAction);
 
     const result = await learningContentAgent.run({
       query,
@@ -359,6 +391,9 @@ router.post('/learning-content', async (req, res) => {
       documentId,       // Pass ID so agents know a document was selected
       documentContext,  // RAG context (formatted text)
       contextChunks,    // Raw chunks for reference
+      banditAction: banditDecision.selectedAction,  // NEW: Pass bandit action
+      actionInstructions,                            // NEW: Instructions for action
+      decisionId: banditDecision.id,                 // NEW: For reward tracking
     });
 
     const elapsed = Date.now() - startTime;
@@ -412,26 +447,42 @@ router.post('/learning-content', async (req, res) => {
           success: true,
           content: fallback,
           degraded: true,
+          banditDecision: { id: banditDecision.id, action: banditDecision.selectedAction },
         });
       }
 
       const fallbackContent = buildFallbackLearningContent(query, profile, result.error);
       contentCache.set(cacheKey, {
         content: fallbackContent,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        banditDecision: { id: banditDecision.id, action: banditDecision.selectedAction },
       });
 
       return res.json({
         success: true,
         content: fallbackContent,
         degraded: true,
+        banditDecision: { id: banditDecision.id, action: banditDecision.selectedAction },
       });
     }
 
-    // Cache the result
+    // STEP 3: Enforce action on generated content
+    const enforcement = enforceLearningContentAction(
+      banditDecision.id,
+      banditDecision.selectedAction,
+      contentType || 'learn',
+      result.result
+    );
+
+    if (!enforcement.enforced) {
+      console.warn(`[LearningContent] Enforcement failed:`, enforcement.violations);
+    }
+
+    // Cache the result with bandit decision
     contentCache.set(cacheKey, {
       content: result.result,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      banditDecision: { id: banditDecision.id, action: banditDecision.selectedAction },
     });
 
     // Cleanup old cache entries
@@ -444,7 +495,18 @@ router.post('/learning-content', async (req, res) => {
       success: true,
       content: result.result,
       simulationDetection, // Include detection result for frontend tiered UI
-      executionTime: result.executionTime
+      executionTime: result.executionTime,
+      // Include bandit decision for reward tracking
+      banditDecision: {
+        id: banditDecision.id,
+        action: banditDecision.selectedAction,
+        source: banditDecision.decisionSource,
+        coldStart: banditDecision.coldStart,
+      },
+      enforcement: {
+        enforced: enforcement.enforced,
+        violations: enforcement.violations || [],
+      },
     });
 
   } catch (error) {
@@ -478,14 +540,22 @@ router.post('/learning-content/quiz-answer', async (req, res) => {
 
   const isCorrect = selectedAnswer === correctAnswer;
 
+  // Record reward for the bandit decision
   if (decisionId) {
-    recordBanditQuizAnswer({
-      decisionId,
-      isCorrect,
-      source: 'quiz_answer',
-      eventId: questionId || null,
-    });
-    resolveBanditDecision(decisionId);
+    try {
+      await recordReward(decisionId, {
+        correctness: isCorrect ? 1.0 : 0.0,
+        engagement: 0.7, // Quiz attempt shows engagement
+        completion: 1.0, // Completed the quiz question
+        retention: null, // Unknown at this point
+      }, {
+        source: 'quiz_answer',
+        questionId,
+        isCorrect,
+      });
+    } catch (err) {
+      console.warn('[LearningContent] Failed to record quiz reward:', err.message);
+    }
   }
 
   // Could update user's weak/strong topics here
@@ -508,23 +578,24 @@ router.post('/learning-content/track-interaction', async (req, res) => {
   // Log interaction for analytics
   console.log(`[LearningContent] Interaction: ${interactionType}`, data);
 
-  if (decisionId || data.decisionId) {
-    const resolvedDecisionId = decisionId || data.decisionId;
-    const updatedDecision = recordBanditInteraction({
-      decisionId: resolvedDecisionId,
-      interactionType,
-      data,
-      source: 'learning_track_interaction',
-      eventId: data.eventId || null,
-    });
+  const resolvedDecisionId = decisionId || data.decisionId;
 
-    if (updatedDecision?.learningComponent != null && updatedDecision?.completionComponent != null) {
-      resolveBanditDecision(resolvedDecisionId);
+  if (resolvedDecisionId) {
+    try {
+      // Record interaction as reward using the new bandit module
+      await recordRewardFromInteraction(
+        resolvedDecisionId,
+        interactionType,
+        data,
+        null // topicHistory - could be fetched if needed
+      );
+    } catch (err) {
+      console.warn('[LearningContent] Failed to record interaction reward:', err.message);
     }
   }
 
   // Could store in database for adaptive learning
-  res.json({ success: true, decisionId: decisionId || data.decisionId || null });
+  res.json({ success: true, decisionId: resolvedDecisionId || null });
 });
 
 /**
