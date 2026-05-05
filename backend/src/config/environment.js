@@ -60,8 +60,11 @@ export const config = {
     imageEndpoint: process.env.AZURE_IMAGE_ENDPOINT,
     imageApiVersion: process.env.AZURE_IMAGE_API_VERSION || '2024-02-01',
     ttsModel: process.env.AZURE_TTS_MODEL,
+    // Realtime Voice API - provide full URL with deployment
+    // e.g., https://your-resource.cognitiveservices.azure.com/openai/realtime?api-version=2024-10-01-preview&deployment=gpt-realtime-1.5
     realtimeEndpoint: process.env.AZURE_REALTIME_ENDPOINT,
     realtimeApiKey: process.env.AZURE_REALTIME_API_KEY,
+    realtimeModel: process.env.AZURE_REALTIME_MODEL || 'gpt-realtime-1.5',
   },
 
   // CORS
