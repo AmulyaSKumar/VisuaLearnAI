@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { usePersona } from '../contexts/PersonaContext';
 import { createConversation, deleteConversation, supabase, updateConversation } from '../lib/supabase';
 import InputBar from '../components/InputBar';
 import DocumentUpload from '../components/DocumentUpload';
@@ -24,6 +25,7 @@ const SUGGESTIONS = [
 
 export default function NewChatPage({ onConversationCreated = null, onConversationUpdated = null }) {
   const { user, session } = useAuth();
+  const { defaultPersona } = usePersona();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +33,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   const [showDocuments, setShowDocuments] = useState(false);
   const [documentPreview, setDocumentPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const accessToken = session?.access_token;
 
   // Document management hook
@@ -110,6 +113,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         body: JSON.stringify({
           messages: [{ role: 'user', content: text }],
           userId: user.id,
+          personaId: defaultPersona?.id,
         })
       });
 
@@ -156,6 +160,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             userId: user.id,
             contentType: 'learn',
             documentId: selectedDocumentId, // RAG: pass document ID if selected
+            webSearch: webSearchEnabled && !selectedDocumentId, // Web search only if no document selected
           })
         });
         if (lcResponse.ok) {
@@ -398,6 +403,64 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           </div>
         ) : (
           <>
+            {/* Feature Toggles */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              {/* Web Search Toggle */}
+              <button
+                onClick={() => {
+                  setWebSearchEnabled(!webSearchEnabled);
+                  // Disable document if enabling web search
+                  if (!webSearchEnabled && selectedDocumentId) {
+                    setSelectedDocumentId(null);
+                  }
+                }}
+                disabled={!!selectedDocumentId}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  webSearchEnabled
+                    ? 'bg-primary text-primary-foreground'
+                    : 'neu-btn text-foreground/70 hover:text-foreground'
+                } ${selectedDocumentId ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Web Search
+                {webSearchEnabled && (
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                )}
+              </button>
+
+              {/* Document Toggle (existing functionality) */}
+              <button
+                onClick={() => setShowDocuments(!showDocuments)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  selectedDocumentId
+                    ? 'bg-primary text-primary-foreground'
+                    : 'neu-btn text-foreground/70 hover:text-foreground'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Documents
+                {selectedDocumentId && (
+                  <span className="w-2 h-2 bg-green-400 rounded-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Web Search Info */}
+            {webSearchEnabled && !selectedDocumentId && (
+              <div className="flex items-center gap-2 px-4 py-2 mb-4 bg-primary/10 border border-primary/20 rounded-lg text-sm">
+                <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-foreground/80">
+                  Web search enabled - Results will be grounded in current web information
+                </span>
+              </div>
+            )}
+
             {/* Input */}
             <InputBar
               onSend={handleSendMessage}

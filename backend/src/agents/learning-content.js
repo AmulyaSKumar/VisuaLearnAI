@@ -14,7 +14,7 @@ const client = new Anthropic({
   baseURL: process.env.ANTHROPIC_BASE_URL,
 });
 
-const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5';
+const model = process.env.ANTHROPIC_MODEL ;
 
 // ============================================
 // PERSONALIZATION INSTRUCTIONS
@@ -114,6 +114,64 @@ function repairJsonString(text) {
     .trim();
 }
 
+/**
+ * Attempt to complete truncated JSON by balancing braces/brackets
+ * This is a best-effort recovery for max_tokens truncation
+ */
+function completeTruncatedJson(text) {
+  if (!text) return text;
+
+  let result = text.trim();
+
+  // Track open structures
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let lastChar = '';
+
+  for (let i = 0; i < result.length; i++) {
+    const char = result[i];
+
+    // Track string state (skip escaped quotes)
+    if (char === '"' && lastChar !== '\\') {
+      inString = !inString;
+    }
+
+    if (!inString) {
+      if (char === '{') openBraces++;
+      else if (char === '}') openBraces--;
+      else if (char === '[') openBrackets++;
+      else if (char === ']') openBrackets--;
+    }
+
+    lastChar = char;
+  }
+
+  // If we're mid-string, close it
+  if (inString) {
+    result += '"';
+  }
+
+  // Remove trailing incomplete values (like `"title": "Some incomp`)
+  // Look for incomplete key-value pairs at the end
+  result = result.replace(/,\s*"[^"]*":\s*"[^"]*$/g, '');
+  result = result.replace(/,\s*"[^"]*":\s*$/g, '');
+  result = result.replace(/,\s*"[^"]*$/g, '');
+  result = result.replace(/,\s*$/g, '');
+
+  // Close any open brackets/braces
+  while (openBrackets > 0) {
+    result += ']';
+    openBrackets--;
+  }
+  while (openBraces > 0) {
+    result += '}';
+    openBraces--;
+  }
+
+  return result;
+}
+
 function parseJsonResponse(text) {
   const rawText = text || '';
 
@@ -189,6 +247,28 @@ function parseJsonResponse(text) {
           startIndex = -1;
         }
       }
+    }
+  }
+
+  // Strategy 6: Try to complete truncated JSON (for max_tokens truncation)
+  const completedJson = completeTruncatedJson(repairedStripped);
+  try {
+    const result = JSON.parse(completedJson);
+    console.warn('parseJsonResponse: Recovered truncated JSON - response may be incomplete');
+    return result;
+  } catch {
+    // Continue to error
+  }
+
+  // Strategy 7: Extract first valid JSON object from repaired + completed text
+  const completedObjectBlock = extractJsonObject(completedJson);
+  if (completedObjectBlock) {
+    try {
+      const result = JSON.parse(repairJsonString(completedObjectBlock));
+      console.warn('parseJsonResponse: Recovered truncated JSON object - response may be incomplete');
+      return result;
+    } catch {
+      // Continue to error
     }
   }
 
@@ -322,12 +402,13 @@ export class LearnAgent extends BaseAgent {
   }
 
   async execute(input, context = {}) {
-    const { query, profile = {}, documentContext, contextChunks } = input;
+    const { query, profile = {}, documentContext, contextChunks, webSearchContext, webSearchEnabled } = input;
     if (!query) throw new Error('Query is required');
 
     const learningLevel = profile.comprehension_level || profile.knowledge_level || 'intermediate';
     const learningStyle = profile.learning_style || 'visual';
     const hasRAGContext = !!documentContext || (contextChunks && contextChunks.length > 0);
+    const hasWebSearchContext = !!webSearchContext;
 
     // STRICT RAG VALIDATION: If document was selected but no chunks found, return fallback
     if (input.documentId && !hasRAGContext) {
@@ -338,8 +419,24 @@ export class LearnAgent extends BaseAgent {
     const personalization = getPersonalizationInstructions(profile);
 
     const generateContent = async (retryCount = 0) => {
+      // For Web Search mode: use web search results as authoritative source
       // For RAG mode: simpler prompt focused on document extraction
-      const baseSystemPrompt = hasRAGContext
+      const baseSystemPrompt = hasWebSearchContext
+        ? `You are an educational content generator that creates learning materials based on CURRENT WEB INFORMATION.
+User Level: ${learningLevel}, Style: ${learningStyle}
+
+${personalization}
+
+FOR WEB-SOURCED CONTENT:
+1. Use the provided web search results as your PRIMARY source of information
+2. Generate explanations based on the most recent and relevant web content
+3. Cite sources when possible (e.g., "According to [Source]...")
+4. If the web results contain code examples, include them with proper attribution
+5. Focus on accuracy and up-to-date information from the web sources
+6. If the web results are insufficient, supplement with your knowledge but prioritize web-sourced information
+
+CRITICAL: Respond with RAW JSON only. No explanation, no preamble, no markdown fences. Start with { and end with }.`
+        : hasRAGContext
         ? `You are an educational content generator that creates learning materials STRICTLY from provided document content.
 User Level: ${learningLevel}, Style: ${learningStyle}
 
@@ -372,12 +469,30 @@ EXAMPLES OF BAD VS GOOD TITLES:
 
 CRITICAL: Respond with RAW JSON only. No explanation, no preamble, no markdown fences. Start with { and end with }.`;
 
-      const systemPrompt = buildRAGSystemPrompt(baseSystemPrompt, hasRAGContext);
-      const userMessagePrefix = buildRAGUserMessage(query, documentContext, contextChunks);
+      const systemPrompt = hasWebSearchContext ? baseSystemPrompt : buildRAGSystemPrompt(baseSystemPrompt, hasRAGContext);
+
+      // Build user message based on context type
+      let userMessagePrefix;
+      if (hasWebSearchContext) {
+        userMessagePrefix = `Create learning content based on these web search results. Use the information from the web to provide accurate, up-to-date content.
+
+${webSearchContext}
+
+Topic: "${query}"
+
+Instructions:
+1. Base your content primarily on the web search results above
+2. Explain concepts clearly using information from the sources
+3. If sources disagree, present the most authoritative/recent view
+4. Cite sources when making specific claims
+5. Generate comprehensive learning content`;
+      } else {
+        userMessagePrefix = buildRAGUserMessage(query, documentContext, contextChunks);
+      }
 
       const response = await client.messages.create({
         model,
-        max_tokens: 12000,
+        max_tokens: 16000,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -444,6 +559,11 @@ MANDATORY CHECKLIST - VERIFY BEFORE RESPONDING:
 [ ] Content progresses from foundational to advanced`
         }]
       });
+
+      // Check for truncation due to max_tokens
+      if (response.stop_reason === 'max_tokens') {
+        console.warn(`LearnAgent: Response truncated (stop_reason=max_tokens). Output may be incomplete.`);
+      }
 
       const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
       const result = parseJsonResponse(text);

@@ -22,6 +22,8 @@ import {
   formatChunksAsContext,
 } from '../../services/rag/index.js';
 import { classifySimulationIntent, mightBeSimulationRelated } from '../../simulation/classifier.js';
+import { saveLearningResource, RESOURCE_TYPES } from '../../database/client.js';
+import { searchForLearning } from '../../services/webSearch.js';
 
 const router = Router();
 
@@ -264,7 +266,7 @@ function buildFallbackForContentType(query, contentType, profile = {}) {
  * - undefined: all content (legacy behavior)
  */
 router.post('/learning-content', async (req, res) => {
-  const { query, userId, forceRefresh = false, contentType, preferences, documentId } = req.body;
+  const { query, userId, forceRefresh = false, contentType, preferences, documentId, conversationId, messageId, webSearch = false } = req.body;
 
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Query is required' });
@@ -272,7 +274,8 @@ router.post('/learning-content', async (req, res) => {
 
   const typeLabel = contentType ? ` (${contentType})` : ' (all)';
   const docLabel = documentId ? ` [doc:${documentId.slice(0, 8)}]` : '';
-  console.log(`[LearningContent] Generating${typeLabel}${docLabel} for: "${query.slice(0, 50)}..."`);
+  const webLabel = webSearch ? ' [web]' : '';
+  console.log(`[LearningContent] Generating${typeLabel}${docLabel}${webLabel} for: "${query.slice(0, 50)}..."`);
   if (preferences) {
     console.log(`[LearningContent] Preferences:`, preferences);
   }
@@ -376,6 +379,34 @@ router.post('/learning-content', async (req, res) => {
       }
     }
 
+    // WEB SEARCH: Perform web search if enabled and no document context
+    let webSearchContext = null;
+    let webSearchResults = null;
+    if (webSearch && !documentId) {
+      try {
+        console.log(`[LearningContent] Performing web search for: "${query.slice(0, 50)}..."`);
+        const searchResult = await searchForLearning(query);
+
+        if (searchResult.success && searchResult.results.length > 0) {
+          webSearchContext = searchResult.formattedContext;
+          webSearchResults = {
+            answer: searchResult.answer,
+            sources: searchResult.results.map(r => ({
+              title: r.title,
+              url: r.url,
+              publishedDate: r.publishedDate,
+            })),
+          };
+          console.log(`[LearningContent] Web search: Found ${searchResult.results.length} sources`);
+        } else {
+          console.warn(`[LearningContent] Web search: No results found`);
+        }
+      } catch (webErr) {
+        console.error('[LearningContent] Web search failed:', webErr.message);
+        // Continue without web context
+      }
+    }
+
     // STEP 2: Generate learning content with bandit action
     // IMPORTANT: Pass banditAction so content matches the selected approach
     console.log(`[LearningContent] Starting generation with action: ${banditDecision.selectedAction}...`);
@@ -391,6 +422,8 @@ router.post('/learning-content', async (req, res) => {
       documentId,       // Pass ID so agents know a document was selected
       documentContext,  // RAG context (formatted text)
       contextChunks,    // Raw chunks for reference
+      webSearchContext, // Web search context (if enabled)
+      webSearchEnabled: webSearch,  // Flag indicating web search was requested
       banditAction: banditDecision.selectedAction,  // NEW: Pass bandit action
       actionInstructions,                            // NEW: Instructions for action
       decisionId: banditDecision.id,                 // NEW: For reward tracking
@@ -491,6 +524,113 @@ router.post('/learning-content', async (req, res) => {
       contentCache.delete(oldestKey);
     }
 
+    // Save learning resources to database for persistence (if conversationId provided)
+    if (conversationId) {
+      try {
+        // Determine which resource type(s) to save based on contentType
+        const resourcesToSave = [];
+
+        if (!contentType || contentType === 'learn') {
+          // Save learn content
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.LEARN,
+            content: {
+              topic: result.result.topic,
+              title: result.result.title,
+              summary: result.result.summary,
+              key_ideas: result.result.key_ideas,
+              difficulty_level: result.result.difficulty_level,
+              estimated_time: result.result.estimated_time,
+              prerequisites: result.result.prerequisites,
+              skill_areas: result.result.skill_areas,
+              next_topics: result.result.next_topics,
+              image_search_keywords: result.result.image_search_keywords,
+            },
+          });
+        }
+
+        if (!contentType && result.result.examples?.length > 0) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.EXAMPLES,
+            content: { examples: result.result.examples },
+          });
+        }
+
+        if (contentType === 'examples' && result.result.examples?.length > 0) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.EXAMPLES,
+            content: { examples: result.result.examples },
+          });
+        }
+
+        if (!contentType && result.result.quiz?.length > 0) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.QUIZ,
+            content: { quiz: result.result.quiz },
+          });
+        }
+
+        if (contentType === 'quiz' && result.result.quiz?.length > 0) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.QUIZ,
+            content: { quiz: result.result.quiz },
+          });
+        }
+
+        if (!contentType && result.result.flashcards?.length > 0) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.FLASHCARDS,
+            content: { flashcards: result.result.flashcards },
+          });
+        }
+
+        if (!contentType && result.result.mind_map) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.MINDMAP,
+            content: { mind_map: result.result.mind_map },
+          });
+        }
+
+        if (contentType === 'flashcards-mindmap') {
+          if (result.result.flashcards?.length > 0) {
+            resourcesToSave.push({
+              type: RESOURCE_TYPES.FLASHCARDS,
+              content: { flashcards: result.result.flashcards },
+            });
+          }
+          if (result.result.mind_map) {
+            resourcesToSave.push({
+              type: RESOURCE_TYPES.MINDMAP,
+              content: { mind_map: result.result.mind_map },
+            });
+          }
+        }
+
+        // Save simulation detection result if applicable
+        if (simulationDetection?.supported) {
+          resourcesToSave.push({
+            type: RESOURCE_TYPES.SIMULATION,
+            content: {
+              detection: simulationDetection,
+              // Simulation data will be saved when actually generated
+            },
+          });
+        }
+
+        // Save all resources in parallel
+        await Promise.all(
+          resourcesToSave.map(r =>
+            saveLearningResource(conversationId, messageId, r.type, query, r.content)
+          )
+        );
+
+        console.log(`[LearningContent] Saved ${resourcesToSave.length} resources for conversation ${conversationId.slice(0, 8)}`);
+      } catch (saveErr) {
+        console.warn('[LearningContent] Failed to save resources:', saveErr.message);
+        // Non-blocking - continue with response
+      }
+    }
+
     res.json({
       success: true,
       content: result.result,
@@ -507,6 +647,10 @@ router.post('/learning-content', async (req, res) => {
         enforced: enforcement.enforced,
         violations: enforcement.violations || [],
       },
+      // Include saved resource info
+      resourcesSaved: conversationId ? true : false,
+      // Include web search sources if used
+      webSearchSources: webSearchResults?.sources || null,
     });
 
   } catch (error) {

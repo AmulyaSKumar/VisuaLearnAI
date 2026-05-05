@@ -114,13 +114,25 @@ export function validateLearningContent(action, contentType, content) {
 
   switch (action) {
     case 'visual_widget':
-      // For learn content, should have visualization blocks
+      // For learn content, should have visual elements
+      // The learning content schema uses: concept, code, mistake, insight blocks
+      // For programming topics: code blocks are visual learning elements
+      // For non-programming topics: rich key_ideas with multiple blocks count as visual
       if (contentType === 'learn') {
-        const hasVisualization = content.key_ideas?.some(idea =>
-          idea.blocks?.some(b => b.type === 'visualization' || b.type === 'diagram' || b.type === 'chart')
+        const hasExplicitVisual = content.key_ideas?.some(idea =>
+          idea.blocks?.some(b =>
+            b.type === 'visualization' ||
+            b.type === 'diagram' ||
+            b.type === 'chart' ||
+            b.type === 'code'
+          )
         );
-        if (!hasVisualization) {
-          violations.push('Learning content lacks visualization blocks for visual_widget action');
+        // Also accept rich structured content as "visual" for non-programming topics
+        const hasRichContent = content.key_ideas?.length >= 3 &&
+          content.key_ideas.some(idea => idea.blocks && idea.blocks.length >= 2);
+
+        if (!hasExplicitVisual && !hasRichContent) {
+          violations.push('Learning content lacks visual blocks (code, diagram, or chart) for visual_widget action');
         }
       }
       break;

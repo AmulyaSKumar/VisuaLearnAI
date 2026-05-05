@@ -1,11 +1,12 @@
-@import "tailwindcss";
-
 /* ============================================
    GOOGLE FONTS - Editorial Typography
    Lora (serif) for headlines - editorial/book feel
    Nunito for body - friendly and readable
+   MUST be before @import "tailwindcss" to satisfy CSS @import ordering rules
    ============================================ */
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
 
 @theme inline {
   --color-card: var(--card);

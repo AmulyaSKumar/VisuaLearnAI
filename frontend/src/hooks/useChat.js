@@ -3,6 +3,9 @@ import { useSSEStream } from "./useSSEStream";
 import { useAssetStream } from "./useAssetStream";
 import { useLearningPlan } from "./useLearningPlan";
 import { useLearningContent } from "./useLearningContent";
+import { use3DWidget } from "./use3DWidget";
+import { usePersona } from "../contexts/PersonaContext";
+import { should3DVisualize, getDeviceCapabilities } from "../utils/detect3D";
 import {
   supabase,
   createConversation,
@@ -38,6 +41,12 @@ export function useChat(
   const { assets, isStreaming: isAssetStreaming, progress: assetProgress, startAssetStream } = useAssetStream();
   const { plan, isLoading: isPlanLoading, generatePlan } = useLearningPlan();
   const { content: learningContent, isLoading: isLearningContentLoading, generateContent: generateLearningContent, trackInteraction } = useLearningContent();
+
+  // Get current persona from context
+  const { defaultPersona } = usePersona();
+
+  // 3D widget generation (separate from chat)
+  const { widget: widget3D, isLoading: is3DLoading, skipReason: skip3DReason, generate3D } = use3DWidget(accessToken);
 
   // Track current conversation ID (may be created on first message)
   const conversationIdRef = useRef(conversationId);
@@ -187,13 +196,29 @@ export function useChat(
       // Note: Learning content is fetched by LearningPage when user navigates there
       // This prevents duplicate fetches and race conditions between hook instances
 
+      // Check if 3D visualization is appropriate for this query
+      const detection3D = should3DVisualize(text);
+      const deviceCaps = getDeviceCapabilities();
+      const needs3D = detection3D.use3D && deviceCaps.canRender3D;
+
+      // Console logging for 3D detection
+      console.log('[3D Detection]', {
+        query: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
+        score: detection3D.score,
+        use3D: detection3D.use3D,
+        reason: detection3D.reason,
+        deviceCanRender: deviceCaps.canRender3D,
+        will3DGenerate: needs3D,
+      });
+
       // 3. Start streaming response with personalization data
+      // Use skip3D if 3D will be generated separately
       await startStream(
         newContext,
         () => {},
         async (finalMsgs) => {
           // Attach any streamed images and fact-checks to the final message
-          const enrichedMsgs = finalMsgs.map(msg => ({
+          let enrichedMsgs = finalMsgs.map(msg => ({
             ...msg,
             images: assets.images,
             factCheck: assets.factCheck,
@@ -224,8 +249,65 @@ export function useChat(
 
           setMessages([...newContext, ...enrichedMsgs]);
           setIsStreaming(false);
+
+          // 5. Generate 3D widget separately if needed
+          if (needs3D && enrichedMsgs.length > 0) {
+            console.log('[3D Generation] Starting 3D widget generation...');
+            const assistantText = enrichedMsgs[0]?.text || enrichedMsgs[0]?.content || '';
+            const widget3DResult = await generate3D(text, assistantText);
+
+            // Add 3D widget to the message if generated
+            if (widget3DResult) {
+              console.log('[3D Generation] ✓ 3D widget generated!', {
+                id: widget3DResult.id,
+                title: widget3DResult.title,
+                codeLength: widget3DResult.code?.length || 0,
+              });
+
+              // Get the first message's DB id for update
+              const firstMsgId = enrichedMsgs[0]?.id;
+
+              enrichedMsgs = enrichedMsgs.map((msg, idx) => {
+                if (idx === 0) {
+                  return {
+                    ...msg,
+                    widgets: [...(msg.widgets || []), widget3DResult],
+                  };
+                }
+                return msg;
+              });
+              setMessages([...newContext, ...enrichedMsgs]);
+
+              // Persist 3D widget to DB so it survives refresh
+              if (firstMsgId) {
+                const updatedWidgets = enrichedMsgs[0]?.widgets || [];
+                try {
+                  const { error: updateError } = await supabase
+                    .from("messages")
+                    .update({
+                      metadata: {
+                        widgets: updatedWidgets,
+                        images: enrichedMsgs[0]?.images || [],
+                        factCheck: enrichedMsgs[0]?.factCheck || null,
+                      },
+                    })
+                    .eq("id", firstMsgId);
+
+                  if (updateError) {
+                    console.warn('[3D Generation] Failed to persist widget to DB:', updateError.message);
+                  } else {
+                    console.log('[3D Generation] ✓ Widget persisted to DB');
+                  }
+                } catch (dbErr) {
+                  console.warn('[3D Generation] DB update error:', dbErr.message);
+                }
+              }
+            } else {
+              console.log('[3D Generation] ✗ No 3D widget returned (see use3DWidget logs above for reason)');
+            }
+          }
         },
-        { userId, behavior: behaviorData, preferences, accessToken, conversationId: activeConversationId }
+        { userId, behavior: behaviorData, preferences, accessToken, conversationId: activeConversationId, skip3D: needs3D, personaId: defaultPersona?.id }
       );
     } catch (error) {
       if (createdConversation && !savedUserMessage && userId && activeConversationId) {
@@ -241,6 +323,8 @@ export function useChat(
   }, [
     accessToken,
     assets,
+    defaultPersona,
+    generate3D,
     messages,
     onConversationCreated,
     saveMessage,
@@ -274,6 +358,32 @@ export function useChat(
     conversationIdRef.current = null;
   }, []);
 
+  /**
+   * Add a voice message to the chat (from voice transcript sync)
+   * Messages are already saved to DB by the backend, this updates UI state
+   */
+  const addVoiceMessage = useCallback((role, text, messageId) => {
+    if (!text || !messageId) return;
+
+    setMessages(prev => {
+      // Check if message already exists (avoid duplicates)
+      if (prev.some(m => m.id === messageId)) {
+        return prev;
+      }
+
+      const newMessage = {
+        id: messageId,
+        role,
+        content: text,
+        // Store in metadata.source to match MessageList expectations
+        metadata: { source: 'voice' },
+        timestamp: new Date().toISOString(),
+      };
+
+      return [...prev, newMessage];
+    });
+  }, []);
+
   return {
     messages,
     isStreaming,
@@ -282,6 +392,8 @@ export function useChat(
     isLoadingWidget,
     sendMessage,
     clearMessages,
+    // Voice message sync
+    addVoiceMessage,
     // Personalization transparency
     personalizationMeta,
     // Asset streaming
@@ -297,5 +409,9 @@ export function useChat(
     isLearningContentLoading,
     generateLearningContent,
     trackInteraction,
+    // 3D widget generation (separate from chat)
+    widget3D,
+    is3DLoading,
+    skip3DReason,  // Reason why 3D was skipped (for debugging/UI)
   };
 }

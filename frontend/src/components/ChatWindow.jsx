@@ -3,16 +3,21 @@ import { useLocation, Link, useParams } from "react-router-dom";
 import { useChat } from "../hooks/useChat";
 import { useLearningState } from "../hooks/useLearningState";
 import { useBehaviorTracking } from "../hooks/useBehaviorTracking";
-import useRealtimeAudio from "../hooks/useRealtimeAudio";
+import useRealtimeAudio, { VOICE_STATES } from "../hooks/useRealtimeAudio";
 import { useAuth } from "../contexts/AuthContext";
+import { usePersona } from "../contexts/PersonaContext";
 import MessageList from "./MessageList";
 import InputBar from "./InputBar";
 import VoiceOverlay from "./VoiceOverlay";
+import VoiceIndicator from "./VoiceIndicator";
+import VoiceToggleButton from "./VoiceToggleButton";
 import LearningPlanCard from "./LearningPlanCard";
 import LearningPlanInput from "./LearningPlanInput";
 import AssetProgress from "./AssetProgress";
 import LearningStatePanel from "./LearningStatePanel";
 import SessionSummary from "./SessionSummary";
+import Widget3DSkeleton from "./Widget3DSkeleton";
+import PersonaBadge from "./PersonaBadge";
 
 export default function ChatWindow({
   onConversationCreated = null,
@@ -21,6 +26,7 @@ export default function ChatWindow({
   const location = useLocation();
   const { id: conversationId } = useParams();
   const { user, session } = useAuth();
+  const { defaultPersona } = usePersona();
   const userId = user?.id;
   const accessToken = session?.access_token;
 
@@ -31,6 +37,7 @@ export default function ChatWindow({
     currentStreamedMessage,
     isLoadingWidget,
     sendMessage,
+    addVoiceMessage,
     personalizationMeta,
     assets,
     isAssetStreaming,
@@ -41,6 +48,8 @@ export default function ChatWindow({
     learningContent,
     isLearningContentLoading,
     trackInteraction,
+    // 3D widget generation (separate from chat)
+    is3DLoading,
   } = useChat(conversationId || null, userId, onConversationCreated, onConversationUpdated, accessToken);
 
   // Learning state management
@@ -49,8 +58,20 @@ export default function ChatWindow({
   // Behavior tracking
   const behaviorTracking = useBehaviorTracking(userId);
 
-  // Voice with personalization
-  const voice = useRealtimeAudio(userId);
+  // Voice transcripts callback - adds messages to chat UI
+  const handleVoiceTranscript = useCallback((role, text, messageId) => {
+    // This is called when backend saves a voice message
+    // Add to chat UI state (message is already in DB)
+    addVoiceMessage(role, text, messageId);
+  }, [addVoiceMessage]);
+
+  // Voice with full integration
+  const voice = useRealtimeAudio({
+    conversationId: conversationId || null,
+    accessToken,
+    personaId: defaultPersona?.id,
+    onTranscript: handleVoiceTranscript,
+  });
 
   // Local state
   const sentRef = useRef(false);
@@ -176,6 +197,16 @@ export default function ChatWindow({
 
           {/* Right side actions */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Voice Toggle Button */}
+            <VoiceToggleButton
+              state={voice.state}
+              onToggle={() => voice.isActive ? voice.stop() : voice.start()}
+              disabled={!accessToken}
+            />
+
+            {/* Active Persona Badge */}
+            {defaultPersona && <PersonaBadge persona={defaultPersona} />}
+
             {/* Dashboard Link */}
             <Link
               to="/dashboard"
@@ -217,6 +248,18 @@ export default function ChatWindow({
           </div>
         </div>
       </div>
+
+      {/* Voice Indicator - shown when voice is active */}
+      {voice.isActive && (
+        <VoiceIndicator
+          state={voice.state}
+          transcript={voice.transcript}
+          userTranscript={voice.userTranscript}
+          sessionDuration={voice.sessionDuration}
+          error={voice.error}
+          onStop={voice.stop}
+        />
+      )}
 
       {/* Learning Plan Section */}
       {(showPlanInput || plan || isPlanLoading) && (
@@ -264,6 +307,7 @@ export default function ChatWindow({
         learningContent={learningContent}
         isLearningContentLoading={isLearningContentLoading}
         onLearningInteraction={trackInteraction}
+        is3DLoading={is3DLoading}
       />
 
       {/* Input Area */}
@@ -287,7 +331,10 @@ export default function ChatWindow({
         <InputBar
           onSend={handleSendMessage}
           inputDisabled={isStreaming || isPlanLoading}
+          voiceActive={voice.isActive}
+          voiceState={voice.state}
           onVoiceStart={voice.start}
+          onVoiceStop={voice.stop}
         />
         <div className="text-center mt-2 sm:mt-3">
           <p className="text-[10px] sm:text-xs text-muted-foreground">

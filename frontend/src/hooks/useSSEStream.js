@@ -1,4 +1,48 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
+
+/**
+ * Detect device capabilities for 3D rendering
+ * @returns {Object} Device capability object
+ */
+function getDeviceCapabilities() {
+  // Check WebGL support
+  let webgl = false;
+  try {
+    const canvas = document.createElement('canvas');
+    webgl = !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+  } catch (e) {
+    webgl = false;
+  }
+
+  // Get device memory (in GB, defaults to 4 if not available)
+  const memory = navigator.deviceMemory || 4;
+
+  // Get CPU cores
+  const cores = navigator.hardwareConcurrency || 4;
+
+  // Detect mobile device
+  const mobile = /Mobile|Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // Check for data saver mode
+  const saveData = navigator.connection?.saveData || false;
+
+  // Estimate connection quality
+  const connectionType = navigator.connection?.effectiveType || '4g';
+  const slowConnection = connectionType === 'slow-2g' || connectionType === '2g';
+
+  return {
+    webgl,
+    memory,
+    cores,
+    mobile,
+    saveData,
+    slowConnection,
+    // Derived complexity level
+    complexityLevel: !webgl ? 'none' :
+                     (saveData || (mobile && memory < 3) || slowConnection) ? 'low' :
+                     (mobile || memory < 4 || cores < 4) ? 'medium' : 'high'
+  };
+}
 
 export function useSSEStream() {
   const [currentMessage, setCurrentMessage] = useState(null);
@@ -10,15 +54,18 @@ export function useSSEStream() {
   const factCheckRef = useRef(null);
   const personalizationMetaRef = useRef(null);
 
+  // Memoize device capabilities - they don't change during session
+  const deviceCapabilities = useMemo(() => getDeviceCapabilities(), []);
+
   /**
    * Start streaming chat with personalization support
    * @param {Array} contextMessages - Conversation messages
    * @param {Function} onDelta - Called on each text delta
    * @param {Function} onComplete - Called when stream completes
-   * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId }
+   * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId, skip3D, personaId }
    */
   const startStream = useCallback(async (contextMessages, onDelta, onComplete, options = {}) => {
-    const { userId, behavior, preferences, accessToken, conversationId } = options;
+    const { userId, behavior, preferences, accessToken, conversationId, skip3D = false, personaId = null } = options;
 
     setCurrentMessage({ role: "assistant", text: "", widgets: [], loadingWidget: false });
     setIsLoadingWidget(false);
@@ -55,7 +102,16 @@ export function useSSEStream() {
       const response = await fetch("http://localhost:3001/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ messages: formattedMessages, userId, behavior, preferences, conversationId }),
+        body: JSON.stringify({
+          messages: formattedMessages,
+          userId,
+          behavior,
+          preferences,
+          conversationId,
+          deviceCapabilities,  // Send device capabilities for 3D optimization
+          skip3D,  // When true, backend skips widget generation (3D will be generated separately)
+          personaId,  // AI persona for personalized responses
+        }),
       });
 
       if (!response.ok) throw new Error("Failed to start stream");
@@ -112,13 +168,14 @@ export function useSSEStream() {
             // Full widget received — replace loading with actual widget
             if (data.type === "tool_use" && data.name === "show_widget") {
               const widgetData = data.input;
-              
+
               const newWidget = {
                 type: "widget",
                 id: Date.now().toString(),
                 toolId: data.id,
                 title: widgetData.title,
                 code: widgetData.widget_code,
+                widget_type: widgetData.widget_type || null,  // 3d, 2d, chart, interactive
                 decisionId: personalizationMetaRef.current?.decisionId || null,
                 selectedAction: personalizationMetaRef.current?.selectedAction || null,
                 topicKey: personalizationMetaRef.current?.topicKey || null,
@@ -141,7 +198,8 @@ export function useSSEStream() {
                 streamUserId,
                 streamToken,
                 conversationId,
-                personalizationMetaRef.current
+                personalizationMetaRef.current,
+                personaId
               );
               return;
             }
@@ -185,7 +243,8 @@ export function useSSEStream() {
     userId = null,
     accessToken = null,
     conversationId = null,
-    personalization = null
+    personalization = null,
+    personaId = null
   ) => {
     let localFactCheck = null;
 
@@ -210,6 +269,7 @@ export function useSSEStream() {
           messages: newMessages,
           userId,
           conversationId,
+          personaId,  // AI persona for personalized responses
           bandit: personalization ? {
             decisionId: personalization.decisionId || null,
             selectedAction: personalization.selectedAction || null,
@@ -254,7 +314,8 @@ export function useSSEStream() {
                 id: Date.now().toString(),
                 toolId: data.id,
                 title: widgetData.title,
-                code: widgetData.widget_code
+                code: widgetData.widget_code,
+                widget_type: widgetData.widget_type || null  // 3d, 2d, chart, interactive
               };
               widgetsList.push(newWidget);
               setLoading(false);
@@ -274,5 +335,5 @@ export function useSSEStream() {
     }
   };
 
-  return { startStream, currentMessage, isLoadingWidget, personalizationMeta, factCheckResult };
+  return { startStream, currentMessage, isLoadingWidget, personalizationMeta, factCheckResult, deviceCapabilities };
 }

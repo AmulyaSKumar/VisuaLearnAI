@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { PersonaProvider, usePersona } from "./contexts/PersonaContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 import WelcomeScreen from "./components/WelcomeScreen";
+import PersonaSelectionModal from "./components/PersonaSelectionModal";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import NewChatPage from "./pages/NewChatPage";
 import Dashboard from "./pages/Dashboard";
 import LearningPage from "./pages/LearningPage";
+import SettingsPage from "./pages/SettingsPage";
 import HomePage from "./pages/HomePage";
 import { useAuth } from "./contexts/AuthContext";
 import {
@@ -29,6 +32,7 @@ function AppContent() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
+  const { hasCompletedSetup, isLoading: personaLoading } = usePersona();
   const location = useLocation();
 
   // Close sidebar on route change (mobile)
@@ -193,7 +197,7 @@ function AppContent() {
 
   // Show loading screen while checking auth state
   // This prevents redirecting to login before OAuth callback is processed
-  if (authLoading) {
+  if (authLoading || (user && personaLoading)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
@@ -219,6 +223,9 @@ function AppContent() {
   // If authenticated, show app with sidebar
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden selection:bg-primary/30">
+      {/* Persona Selection Modal - shows when user hasn't selected a persona */}
+      {user && !hasCompletedSetup && <PersonaSelectionModal />}
+
       {/* Overlay when sidebar is open */}
       {sidebarOpen && (
         <div
@@ -303,6 +310,14 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/chat/new" replace />} />
         </Routes>
       </main>
@@ -311,14 +326,16 @@ function AppContent() {
 }
 
 /**
- * App: Main component with AuthProvider
+ * App: Main component with AuthProvider and PersonaProvider
  */
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
+      <PersonaProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </PersonaProvider>
     </AuthProvider>
   );
 }

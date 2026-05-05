@@ -70,8 +70,25 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', async (req, socket, head) => {
+  const sanitizedUrl = (() => {
+    if (!req.url) return req.url;
+    try {
+      const urlObj = new URL(req.url, 'ws://localhost');
+      if (urlObj.searchParams.has('token')) {
+        const rawToken = urlObj.searchParams.get('token') || '';
+        urlObj.searchParams.set('token', `[${rawToken.length} chars]`);
+      }
+      return `${urlObj.pathname}${urlObj.search}`;
+    } catch {
+      return req.url.replace(/token=[^&]+/i, 'token=[redacted]');
+    }
+  })();
+
+  logger.info({ url: sanitizedUrl }, 'WebSocket upgrade request received');
+
   // Only handle /ws/realtime path
   if (!req.url?.startsWith('/ws/realtime')) {
+    logger.warn({ url: req.url }, 'WebSocket upgrade rejected: wrong path');
     socket.destroy();
     return;
   }
@@ -81,6 +98,13 @@ server.on('upgrade', async (req, socket, head) => {
     const urlObj = new URL(req.url, 'ws://localhost');
     const token = urlObj.searchParams.get('token');
 
+    // Log auth params WITHOUT the actual token (security)
+    const safeParams = {};
+    for (const [key, value] of urlObj.searchParams.entries()) {
+      safeParams[key] = key === 'token' ? `[${value.length} chars]` : value;
+    }
+    logger.info({ hasToken: !!token, params: safeParams }, 'WebSocket auth params');
+
     if (!token) {
       logger.warn('WebSocket connection rejected: missing token');
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -89,12 +113,17 @@ server.on('upgrade', async (req, socket, head) => {
     }
 
     // Verify the token
+    logger.info('Verifying WebSocket token...');
     const user = await verifyWebSocketToken(token);
+    logger.info({ userId: user.userId?.slice(0, 8) }, 'WebSocket token verified');
     req.user = user;
 
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      logger.info('WebSocket upgrade successful');
+      wss.emit('connection', ws, req);
+    });
   } catch (error) {
-    logger.warn('WebSocket auth failed:', error.message);
+    logger.warn({ error: error.message, stack: error.stack }, 'WebSocket auth failed');
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();
   }

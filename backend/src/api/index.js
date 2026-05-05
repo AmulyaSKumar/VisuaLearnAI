@@ -13,6 +13,10 @@ import learningContentRoutes from './learning/index.js';
 import ttsRoutes from './tts/routes.js';
 import documentRoutes from './documents/routes.js';
 import simulationRoutes from './simulation/routes.js';
+import visualizationRoutes from './visualization/index.js';
+import resourceRoutes from './resources/routes.js';
+import personaRoutes from './personas/routes.js';
+import realtimeRoutes from './realtime/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
 
@@ -194,6 +198,40 @@ export function registerRoutes(app) {
   router.use('/simulation', simulationRoutes);
 
   /**
+   * 3D Visualization API - Protected
+   * POST /api/generate-3d - Generate 3D widget separately from chat
+   */
+  router.use('/', requireAuth, visualizationRoutes);
+
+  /**
+   * Learning Resources API - Protected
+   * GET /api/resources/:conversationId - Get all resources for conversation
+   * GET /api/resources/:conversationId/types - Get available resource types
+   * GET /api/resources/:conversationId/:resourceType - Get specific resource
+   * POST /api/resources/:conversationId - Save a resource
+   * DELETE /api/resources/:conversationId/:resourceId - Delete a resource
+   */
+  router.use('/resources', requireAuth, resourceRoutes);
+
+  /**
+   * Personas API - Protected
+   * GET /api/personas - List user's personas + system personas
+   * GET /api/personas/default - Get user's default persona
+   * GET /api/personas/:id - Get single persona
+   * POST /api/personas - Create custom persona
+   * PUT /api/personas/:id - Update custom persona
+   * DELETE /api/personas/:id - Delete custom persona
+   * POST /api/personas/:id/set-default - Set as default persona
+   */
+  router.use('/personas', requireAuth, personaRoutes);
+
+  /**
+   * Realtime Voice API - Protected
+   * POST /api/realtime/session - Create ephemeral session for Azure OpenAI Realtime
+   */
+  router.use('/realtime', requireAuth, realtimeRoutes);
+
+  /**
    * Admin API - Requires admin user
    */
 
@@ -323,10 +361,16 @@ export function registerRoutes(app) {
         'POST /api/simulation',
         'POST /api/simulation/detect',
         'GET /api/simulation/types',
+        'POST /api/generate-3d',
         'POST /api/tts',
         'POST /api/plan',
         'POST /api/generate-assets',
         'POST /api/feedback',
+        'GET /api/personas',
+        'POST /api/personas',
+        'GET /api/personas/default',
+        'POST /api/personas/:id/set-default',
+        'POST /api/realtime/session',
         'GET /api/usage/:userId',
         'GET /api/progress/:userId',
         'GET /api/health'

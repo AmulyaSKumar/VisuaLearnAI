@@ -1,8 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { usePersona } from "../contexts/PersonaContext";
 import { getConversationMessages, supabase, updateAssistantMessageContent } from "../lib/supabase";
 import { useLearningContent } from "../hooks/useLearningContent";
+import { useLearningResources, RESOURCE_TYPES } from "../hooks/useLearningResources";
+import { use3DWidget } from "../hooks/use3DWidget";
+import useRealtimeAudio, { VOICE_STATES } from "../hooks/useRealtimeAudio";
+import { should3DVisualize } from "../utils/detect3D";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
 import LearnTabView from "../components/learning/LearnTabView";
@@ -12,6 +17,9 @@ import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
 import EngagingLoader from "../components/learning/EngagingLoader";
+import WidgetFrame from "../components/WidgetFrame";
+import VoiceToggleButton from "../components/VoiceToggleButton";
+import VoiceIndicator from "../components/VoiceIndicator";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -20,7 +28,8 @@ const TAB_LABELS = {
   flashcards: 'Flashcards',
   quiz: 'Quiz',
   mindmap: 'Mind Map',
-  simulation: 'Simulation'
+  simulation: 'Simulation',
+  visualization: '3D View',
 };
 
 // Depth levels for content complexity
@@ -38,8 +47,40 @@ function LearningPageContent() {
   const { id: conversationId } = useParams();
   const navigate = useNavigate();
   const { user, session } = useAuth();
+  const { defaultPersona } = usePersona();
   const userId = user?.id;
   const accessToken = session?.access_token;
+
+  // Voice transcript handler - adds messages to local state
+  const handleVoiceTranscript = useCallback((role, text, messageId) => {
+    if (!text || !messageId) return;
+
+    setMessages(prev => {
+      // Check if message already exists (avoid duplicates)
+      if (prev.some(m => m.id === messageId)) {
+        return prev;
+      }
+
+      const newMessage = {
+        id: messageId,
+        role,
+        content: text,
+        // Store in metadata.source to match MessageList expectations
+        metadata: { source: 'voice' },
+        created_at: new Date().toISOString(),
+      };
+
+      return [...prev, newMessage];
+    });
+  }, []);
+
+  // Voice conversation hook
+  const voice = useRealtimeAudio({
+    conversationId: conversationId || null,
+    accessToken,
+    personaId: defaultPersona?.id,
+    onTranscript: handleVoiceTranscript,
+  });
 
   const [activeTab, setActiveTab] = useState('learn');
   const [conversation, setConversation] = useState(null);
@@ -117,6 +158,31 @@ function LearningPageContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab]);
 
+  // Persistent learning resources hook
+  const {
+    resources: persistedResources,
+    availableTypes: persistedTypes,
+    isLoading: isResourcesLoading,
+    fetchResources,
+    getResource,
+    hasResource,
+    saveResource,
+    addAvailableType,
+    getTabs: getPersistedTabs,
+  } = useLearningResources(conversationId, accessToken);
+
+  const {
+    isLoading: is3DGenerating,
+    skipReason: visualizationSkipReason,
+    generate3D,
+  } = use3DWidget(accessToken);
+
+  // State for 3D regeneration
+  const [isRegenerating3D, setIsRegenerating3D] = useState(false);
+
+  // Track if resources have been checked (to avoid race condition)
+  const resourcesCheckedRef = useRef(false);
+
   // Learning content hook (fallback if not stored)
   const {
     content: generatedContent,
@@ -144,6 +210,7 @@ function LearningPageContent() {
   const [localSimulationDetection, setLocalSimulationDetection] = useState(null);
   const simulationDetection = localSimulationDetection || hookSimulationDetection;
   const [simulationAutoShown, setSimulationAutoShown] = useState(false);
+  const [visualizationHintChecked, setVisualizationHintChecked] = useState(false);
 
   // Ref to track if detection is in progress (prevent duplicate calls)
   const detectionInProgressRef = useRef(false);
@@ -242,13 +309,144 @@ function LearningPageContent() {
     setSimulationAutoShown(true);
   }, [simulationDetection, simulationAutoShown]);
 
-  // Merge stored content with generated content (lazy loaded tabs)
-  // Generated content can add flashcards, quiz, etc. to stored learn content
+  // Show a dedicated 3D tab when the query is spatial enough for visualization.
+  useEffect(() => {
+    if (!userQuery || visualizationHintChecked) return;
+
+    const detection = should3DVisualize(userQuery);
+    if (detection.use3D) {
+      setVisibleTabs(prev => {
+        if (prev.includes('visualization')) return prev;
+        return [...prev, 'visualization'];
+      });
+    }
+
+    setVisualizationHintChecked(true);
+  }, [userQuery, visualizationHintChecked]);
+
+  // Sync visible tabs with persisted resource types from database
+  // This ensures tabs persist across page reloads
+  // IMPORTANT: This REPLACES tabs (not adds) to ensure clean state on conversation switch
+  useEffect(() => {
+    if (!persistedTypes || persistedTypes.length === 0) return;
+
+    console.log('[LearningPage] Syncing tabs from persisted types:', persistedTypes);
+
+    // Build fresh set of tabs from persisted types (REPLACE, not ADD)
+    const newTabs = new Set(['learn']); // Always include learn
+    const newLoaded = new Set(['learn']);
+
+    // Map resource types to tab IDs
+    persistedTypes.forEach(type => {
+      switch (type) {
+        case RESOURCE_TYPES.LEARN:
+          newTabs.add('learn');
+          newLoaded.add('learn');
+          break;
+        case RESOURCE_TYPES.EXAMPLES:
+          newTabs.add('examples');
+          newLoaded.add('examples');
+          break;
+        case RESOURCE_TYPES.QUIZ:
+          newTabs.add('quiz');
+          newLoaded.add('quiz');
+          break;
+        case RESOURCE_TYPES.FLASHCARDS:
+          newTabs.add('flashcards');
+          newLoaded.add('flashcards');
+          break;
+        case RESOURCE_TYPES.MINDMAP:
+          newTabs.add('mindmap');
+          newLoaded.add('mindmap');
+          break;
+        case RESOURCE_TYPES.SIMULATION:
+          newTabs.add('simulation');
+          newLoaded.add('simulation');
+          break;
+        case RESOURCE_TYPES.VISUALIZATION:
+          newTabs.add('visualization');
+          newLoaded.add('visualization');
+          break;
+        default:
+          break;
+      }
+    });
+
+    if (userQuery && should3DVisualize(userQuery).use3D) {
+      newTabs.add('visualization');
+    }
+
+    console.log('[LearningPage] Setting visible tabs:', [...newTabs]);
+    setVisibleTabs([...newTabs]);
+    setLoadedTabs(newLoaded);
+  }, [persistedTypes, userQuery]);
+
+  // Build content from persisted resources + stored content + generated content
+  // Priority: persisted resources > stored content (from message metadata) > generated content
   const rawContent = useMemo(() => {
-    if (!storedContent && !generatedContent) return null;
-    // Merge: start with stored, overlay with generated
-    return { ...storedContent, ...generatedContent };
-  }, [storedContent, generatedContent]);
+    // Start with nothing
+    let merged = {};
+
+    // Layer 1: Generated content (lowest priority - for lazy loading)
+    if (generatedContent) {
+      merged = { ...merged, ...generatedContent };
+    }
+
+    // Layer 2: Stored content from message metadata
+    if (storedContent) {
+      merged = { ...merged, ...storedContent };
+    }
+
+    // Layer 3: Persisted resources from database (highest priority)
+    if (persistedResources) {
+      Object.entries(persistedResources).forEach(([type, resource]) => {
+        if (resource?.content) {
+          // Map resource types to content fields
+          switch (type) {
+            case RESOURCE_TYPES.LEARN:
+              merged = { ...merged, ...resource.content };
+              break;
+            case RESOURCE_TYPES.EXAMPLES:
+              if (resource.content.examples) {
+                merged.examples = resource.content.examples;
+              }
+              break;
+            case RESOURCE_TYPES.QUIZ:
+              if (resource.content.quiz) {
+                merged.quiz = resource.content.quiz;
+              }
+              break;
+            case RESOURCE_TYPES.FLASHCARDS:
+              if (resource.content.flashcards) {
+                merged.flashcards = resource.content.flashcards;
+              }
+              break;
+            case RESOURCE_TYPES.MINDMAP:
+              if (resource.content.mind_map) {
+                merged.mind_map = resource.content.mind_map;
+              }
+              break;
+            case RESOURCE_TYPES.SIMULATION:
+              // Simulation detection info
+              if (resource.content.detection) {
+                merged.simulationDetection = resource.content.detection;
+              }
+              break;
+            case RESOURCE_TYPES.VISUALIZATION:
+              if (resource.content.widget) {
+                merged.visualizationWidget = resource.content.widget;
+              }
+              break;
+            default:
+              break;
+          }
+        }
+      });
+    }
+
+    if (Object.keys(merged).length === 0) return null;
+    return merged;
+  }, [storedContent, generatedContent, persistedResources]);
 
   const learningContent = useMemo(() => {
     if (!rawContent) {
@@ -268,24 +466,35 @@ function LearningPageContent() {
     return normalized;
   }, [rawContent]);
 
+  const visualizationWidget = rawContent?.visualizationWidget || null;
+
   // Load conversation and messages
+  // Wait for persisted resources to be loaded first to avoid unnecessary API calls
   useEffect(() => {
     if (!conversationId) {
       navigate('/chat/new');
       return;
     }
 
+    // Wait for resources to finish loading before deciding to fetch from API
+    if (isResourcesLoading) {
+      console.log('[LearningPage] Waiting for persisted resources to load...');
+      return;
+    }
+
     async function loadSession() {
-      // Reset all state first (synchronously before any async operations)
+      // Reset state (but NOT visibleTabs/loadedTabs - those are managed by persistedTypes sync effect)
       setLocalSimulationDetection(null);
       localSimulationDetectionRef.current = null; // Also reset the ref
       detectionInProgressRef.current = false; // Reset in-progress flag
       setSimulationAutoShown(false);
+      setVisualizationHintChecked(false);
       clearContentRef.current(); // Use ref to avoid infinite loop
       setStoredContent(null);
-      setVisibleTabs(['learn']);
-      setLoadedTabs(new Set(['learn']));
+      // NOTE: visibleTabs and loadedTabs are managed by the persistedTypes sync effect
+      // Don't reset them here or we'll lose persisted tabs!
       setTabErrors({});
+      resourcesCheckedRef.current = true;
 
       setIsLoading(true);
       setError(null);
@@ -305,19 +514,32 @@ function LearningPageContent() {
         const msgs = await getConversationMessages(conversationId);
         setMessages(msgs || []);
 
-        // Try to get stored learning content from assistant message metadata
-        const assistantMsg = msgs?.find(m => m.role === 'assistant');
-        const stored = assistantMsg?.metadata?.learningContent;
-        const storedFact = assistantMsg?.metadata?.factCheck;
-
         // Store user query for lazy loading
         const userMessage = msgs?.find(m => m.role === 'user');
         if (userMessage) {
           setUserQuery(userMessage.content);
         }
 
+        // CHECK 1: Do we have persisted resources from learning_resources table?
+        const hasPersistedLearnContent = hasResource(RESOURCE_TYPES.LEARN);
+        if (hasPersistedLearnContent) {
+          console.log('[LearningPage] Using persisted resources from learning_resources table');
+          // Content is already merged via the rawContent useMemo
+          // Just run simulation detection
+          if (userMessage?.content) {
+            runSimulationDetection(userMessage.content);
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        // CHECK 2: Try to get stored learning content from assistant message metadata
+        const assistantMsg = msgs?.find(m => m.role === 'assistant');
+        const stored = assistantMsg?.metadata?.learningContent;
+        const storedFact = assistantMsg?.metadata?.factCheck;
+
         if (stored) {
-          console.log('[LearningPage] Using stored content from DB');
+          console.log('[LearningPage] Using stored content from message metadata');
           setStoredContent(stored);
           setFactCheck(storedFact || stored.factCheck || null);
 
@@ -344,12 +566,12 @@ function LearningPageContent() {
             runSimulationDetection(userMessage.content);
           }
         } else if (userMessage) {
-          // Fallback: only fetch learn content initially (lazy loading)
-          console.log('[LearningPage] Fetching learn content for:', userMessage.content?.slice(0, 30));
+          // CHECK 3: No stored content anywhere - need to generate via API
+          console.log('[LearningPage] No stored content found, fetching from API for:', userMessage.content?.slice(0, 30));
           // Pass preferences with mode based on depthLevel
           // IMPORTANT: Await so loading state shows properly
           // Use ref to avoid infinite loop (fetchTabContent changes on every render)
-          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel });
+          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel }, conversationId);
 
           // Also run simulation detection for fresh content
           runSimulationDetection(userMessage.content);
@@ -364,7 +586,7 @@ function LearningPageContent() {
 
     loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection]);
+  }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection, isResourcesLoading, hasResource]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   // Handle opening a tab (add to visible, fetch content if needed)
@@ -400,10 +622,29 @@ function LearningPageContent() {
       return;
     }
 
+    // Map tabId to resource type
+    const tabToResourceType = {
+      'learn': RESOURCE_TYPES.LEARN,
+      'examples': RESOURCE_TYPES.EXAMPLES,
+      'quiz': RESOURCE_TYPES.QUIZ,
+      'flashcards': RESOURCE_TYPES.FLASHCARDS,
+      'mindmap': RESOURCE_TYPES.MINDMAP,
+      'simulation': RESOURCE_TYPES.SIMULATION,
+      'visualization': RESOURCE_TYPES.VISUALIZATION,
+    };
+
+    // Check if content exists in persisted resources (from database)
+    const resourceType = tabToResourceType[tabId];
+    if (resourceType && hasResource(resourceType)) {
+      console.log(`[LearningPage] Tab ${tabId} has persisted resource, using cached content`);
+      setLoadedTabs(prev => new Set([...prev, tabId]));
+      return;
+    }
+
     // Use ref to get current storedContent (avoids stale closure)
     const currentContent = storedContentRef.current;
 
-    // Check if content exists in storedContent (from DB)
+    // Check if content exists in storedContent (from message metadata)
     const hasInDB = (() => {
       switch (tabId) {
         case 'examples':
@@ -414,6 +655,8 @@ function LearningPageContent() {
           return Array.isArray(currentContent?.quiz) && currentContent.quiz.length > 0;
         case 'mindmap':
           return currentContent?.mind_map?.branches && Array.isArray(currentContent.mind_map.branches) && currentContent.mind_map.branches.length > 0;
+        case 'visualization':
+          return !!currentContent?.visualizationWidget;
         default:
           return false;
       }
@@ -428,6 +671,33 @@ function LearningPageContent() {
     setLoadingTabs(prev => new Set([...prev, tabId]));
 
     try {
+      if (tabId === 'visualization') {
+        const assistantMessage = messages.find(m => m.role === 'assistant');
+        const assistantContext = assistantMessage?.content || assistantMessage?.text || '';
+        const widget = await generate3D(userQuery, assistantContext);
+
+        if (!widget) {
+          throw new Error(visualizationSkipReason || '3D visualization was skipped for this topic');
+        }
+
+        const merged = {
+          ...(storedContentRef.current || {}),
+          visualizationWidget: widget,
+        };
+
+        setStoredContent(merged);
+        setLoadedTabs(prev => new Set([...prev, 'visualization']));
+
+        await saveResource(
+          RESOURCE_TYPES.VISUALIZATION,
+          userQuery || conversation?.title || '3D visualization',
+          { widget },
+          assistantMessage?.id || null
+        );
+
+        return;
+      }
+
       const apiContentType = (tabId === 'flashcards' || tabId === 'mindmap')
         ? 'flashcards-mindmap'
         : tabId;
@@ -438,7 +708,8 @@ function LearningPageContent() {
         apiContentType,
         userId,
         accessToken,
-        { mode: depthLevel }
+        { mode: depthLevel },
+        conversationId // Pass conversationId for resource persistence
       );
 
       if (!newContent) {
@@ -506,6 +777,9 @@ function LearningPageContent() {
         console.error('Failed to save content to DB:', err);
       });
 
+      // Also save to learning_resources table for persistence (handled by backend now)
+      // The backend saves resources automatically when conversationId is provided
+
     } catch (error) {
       console.error(`Failed to load ${tabId}:`, error);
       setTabErrors(prev => ({
@@ -524,7 +798,7 @@ function LearningPageContent() {
         return next;
       });
     }
-  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId]);
+  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId, hasResource, conversation, messages, generate3D, saveResource, visualizationSkipReason]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   const handleReadCard = (cardId) => {
@@ -565,6 +839,52 @@ function LearningPageContent() {
     }
   }, [userQuery, conversation?.title, accessToken, depthLevel, regenerateBlock]);
 
+  // Handle 3D visualization regeneration
+  const handleRegenerate3D = useCallback(async () => {
+    if (!userQuery || isRegenerating3D) return;
+
+    setIsRegenerating3D(true);
+    console.log('[LearningPage] Regenerating 3D visualization...');
+
+    try {
+      const assistantMessage = messages.find(m => m.role === 'assistant');
+      const assistantContext = assistantMessage?.content || assistantMessage?.text || '';
+
+      // Generate new 3D widget
+      const newWidget = await generate3D(userQuery, assistantContext);
+
+      if (!newWidget) {
+        console.warn('[LearningPage] 3D regeneration returned null:', visualizationSkipReason);
+        return;
+      }
+
+      console.log('[LearningPage] 3D regeneration successful:', {
+        id: newWidget.id,
+        title: newWidget.title,
+      });
+
+      // Update local state
+      const merged = {
+        ...(storedContentRef.current || {}),
+        visualizationWidget: newWidget,
+      };
+      setStoredContent(merged);
+
+      // Save to database (will upsert existing resource)
+      await saveResource(
+        RESOURCE_TYPES.VISUALIZATION,
+        userQuery || conversation?.title || '3D visualization',
+        { widget: newWidget },
+        assistantMessage?.id || null
+      );
+
+      console.log('[LearningPage] 3D regeneration saved to database');
+    } catch (err) {
+      console.error('[LearningPage] 3D regeneration failed:', err);
+    } finally {
+      setIsRegenerating3D(false);
+    }
+  }, [userQuery, isRegenerating3D, messages, generate3D, visualizationSkipReason, saveResource, conversation?.title]);
 
   // Render engaging loader based on active tab
   const renderLoader = () => {
@@ -714,6 +1034,73 @@ function LearningPageContent() {
           </>
         );
 
+      case 'visualization':
+        return (
+          <>
+            <BackButton />
+            {visualizationWidget ? (
+              <div className="max-w-4xl mx-auto space-y-4">
+                {/* Header with Regenerate button */}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-foreground">
+                    3D Visualization
+                  </h2>
+                  <button
+                    onClick={handleRegenerate3D}
+                    disabled={isRegenerating3D || is3DGenerating}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isRegenerating3D ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Regenerate
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* 3D Widget */}
+                <WidgetFrame widget={visualizationWidget} onInteraction={handleInteraction} />
+
+                {/* Metadata */}
+                {visualizationWidget.topic && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Topic: {visualizationWidget.topic}
+                  </p>
+                )}
+              </div>
+            ) : is3DGenerating ? (
+              <EngagingLoader tabType="visualization" topic={learningContent?.topic || userQuery || conversation?.title} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <p className="text-muted-foreground mb-2">No 3D visualization available</p>
+                {visualizationSkipReason && (
+                  <p className="text-xs text-muted-foreground mb-4">{visualizationSkipReason}</p>
+                )}
+                <button
+                  onClick={handleRegenerate3D}
+                  disabled={isRegenerating3D}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isRegenerating3D ? 'Generating...' : 'Generate 3D View'}
+                </button>
+              </div>
+            )}
+          </>
+        );
+
       default:
         return null;
     }
@@ -737,6 +1124,18 @@ function LearningPageContent() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+      {/* Voice Indicator - shown when voice is active */}
+      {voice.isActive && (
+        <VoiceIndicator
+          state={voice.state}
+          transcript={voice.transcript}
+          userTranscript={voice.userTranscript}
+          sessionDuration={voice.sessionDuration}
+          error={voice.error}
+          onStop={voice.stop}
+        />
+      )}
+
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
@@ -748,6 +1147,13 @@ function LearningPageContent() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Voice Toggle Button */}
+              <VoiceToggleButton
+                state={voice.state}
+                onToggle={() => voice.isActive ? voice.stop() : voice.start()}
+                disabled={!accessToken}
+              />
+
               {/* Adaptive Learning Indicator */}
               <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground border border-border/50 rounded-md bg-muted/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -817,7 +1223,7 @@ function LearningPageContent() {
                 return (
                   <button
                     key={tabId}
-                    onClick={() => setActiveTab(tabId)}
+                    onClick={() => handleOpenTab(tabId)}
                     className={`px-3 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap ${
                       isActive
                         ? 'neu-raised-sm text-primary'

@@ -66,8 +66,9 @@ export function useLearningContent() {
    * @param {string} userId - User ID for personalization
    * @param {string} accessToken - Auth token
    * @param {object} preferences - User preferences { mode: 'simple'|'balanced'|'deep', style: 'story'|'visual'|'step-by-step' }
+   * @param {string} conversationId - Conversation ID for resource persistence
    */
-  const fetchTabContent = useCallback(async (query, tabType, userId = null, accessToken = null, preferences = null) => {
+  const fetchTabContent = useCallback(async (query, tabType, userId = null, accessToken = null, preferences = null, conversationId = null) => {
     if (!query?.trim() || !tabType) return null;
 
     // Map tab types to state keys
@@ -107,7 +108,7 @@ export function useLearningContent() {
         const response = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ query, userId, contentType: tabType, preferences })
+          body: JSON.stringify({ query, userId, contentType: tabType, preferences, conversationId })
         });
 
         const data = await parseJsonResponse(

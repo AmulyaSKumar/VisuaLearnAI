@@ -1,20 +1,54 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-const WS_BASE_URL = "ws://localhost:3001/ws/realtime";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+// Voice session states
+export const VOICE_STATES = {
+  IDLE: 'IDLE',
+  CONNECTING: 'CONNECTING',
+  LISTENING: 'LISTENING',
+  PROCESSING: 'PROCESSING',
+  SPEAKING: 'SPEAKING',
+};
+
+// Error types for device compatibility
+export const VOICE_ERRORS = {
+  MIC_PERMISSION_DENIED: 'MIC_PERMISSION_DENIED',
+  MIC_NOT_FOUND: 'MIC_NOT_FOUND',
+  BROWSER_NOT_SUPPORTED: 'BROWSER_NOT_SUPPORTED',
+  CONNECTION_FAILED: 'CONNECTION_FAILED',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  SESSION_EXPIRED: 'SESSION_EXPIRED',
+};
 
 /**
- * Hook for real-time voice conversation via gpt-realtime-1.5
- * Handles: WebSocket connection, mic capture (AudioWorklet), audio playback
- * @param {string} userId - Optional user ID for personalization
+ * Hook for real-time voice conversation via Azure OpenAI gpt-4o-realtime
+ * Features:
+ * - State machine for voice states
+ * - Ephemeral session token fetching
+ * - Auto-reconnect with exponential backoff
+ * - Session duration limit with warnings
+ * - Message sync callbacks
+ * - Device compatibility handling
+ * - Sequential audio playback queue
  */
-export default function useRealtimeAudio(userId = null) {
-  const [isActive, setIsActive] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isAISpeaking, setIsAISpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
+export default function useRealtimeAudio({
+  conversationId = null,
+  accessToken = null,
+  personaId = null,
+  onTranscript = null,
+  onStateChange = null,
+  onTimeWarning = null,
+  maxDuration = 300000, // 5 minutes
+} = {}) {
+  const [state, setState] = useState(VOICE_STATES.IDLE);
   const [transcript, setTranscript] = useState(""); // AI transcript
   const [userTranscript, setUserTranscript] = useState(""); // User transcript
   const [error, setError] = useState(null);
+  const [errorType, setErrorType] = useState(null);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(null); // Warning state
 
   const wsRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -23,198 +57,110 @@ export default function useRealtimeAudio(userId = null) {
   const playbackQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
   const sourceNodeRef = useRef(null);
+  const sessionStartRef = useRef(null);
+  const durationIntervalRef = useRef(null);
+  const maxDurationTimeoutRef = useRef(null);
+  const warningTimeoutRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const intentionalCloseRef = useRef(false);
 
-  // Play queued PCM16 audio chunks
+  // Update state and notify
+  const updateState = useCallback((newState) => {
+    setState(newState);
+    onStateChange?.(newState);
+  }, [onStateChange]);
+
+  // Clear audio queue and stop playback
+  const clearAudioQueue = useCallback(() => {
+    playbackQueueRef.current = [];
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.stop(); } catch {}
+      sourceNodeRef.current = null;
+    }
+    isPlayingRef.current = false;
+  }, []);
+
+  // Play queued PCM16 audio chunks sequentially
   const playNextChunk = useCallback(() => {
     if (!audioCtxRef.current || playbackQueueRef.current.length === 0) {
       isPlayingRef.current = false;
-      setIsAISpeaking(false);
+      // Return to listening after speaking (check current state)
+      setState(currentState => {
+        if (currentState === VOICE_STATES.SPEAKING) {
+          onStateChange?.(VOICE_STATES.LISTENING);
+          return VOICE_STATES.LISTENING;
+        }
+        return currentState;
+      });
       return;
     }
 
     isPlayingRef.current = true;
-    setIsAISpeaking(true);
+    updateState(VOICE_STATES.SPEAKING);
 
     const pcmData = playbackQueueRef.current.shift();
-    const float32 = new Float32Array(pcmData.length);
-    for (let i = 0; i < pcmData.length; i++) {
-      float32[i] = pcmData[i] / 32768;
+
+    try {
+      const float32 = new Float32Array(pcmData.length);
+      for (let i = 0; i < pcmData.length; i++) {
+        float32[i] = pcmData[i] / 32768;
+      }
+
+      const buffer = audioCtxRef.current.createBuffer(1, float32.length, 24000);
+      buffer.copyToChannel(float32, 0);
+
+      const source = audioCtxRef.current.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtxRef.current.destination);
+      source.onended = playNextChunk;
+      source.start();
+      sourceNodeRef.current = source;
+    } catch (err) {
+      console.error("Audio playback error:", err);
+      // Continue to next chunk on error
+      playNextChunk();
     }
-
-    const buffer = audioCtxRef.current.createBuffer(1, float32.length, 24000);
-    buffer.copyToChannel(float32, 0);
-
-    const source = audioCtxRef.current.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioCtxRef.current.destination);
-    source.onended = playNextChunk;
-    source.start();
-    sourceNodeRef.current = source;
-  }, []);
+  }, [onStateChange, updateState]);
 
   // Enqueue PCM16 audio for playback (base64 → Int16Array)
   const enqueueAudio = useCallback((base64Data) => {
-    const binary = atob(base64Data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const int16 = new Int16Array(bytes.buffer);
-    playbackQueueRef.current.push(int16);
+    try {
+      const binary = atob(base64Data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const int16 = new Int16Array(bytes.buffer);
+      playbackQueueRef.current.push(int16);
 
-    if (!isPlayingRef.current) {
-      playNextChunk();
+      if (!isPlayingRef.current) {
+        playNextChunk();
+      }
+    } catch (err) {
+      console.error("Audio decode error:", err);
     }
   }, [playNextChunk]);
 
-  // Start voice session
-  const start = useCallback(async () => {
-    setError(null);
-    setTranscript("");
-    setUserTranscript("");
-    setIsConnecting(true);
-
-    try {
-      // 1. Set up AudioContext
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
-      audioCtxRef.current = audioCtx;
-
-      // 2. Get mic permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-
-      // 3. Load AudioWorklet for PCM capture
-      await audioCtx.audioWorklet.addModule("/pcm-processor.js");
-      const micSource = audioCtx.createMediaStreamSource(stream);
-      const workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
-      workletNodeRef.current = workletNode;
-
-      // 4. Connect to backend WebSocket proxy with userId for personalization
-      const wsUrl = userId ? `${WS_BASE_URL}?userId=${userId}` : WS_BASE_URL;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log("🎙️ Voice WS connected");
-      };
-
-      ws.onmessage = (event) => {
-        let msg;
-        try { msg = JSON.parse(event.data); } catch { return; }
-
-        switch (msg.type) {
-          case "session.created":
-            console.log("✅ Session created:", msg.session?.id);
-            // Configure the session
-            ws.send(JSON.stringify({
-              type: "session.update",
-              session: {
-                voice: "alloy",
-                instructions: "You are VisuaLearn AI, a helpful and friendly tutor. Keep your responses concise and natural. Speak like a real tutor would.",
-                modalities: ["text", "audio"],
-                input_audio_format: "pcm16",
-                output_audio_format: "pcm16",
-                input_audio_transcription: { model: "whisper-1" },
-                turn_detection: {
-                  type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
-                  create_response: true,
-                },
-              },
-            }));
-            break;
-
-          case "session.updated":
-            console.log("✅ Session configured");
-            setIsConnecting(false);
-            setIsActive(true);
-            setIsListening(true);
-            // Start mic → worklet → WS pipeline
-            micSource.connect(workletNode);
-            workletNode.connect(audioCtx.destination); // needed for worklet to run
-            workletNode.port.onmessage = (e) => {
-              if (e.data.type === "audio" && ws.readyState === WebSocket.OPEN) {
-                // Convert ArrayBuffer to base64 on the main thread where btoa is available
-                const uint8 = new Uint8Array(e.data.data);
-                let binary = "";
-                for (let i = 0; i < uint8.length; i++) {
-                  binary += String.fromCharCode(uint8[i]);
-                }
-                const base64 = btoa(binary);
-
-                ws.send(JSON.stringify({
-                  type: "input_audio_buffer.append",
-                  audio: base64,
-                }));
-              }
-            };
-            break;
-
-          case "input_audio_buffer.speech_started":
-            setIsListening(true);
-            setIsAISpeaking(false);
-            // Stop any current AI playback when user starts speaking
-            playbackQueueRef.current = [];
-            if (sourceNodeRef.current) {
-              try { sourceNodeRef.current.stop(); } catch {}
-              sourceNodeRef.current = null;
-            }
-            isPlayingRef.current = false;
-            break;
-
-          case "input_audio_buffer.speech_stopped":
-            setIsListening(false);
-            break;
-
-          case "conversation.item.input_audio_transcription.completed":
-            if (msg.transcript) {
-              setUserTranscript(msg.transcript);
-            }
-            break;
-
-          case "response.audio_transcript.delta":
-            setTranscript(prev => prev + (msg.delta || ""));
-            break;
-
-          case "response.audio.delta":
-            if (msg.delta) enqueueAudio(msg.delta);
-            break;
-
-          case "response.done":
-            setIsListening(true);
-            // Reset transcript for next turn after a short delay
-            setTimeout(() => setTranscript(""), 200);
-            break;
-
-          case "error":
-            console.error("Realtime error:", msg.error);
-            setError(typeof msg.error === "string" ? msg.error : msg.error?.message || "Unknown error");
-            break;
-        }
-      };
-
-      ws.onerror = () => {
-        setError("Connection failed");
-        setIsConnecting(false);
-      };
-
-      ws.onclose = () => {
-        setIsActive(false);
-        setIsConnecting(false);
-        setIsListening(false);
-      };
-
-    } catch (err) {
-      console.error("Voice start error:", err);
-      setError(err.message);
-      setIsConnecting(false);
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    // Clear timeouts
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
     }
-  }, [enqueueAudio]);
+    if (maxDurationTimeoutRef.current) {
+      clearTimeout(maxDurationTimeoutRef.current);
+      maxDurationTimeoutRef.current = null;
+    }
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+      warningTimeoutRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
 
-  // Stop voice session
-  const stop = useCallback(() => {
     // Close WebSocket
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.close();
@@ -239,35 +185,355 @@ export default function useRealtimeAudio(userId = null) {
     }
     audioCtxRef.current = null;
 
-    // Stop playback
-    playbackQueueRef.current = [];
-    if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.stop(); } catch {}
-      sourceNodeRef.current = null;
-    }
-    isPlayingRef.current = false;
+    // Clear audio queue
+    clearAudioQueue();
+  }, [clearAudioQueue]);
 
-    setIsActive(false);
-    setIsConnecting(false);
-    setIsAISpeaking(false);
-    setIsListening(false);
+  // Stop voice session
+  const stop = useCallback(() => {
+    intentionalCloseRef.current = true;
+    cleanup();
+    updateState(VOICE_STATES.IDLE);
     setTranscript("");
     setUserTranscript("");
+    setSessionDuration(0);
+    setReconnectCount(0);
+    setTimeRemaining(null);
+    setError(null);
+    setErrorType(null);
+    sessionStartRef.current = null;
+  }, [cleanup, updateState]);
+
+  // Check browser compatibility
+  const checkCompatibility = useCallback(() => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return { compatible: false, error: VOICE_ERRORS.BROWSER_NOT_SUPPORTED };
+    }
+    if (!window.AudioContext && !window.webkitAudioContext) {
+      return { compatible: false, error: VOICE_ERRORS.BROWSER_NOT_SUPPORTED };
+    }
+    if (!window.AudioWorkletNode) {
+      return { compatible: false, error: VOICE_ERRORS.BROWSER_NOT_SUPPORTED };
+    }
+    if (!window.WebSocket) {
+      return { compatible: false, error: VOICE_ERRORS.BROWSER_NOT_SUPPORTED };
+    }
+    return { compatible: true, error: null };
   }, []);
+
+  // Request mic permission with error handling
+  const requestMicPermission = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
+      return { success: true, stream };
+    } catch (err) {
+      console.error("Mic permission error:", err);
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        return { success: false, error: VOICE_ERRORS.MIC_PERMISSION_DENIED };
+      }
+      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        return { success: false, error: VOICE_ERRORS.MIC_NOT_FOUND };
+      }
+      return { success: false, error: VOICE_ERRORS.MIC_NOT_FOUND };
+    }
+  }, []);
+
+  // Start voice session
+  const start = useCallback(async () => {
+    if (state !== VOICE_STATES.IDLE) {
+      console.warn("Voice session already active");
+      return;
+    }
+
+    intentionalCloseRef.current = false;
+    setError(null);
+    setErrorType(null);
+    setTranscript("");
+    setUserTranscript("");
+    setTimeRemaining(null);
+    updateState(VOICE_STATES.CONNECTING);
+
+    // Check browser compatibility
+    const { compatible, error: compatError } = checkCompatibility();
+    if (!compatible) {
+      setError("Your browser doesn't support voice conversations. Please use Chrome, Edge, or Safari.");
+      setErrorType(compatError);
+      updateState(VOICE_STATES.IDLE);
+      return;
+    }
+
+    try {
+      // 1. Request mic permission first (with detailed error handling)
+      const { success: micSuccess, stream, error: micError } = await requestMicPermission();
+      if (!micSuccess) {
+        setErrorType(micError);
+        if (micError === VOICE_ERRORS.MIC_PERMISSION_DENIED) {
+          setError("Microphone access denied. Please allow microphone access in your browser settings.");
+        } else {
+          setError("No microphone found. Please connect a microphone and try again.");
+        }
+        updateState(VOICE_STATES.IDLE);
+        return;
+      }
+      micStreamRef.current = stream;
+
+      // 2. Fetch ephemeral session token from backend
+      const sessionResponse = await fetch(`${API_BASE}/api/realtime/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        },
+        body: JSON.stringify({ conversationId, personaId }),
+      });
+
+      if (!sessionResponse.ok) {
+        const errorData = await sessionResponse.json().catch(() => ({}));
+        if (sessionResponse.status === 503) {
+          setErrorType(VOICE_ERRORS.SERVICE_UNAVAILABLE);
+          throw new Error('Voice service is not configured');
+        }
+        throw new Error(errorData.error || 'Failed to create voice session');
+      }
+
+      const sessionData = await sessionResponse.json();
+      let { wsEndpoint } = sessionData;
+
+      if (!wsEndpoint) {
+        setErrorType(VOICE_ERRORS.SERVICE_UNAVAILABLE);
+        throw new Error('Voice service not available');
+      }
+
+      // Add access token to WebSocket URL for authentication
+      console.log("WebSocket endpoint from API:", wsEndpoint);
+      if (accessToken) {
+        const separator = wsEndpoint.includes('?') ? '&' : '?';
+        wsEndpoint = `${wsEndpoint}${separator}token=${encodeURIComponent(accessToken)}`;
+      }
+      console.log("Connecting to WebSocket:", wsEndpoint.substring(0, 80) + '...');
+
+      // 3. Set up AudioContext
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      audioCtxRef.current = audioCtx;
+
+      // Resume audio context if suspended
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
+      // 4. Load AudioWorklet for PCM capture
+      await audioCtx.audioWorklet.addModule("/pcm-processor.js");
+      const micSource = audioCtx.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
+      workletNodeRef.current = workletNode;
+
+      // 5. Connect to Azure Realtime
+      const ws = new WebSocket(wsEndpoint);
+      wsRef.current = ws;
+
+      // Track session start time
+      sessionStartRef.current = Date.now();
+
+      // Start duration tracking
+      durationIntervalRef.current = setInterval(() => {
+        if (sessionStartRef.current) {
+          const elapsed = Math.floor((Date.now() - sessionStartRef.current) / 1000);
+          setSessionDuration(elapsed);
+
+          // Calculate time remaining for warning
+          const remaining = Math.ceil((maxDuration - (Date.now() - sessionStartRef.current)) / 1000);
+          if (remaining <= 60 && remaining > 0) {
+            setTimeRemaining(remaining);
+          }
+        }
+      }, 1000);
+
+      // Set warning timeout (1 minute before end)
+      warningTimeoutRef.current = setTimeout(() => {
+        setTimeRemaining(60);
+        onTimeWarning?.(60);
+      }, maxDuration - 60000);
+
+      // Set max duration timeout
+      maxDurationTimeoutRef.current = setTimeout(() => {
+        console.log("Voice session max duration reached");
+        setTimeRemaining(0);
+        stop();
+      }, maxDuration);
+
+      ws.onopen = () => {
+        console.log("Voice WS connected successfully");
+        // Session config is handled by the backend proxy
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        switch (msg.type) {
+          case "session.created":
+            // Session created - wait for session.updated before starting mic
+            // Backend proxy sends session.update with personalization config
+            console.log("Session created:", msg.session?.id);
+            setReconnectCount(0);
+            break;
+
+          case "session.updated":
+            // Session fully configured - NOW start mic pipeline
+            console.log("Session configured, starting mic");
+            updateState(VOICE_STATES.LISTENING);
+            // Start mic → worklet → WS pipeline
+            micSource.connect(workletNode);
+            workletNode.connect(audioCtx.destination);
+            workletNode.port.onmessage = (e) => {
+              if (e.data.type === "audio" && ws.readyState === WebSocket.OPEN) {
+                const uint8 = new Uint8Array(e.data.data);
+                let binary = "";
+                for (let i = 0; i < uint8.length; i++) {
+                  binary += String.fromCharCode(uint8[i]);
+                }
+                const base64 = btoa(binary);
+                ws.send(JSON.stringify({
+                  type: "input_audio_buffer.append",
+                  audio: base64,
+                }));
+              }
+            };
+            break;
+
+          case "input_audio_buffer.speech_started":
+            updateState(VOICE_STATES.LISTENING);
+            // Stop any current AI playback when user starts speaking
+            clearAudioQueue();
+            break;
+
+          case "input_audio_buffer.speech_stopped":
+            updateState(VOICE_STATES.PROCESSING);
+            break;
+
+          case "conversation.item.input_audio_transcription.completed":
+            if (msg.transcript) {
+              setUserTranscript(msg.transcript);
+            }
+            break;
+
+          case "response.audio_transcript.delta":
+            setTranscript(prev => prev + (msg.delta || ""));
+            break;
+
+          case "response.audio.delta":
+            if (msg.delta) enqueueAudio(msg.delta);
+            break;
+
+          case "response.done":
+            // Audio queue will handle state transition when done
+            if (!isPlayingRef.current) {
+              updateState(VOICE_STATES.LISTENING);
+            }
+            // Reset transcript for next turn after a short delay
+            setTimeout(() => setTranscript(""), 500);
+            break;
+
+          // Custom message from our backend for saved messages
+          case "visualearn.message_saved":
+            if (msg.messageId) {
+              onTranscript?.(msg.role, msg.transcript, msg.messageId);
+            }
+            break;
+
+          case "error":
+            console.error("Realtime error:", msg.error);
+            setError(typeof msg.error === "string" ? msg.error : msg.error?.message || "Unknown error");
+            setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+            break;
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error("Voice WS error:", err);
+        setError("Connection failed");
+        setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+      };
+
+      ws.onclose = (event) => {
+        console.log("Voice WS closed:", event.code, event.reason);
+
+        // Only attempt reconnect if not intentionally closed
+        if (!intentionalCloseRef.current && state !== VOICE_STATES.IDLE && reconnectCount < 3) {
+          const backoffMs = Math.min(1000 * Math.pow(2, reconnectCount), 30000);
+          console.log(`Reconnecting in ${backoffMs}ms (attempt ${reconnectCount + 1})`);
+
+          setReconnectCount(prev => prev + 1);
+          cleanup();
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            start();
+          }, backoffMs);
+        } else if (!intentionalCloseRef.current) {
+          setError("Connection lost. Please try again.");
+          setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+          cleanup();
+          updateState(VOICE_STATES.IDLE);
+        }
+      };
+
+    } catch (err) {
+      console.error("Voice start error:", err);
+      setError(err.message);
+      if (!errorType) {
+        setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+      }
+      cleanup();
+      updateState(VOICE_STATES.IDLE);
+    }
+  }, [
+    accessToken,
+    checkCompatibility,
+    cleanup,
+    clearAudioQueue,
+    conversationId,
+    enqueueAudio,
+    errorType,
+    maxDuration,
+    onTimeWarning,
+    onTranscript,
+    personaId,
+    reconnectCount,
+    requestMicPermission,
+    state,
+    stop,
+    updateState,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => stop();
-  }, [stop]);
+    return () => {
+      intentionalCloseRef.current = true;
+      cleanup();
+    };
+  }, [cleanup]);
 
   return {
-    isActive,
-    isConnecting,
-    isAISpeaking,
-    isListening,
+    state,
+    isActive: state !== VOICE_STATES.IDLE,
+    isConnecting: state === VOICE_STATES.CONNECTING,
+    isListening: state === VOICE_STATES.LISTENING,
+    isProcessing: state === VOICE_STATES.PROCESSING,
+    isSpeaking: state === VOICE_STATES.SPEAKING,
     transcript,
     userTranscript,
     error,
+    errorType,
+    sessionDuration,
+    timeRemaining,
+    reconnectCount,
     start,
     stop,
   };

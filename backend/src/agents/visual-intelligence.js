@@ -2,12 +2,145 @@
  * Visual Intelligence Agent (Phase 9B)
  * Generates interactive widgets and diagrams based on learning plans
  * Adapts visualizations to detected learning style (VARK)
+ * Includes semantic 3D detection and device capability handling
  * @module agents/visual-intelligence
  */
 
 import { BaseAgent } from './base-agent.js';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
+import { CDN_VERSIONS, THREE_JS_GUIDELINES } from '../services/anthropic/prompts.js';
+
+/**
+ * Semantic 3D visualization detection
+ * Returns a score-based decision on whether to use 3D
+ * @param {string} query - User query
+ * @param {Object} context - Additional context
+ * @returns {Object} { use3D, score, reason, breakdown }
+ */
+export function should3DVisualize(query, context = {}) {
+  const score = {
+    spatialRequired: 0,
+    interactionHelps: 0,
+    topicNaturally3D: 0,
+    userExplicitlyAsked: 0,
+  };
+
+  const queryLower = query.toLowerCase();
+
+  // 1. Topic naturally 3D (+30)
+  const natural3DTopics = [
+    /molecule|atom|protein|dna|rna|chemical structure|molecular|amino acid/i,
+    /3d model|three dimensional|spatial|three-d/i,
+    /orbit|planet|solar system|astronomy|celestial|satellite/i,
+    /crystal|lattice|unit cell|crystallography/i,
+    /vector|3d vector|cross product|dot product.*3d/i,
+    /surface plot|3d graph|3d scatter|3d chart/i,
+    /polyhedron|tetrahedron|octahedron|icosahedron|dodecahedron/i,
+    /cube|sphere|cylinder|cone|torus|prism/i,
+    /rotation|quaternion|euler angles/i,
+    /terrain|topology|elevation|contour/i,
+    // Mechanical/Engineering parts
+    /engine|motor|turbine|compressor|pump/i,
+    /gear|gearbox|transmission|drivetrain|differential/i,
+    /piston|crankshaft|camshaft|valve|cylinder head/i,
+    /bearing|shaft|axle|rotor|stator/i,
+    /suspension|brake|caliper|disc brake|drum brake/i,
+    /mechanism|linkage|lever|pulley|cam/i,
+    /robot|robotic arm|actuator|servo/i,
+    /hydraulic|pneumatic|mechanical assembly/i,
+    // Architecture/Structures
+    /building|structure|bridge|truss|beam/i,
+    /architecture|floor plan|3d house|3d building/i,
+  ];
+  if (natural3DTopics.some(p => p.test(query))) {
+    score.topicNaturally3D = 30;
+  }
+
+  // 2. Spatial understanding required (+40)
+  const spatialIndicators = [
+    /bond angle|molecular geometry|structure|configuration/i,
+    /rotate|orientation|perspective|viewpoint/i,
+    /depth|distance|position in space|coordinate/i,
+    /spatial relationship|arrangement|configuration/i,
+    /shape|form|morphology|topology/i,
+    // Mechanical spatial terms
+    /how .*work(s|ing)?|working principle|internal|cross.?section/i,
+    /assembly|disassembly|exploded view|cutaway/i,
+    /movement|motion|rotation|reciprocating/i,
+    /components|parts|internals|inside/i,
+  ];
+  if (spatialIndicators.some(p => p.test(query))) {
+    score.spatialRequired = 40;
+  }
+
+  // 3. User explicitly asked (+50)
+  const explicitRequest = [
+    /show me.*(3d|three-?d|visualization|model)/i,
+    /create.*(3d|model|interactive.*3d)/i,
+    /visualize.*(3d|spatially|in three dimensions)/i,
+    /render.*(3d|three-?d)/i,
+    /3d.*(view|visualization|model|render)/i,
+  ];
+  if (explicitRequest.some(p => p.test(query))) {
+    score.userExplicitlyAsked = 50;
+  }
+
+  // 4. Interaction helps learning (+20)
+  const interactionIndicators = [
+    /explore|manipulate|interact|rotate|zoom|pan/i,
+    /from different angles|all sides|around/i,
+  ];
+  if (interactionIndicators.some(p => p.test(query))) {
+    score.interactionHelps = 20;
+  }
+
+  // NEGATIVE: Concept-only mentions (-30)
+  const conceptOnly = [
+    /formula|equation|calculate|compute|solve/i,
+    /definition|what is|explain the concept|meaning of/i,
+    /spherical coordinates|polar coordinates|cylindrical coordinates/i,
+    /history of|who invented|when was/i,
+    /compare|difference between|versus/i,
+  ];
+  if (conceptOnly.some(p => p.test(query)) && score.userExplicitlyAsked === 0) {
+    score.spatialRequired -= 30;
+  }
+
+  // NEGATIVE: Clearly 2D topics (-50)
+  const clearly2D = [
+    /sort|sorting|bubble sort|quick sort|merge sort/i,
+    /flowchart|flow chart|diagram|timeline/i,
+    /bar chart|pie chart|line chart|histogram/i,
+    /tree|binary tree|linked list|array|stack|queue/i,
+  ];
+  if (clearly2D.some(p => p.test(query)) && score.userExplicitlyAsked === 0) {
+    score.topicNaturally3D -= 50;
+  }
+
+  const total = Object.values(score).reduce((a, b) => a + b, 0);
+
+  return {
+    use3D: total >= 50,
+    score: total,
+    reason: total >= 50 ? '3D helps spatial understanding' : 'Text/2D sufficient',
+    breakdown: score,
+  };
+}
+
+/**
+ * Get complexity level based on device capabilities
+ * @param {Object} capabilities - Device capabilities from frontend
+ * @returns {string} 'high' | 'medium' | 'low'
+ */
+export function get3DComplexityLevel(capabilities = {}) {
+  const { webgl = true, memory = 4, cores = 4, mobile = false, saveData = false } = capabilities;
+
+  if (!webgl) return 'none';
+  if (saveData || (mobile && memory < 3)) return 'low';
+  if (mobile || memory < 4 || cores < 4) return 'medium';
+  return 'high';
+}
 
 export class VisualIntelligenceAgent extends BaseAgent {
   /**
@@ -23,14 +156,13 @@ export class VisualIntelligenceAgent extends BaseAgent {
       '1.0.0'
     );
 
-    // Widget library instructions for Claude
+    // Widget library instructions for Claude with locked versions
     this.libInstructions = {
-      chartjs:
-        'Chart.js 4.4.1 from CDN: https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
-      plotly:
-        'Plotly.js from CDN: https://cdn.plot.ly/plotly-latest.min.js (window.Plotly)',
-      threejs: 'Three.js from CDN: https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-      d3: 'D3.js from CDN: https://d3js.org/d3.v7.min.js',
+      chartjs: `Chart.js 4.4.1 from CDN: ${CDN_VERSIONS.chartjs}`,
+      plotly: `Plotly.js from CDN: ${CDN_VERSIONS.plotly}`,
+      threejs: `Three.js 0.152.2 from CDN: ${CDN_VERSIONS.threejs}`,
+      threejsOrbit: `OrbitControls from CDN: ${CDN_VERSIONS.orbitControls}`,
+      d3: `D3.js from CDN: ${CDN_VERSIONS.d3}`,
     };
   }
 
@@ -214,10 +346,31 @@ export class VisualIntelligenceAgent extends BaseAgent {
   /**
    * Build Claude prompt for widget generation
    */
-  _buildWidgetPrompt(step, resource, vizType, planTitle, learningStyle) {
+  _buildWidgetPrompt(step, resource, vizType, planTitle, learningStyle, deviceCapabilities = {}) {
     const libInstructions = Object.values(this.libInstructions).join('\n');
+    const is3D = vizType === '3d-visualization';
+    const complexityLevel = get3DComplexityLevel(deviceCapabilities);
 
-    return `Generate interactive HTML widget code for educational learning.
+    let complexityInstructions = '';
+    if (is3D) {
+      if (complexityLevel === 'low') {
+        complexityInstructions = `
+DEVICE OPTIMIZATION (Low-end device):
+- Use minimal polygons (< 1000 total)
+- No shadows or post-processing
+- Use MeshBasicMaterial instead of MeshStandardMaterial
+- Limit to static rendering (no continuous animation)
+- Reduce texture sizes`;
+      } else if (complexityLevel === 'medium') {
+        complexityInstructions = `
+DEVICE OPTIMIZATION (Medium device):
+- Keep polygons reasonable (< 5000 total)
+- Minimal shadows
+- Pause animation when not visible`;
+      }
+    }
+
+    const base = `Generate interactive HTML widget code for educational learning.
 
 CONTEXT:
 Plan: "${planTitle}"
@@ -237,6 +390,25 @@ REQUIREMENTS:
 
 AVAILABLE LIBRARIES:
 ${libInstructions}
+${complexityInstructions}`;
+
+    // Add 3D-specific guidelines
+    if (is3D) {
+      return `${base}
+
+${THREE_JS_GUIDELINES}
+
+CRITICAL 3D REQUIREMENTS:
+1. Include WebGL detection at start of script
+2. Wrap Three.js code in try-catch
+3. Include IntersectionObserver for visibility-based pause
+4. Include cleanup on beforeunload
+5. Use a container div with id="container"
+
+Generate the complete HTML widget code now:`;
+    }
+
+    return `${base}
 
 Generate the complete HTML widget code now:`;
   }

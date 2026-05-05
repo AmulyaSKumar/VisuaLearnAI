@@ -1,7 +1,15 @@
 import { Router } from "express";
 import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
-import { SHOW_WIDGET_TOOL, SYSTEM_PROMPT } from "../src/services/anthropic/prompts.js";
+import {
+  SHOW_WIDGET_TOOL,
+  SYSTEM_PROMPT,
+  SYSTEM_PROMPT_TEXT_ONLY,
+  THREE_JS_GUIDELINES,
+  createSystemPrompt,
+  mergePersonaWithOverride,
+} from "../src/services/anthropic/prompts.js";
 import { analyzeUserProfile, getUserMetrics } from "../src/agents/personalization.js";
+import { should3DVisualize, get3DComplexityLevel } from "../src/agents/visual-intelligence.js";
 import {
   bandit,
   getBanditDecision,
@@ -12,11 +20,24 @@ import {
 import { getCognitiveState } from "../src/services/learningState.js";
 import { cache } from "../src/services/cache.js";
 import { logger } from "../src/services/logger.js";
+import {
+  getPersona,
+  getDefaultSystemPersona,
+  getUserDefaultPersona,
+} from "../src/database/client.js";
+import {
+  sanitizeWidgetCode,
+  generateSafeFallback,
+  validate3DWidgetSafety,
+  inject3DSafetyWrapper
+} from "../src/utils/sanitize-widget.js";
 
 const router = Router();
 
 // Cache TTL for profiles (5 min)
 const PROFILE_CACHE_TTL = 300;
+// Cache TTL for personas (5 min)
+const PERSONA_CACHE_TTL = 300;
 
 /**
  * Extract current topic from user query
@@ -74,6 +95,55 @@ async function getCognitiveStateForBandit(userId, topic) {
     return result?.cognitiveState || 'flow';
   } catch (err) {
     return 'flow';
+  }
+}
+
+/**
+ * Get cached persona with graceful fallback
+ * CRITICAL: Persona MUST be fetched on EVERY request. Models don't remember.
+ * @param {string|null} personaId - Specific persona ID to fetch
+ * @param {string|null} userId - User ID for fallback to user's default
+ * @returns {Promise<Object|null>} Persona object or null
+ */
+async function getCachedPersona(personaId, userId) {
+  try {
+    // If specific personaId provided, fetch it
+    if (personaId) {
+      const cacheKey = `persona:${personaId}`;
+      const { value, fromCache } = await cache.getOrSet(
+        cacheKey,
+        () => getPersona(personaId),
+        PERSONA_CACHE_TTL
+      );
+
+      if (value) {
+        if (fromCache) {
+          logger.debug({ personaId, source: 'cache' }, 'Persona from cache');
+        }
+        return value;
+      }
+      // Persona not found, fall through to defaults
+      logger.warn({ personaId }, 'Persona not found, using fallback');
+    }
+
+    // Try user's default persona
+    if (userId) {
+      try {
+        const userDefault = await getUserDefaultPersona(userId);
+        if (userDefault) {
+          return userDefault;
+        }
+      } catch (err) {
+        logger.debug({ error: err }, 'No user default persona');
+      }
+    }
+
+    // Fall back to system default (Friendly Tutor)
+    const systemDefault = await getDefaultSystemPersona();
+    return systemDefault;
+  } catch (err) {
+    logger.error({ error: err, personaId, userId }, 'Failed to get persona');
+    return null;
   }
 }
 
@@ -177,8 +247,16 @@ function req_cleanup(res, stream, heartbeat, setAbort) {
 }
 
 router.post("/chat", async (req, res) => {
-  const { messages, userId, behavior, conversationId = null } = req.body;
-  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8) }, "POST /api/chat");
+  const {
+    messages,
+    userId,
+    behavior,
+    conversationId = null,
+    skip3D = false,
+    personaId = null,
+    temporaryStyle = null,
+  } = req.body;
+  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), skip3D, personaId: personaId?.slice(0,8) }, "POST /api/chat");
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "messages array is required" });
@@ -205,6 +283,21 @@ router.post("/chat", async (req, res) => {
     const metrics = userId ? await getUserMetrics(userId) : null;
     const cognitiveState = await getCognitiveStateForBandit(userId, currentTopic);
 
+    // CRITICAL: Fetch persona on EVERY request (models don't remember)
+    const basePersona = await getCachedPersona(personaId, userId);
+
+    // Apply temporary style override if present (merge, don't replace)
+    const effectivePersona = mergePersonaWithOverride(basePersona, temporaryStyle);
+
+    // Log persona info
+    if (effectivePersona) {
+      logger.debug({
+        personaName: effectivePersona.name,
+        personaId: effectivePersona.id,
+        hasTemporaryStyle: !!temporaryStyle,
+      }, 'Using persona');
+    }
+
     // BANDIT IS AUTHORITATIVE - Get decision using new LinUCB-based system
     banditDecision = await getBanditDecision({
       userId,
@@ -219,18 +312,42 @@ router.post("/chat", async (req, res) => {
       conversationId,
     });
 
-    // Build system prompt using ONLY bandit action (no style-based personalization)
+    // Build system prompt with PERSONA (fetched every request)
     const actionInstructions = getActionInstructions(banditDecision.selectedAction);
-    const systemPrompt = `${SYSTEM_PROMPT}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
 
-    logger.info({ selectedAction: banditDecision.selectedAction, topic: currentTopic, source: banditDecision.decisionSource }, "Bandit decision");
+    // Build personalized system prompt with persona
+    // Use createSystemPrompt which handles persona injection at the start
+    const queryPrefs = skip3D ? { style: 'text' } : {};
+    const basePrompt = createSystemPrompt(profile, queryPrefs, effectivePersona);
+
+    // Append bandit action instructions
+    const systemPrompt = `${basePrompt}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
+
+    // Send persona info to client if temporary style was applied
+    if (temporaryStyle) {
+      sendSSE(res, {
+        type: "temporary_style_active",
+        style: temporaryStyle,
+        persona: effectivePersona ? {
+          id: effectivePersona.id,
+          name: effectivePersona.name,
+          tone: effectivePersona.tone,
+          verbosity: effectivePersona.verbosity,
+        } : null,
+      });
+    }
+
+    logger.info({ selectedAction: banditDecision.selectedAction, topic: currentTopic, source: banditDecision.decisionSource, skip3D }, "Bandit decision");
+
+    // Don't include widget tool when skip3D (text-only mode)
+    const tools = skip3D ? [] : [SHOW_WIDGET_TOOL];
 
     const stream = client.messages.stream({
       model,
       max_tokens: 8192,
       system: systemPrompt,
       messages,
-      tools: [SHOW_WIDGET_TOOL],
+      tools: tools.length > 0 ? tools : undefined,
     });
 
     const heartbeat = setInterval(() => {
@@ -252,6 +369,41 @@ router.post("/chat", async (req, res) => {
 
     stream.on("contentBlock", (block) => {
       if (block.type === "tool_use" && !aborted) {
+        // If this is a widget tool, sanitize the code
+        if (block.name === "show_widget" && block.input?.widget_code) {
+          const widgetCode = block.input.widget_code;
+          const widgetType = block.input.widget_type || '2d';
+          const is3D = widgetType === '3d' ||
+                       widgetCode.toLowerCase().includes('three.js') ||
+                       widgetCode.toLowerCase().includes('webglrenderer');
+
+          // Sanitize widget code
+          const sanitizeResult = sanitizeWidgetCode(widgetCode, {
+            strict: false,
+            allowFetch: is3D  // Allow CDN fetches for 3D widgets
+          });
+
+          if (!sanitizeResult.safe) {
+            logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed");
+            // Send sanitized fallback
+            block.input.widget_code = generateSafeFallback(block.input.title, sanitizeResult.violations);
+          } else {
+            // For 3D widgets, inject safety wrapper if needed
+            if (is3D) {
+              const safetyCheck = validate3DWidgetSafety(widgetCode);
+              if (!safetyCheck.valid) {
+                logger.debug({ missing: safetyCheck.missing }, "3D widget missing safety features, injecting wrapper");
+                block.input.widget_code = inject3DSafetyWrapper(widgetCode);
+              }
+            }
+          }
+
+          // Log warnings if any
+          if (sanitizeResult.warnings.length > 0) {
+            logger.debug({ warnings: sanitizeResult.warnings }, "Widget code sanitization warnings");
+          }
+        }
+
         // Collect tool calls for enforcement validation
         toolCalls.push({ name: block.name, id: block.id, input: block.input });
         sendSSE(res, {
@@ -336,8 +488,14 @@ router.post("/chat", async (req, res) => {
 });
 
 router.post("/tool-result", async (req, res) => {
-  const { messages, userId, bandit: banditData = null } = req.body;
-  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8) }, "POST /api/tool-result");
+  const {
+    messages,
+    userId,
+    bandit: banditData = null,
+    personaId = null,
+    temporaryStyle = null,
+  } = req.body;
+  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), personaId: personaId?.slice(0,8) }, "POST /api/tool-result");
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "messages array is required" });
@@ -362,8 +520,15 @@ router.post("/tool-result", async (req, res) => {
       }
     }
 
-    // Build system prompt using ONLY bandit action (no profile-based personalization)
-    let systemPrompt = SYSTEM_PROMPT;
+    // CRITICAL: Fetch persona on EVERY request (models don't remember)
+    const basePersona = await getCachedPersona(personaId, userId);
+    const effectivePersona = mergePersonaWithOverride(basePersona, temporaryStyle);
+
+    // Fetch profile for context
+    const profile = await getCachedProfile(userId);
+
+    // Build system prompt with persona
+    let systemPrompt = createSystemPrompt(profile, {}, effectivePersona);
     if (banditData?.selectedAction) {
       const actionInstructions = getActionInstructions(banditData.selectedAction);
       systemPrompt += `\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
@@ -389,6 +554,31 @@ router.post("/tool-result", async (req, res) => {
 
     stream.on("contentBlock", (block) => {
       if (block.type === "tool_use" && !aborted) {
+        // If this is a widget tool, sanitize the code
+        if (block.name === "show_widget" && block.input?.widget_code) {
+          const widgetCode = block.input.widget_code;
+          const widgetType = block.input.widget_type || '2d';
+          const is3D = widgetType === '3d' ||
+                       widgetCode.toLowerCase().includes('three.js') ||
+                       widgetCode.toLowerCase().includes('webglrenderer');
+
+          // Sanitize widget code
+          const sanitizeResult = sanitizeWidgetCode(widgetCode, {
+            strict: false,
+            allowFetch: is3D
+          });
+
+          if (!sanitizeResult.safe) {
+            logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed (tool-result)");
+            block.input.widget_code = generateSafeFallback(block.input.title, sanitizeResult.violations);
+          } else if (is3D) {
+            const safetyCheck = validate3DWidgetSafety(widgetCode);
+            if (!safetyCheck.valid) {
+              block.input.widget_code = inject3DSafetyWrapper(widgetCode);
+            }
+          }
+        }
+
         sendSSE(res, {
           type: "tool_use",
           id: block.id,

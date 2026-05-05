@@ -51,6 +51,7 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
   const [speed, setSpeed] = useState(1000);
   const [showInputEditor, setShowInputEditor] = useState(false);
   const [editingInputs, setEditingInputs] = useState({});
+  const [usingCustomData, setUsingCustomData] = useState(false);
 
   // Reset step when simulation changes
   useEffect(() => {
@@ -144,6 +145,15 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
       }
     }
     regenerateWithInputs(processedInputs);
+    setUsingCustomData(true);
+    setShowInputEditor(false);
+  };
+
+  const handleUseRandomData = () => {
+    // Reset to defaults and regenerate
+    setEditingInputs({});
+    regenerateWithInputs({});
+    setUsingCustomData(false);
     setShowInputEditor(false);
   };
 
@@ -316,41 +326,103 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
 
   return (
     <div className="space-y-4">
-      {/* Header with title and complexity */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      {/* Header with title, complexity, and action buttons */}
+      <div className="flex items-center justify-between gap-4 pb-3 border-b border-border">
+        {/* Left side: Title and complexity */}
+        <div className="flex items-center gap-4">
           {simulation.title && (
             <h3 className="text-lg font-semibold text-foreground">{simulation.title}</h3>
           )}
           {simulation.complexity && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Time: {simulation.complexity.time} • Space: {simulation.complexity.space}
-            </p>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2 py-1 bg-muted rounded-md font-mono">
+                {simulation.complexity.time}
+              </span>
+              <span className="px-2 py-1 bg-muted rounded-md font-mono">
+                {simulation.complexity.space}
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Edit button */}
-        {inputSchema && (
+        {/* Right side: Custom Input button and Play button */}
+        <div className="flex items-center gap-2">
+          {/* Custom Input button - prominent */}
+          {inputSchema && (
+            <button
+              onClick={() => setShowInputEditor(!showInputEditor)}
+              className={`
+                flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200
+                ${showInputEditor
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : usingCustomData
+                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                    : 'bg-muted hover:bg-muted/80 border border-border hover:border-primary/50'
+                }
+              `}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              {usingCustomData ? 'Custom Data' : 'Custom Input'}
+            </button>
+          )}
+
+          {/* Play button in header */}
           <button
-            onClick={() => setShowInputEditor(!showInputEditor)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-md transition-colors"
+            onClick={handleTogglePlay}
+            className={`
+              flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
+              ${playing
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              }
+              shadow-sm hover:shadow-md
+            `}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit Input
+            {playing ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                </svg>
+                Pause
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                Play
+              </>
+            )}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Input Editor Panel */}
-      {showInputEditor && inputSchema && (
-        <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
+      {/* Input Editor Panel - Animated */}
+      <div
+        className={`
+          overflow-hidden transition-all duration-300 ease-in-out
+          ${showInputEditor && inputSchema ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}
+        `}
+      >
+        <div className="p-5 bg-gradient-to-b from-muted/40 to-muted/20 rounded-xl border border-border shadow-sm space-y-4">
+          {/* Panel Header */}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Edit Simulation Input</span>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground">Custom Input</h4>
+                <p className="text-xs text-muted-foreground">Enter your own data for the simulation</p>
+              </div>
+            </div>
             <button
               onClick={() => setShowInputEditor(false)}
-              className="text-muted-foreground hover:text-foreground"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -358,48 +430,69 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
             </button>
           </div>
 
-          {Object.entries(inputSchema).map(([key, schema]) => (
-            <div key={key} className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">
+          {/* Input Fields */}
+          {inputSchema && Object.entries(inputSchema).map(([key, schema]) => (
+            <div key={key} className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
                 {schema.label || key}
                 {schema.description && (
-                  <span className="ml-1 text-muted-foreground/70">({schema.description})</span>
+                  <span className="text-xs font-normal text-muted-foreground">— {schema.description}</span>
                 )}
               </label>
               {schema.type === 'array' ? (
-                <input
-                  type="text"
-                  value={Array.isArray(editingInputs[key]) ? editingInputs[key].join(', ') : editingInputs[key] || ''}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                  placeholder="e.g., 5, 3, 8, 2, 7"
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={Array.isArray(editingInputs[key]) ? editingInputs[key].join(', ') : editingInputs[key] || ''}
+                    onChange={(e) => handleInputChange(key, e.target.value)}
+                    placeholder="e.g., 5, 3, 8, 2, 7"
+                    className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">
+                    comma-separated
+                  </span>
+                </div>
               ) : schema.type === 'number' ? (
                 <input
                   type="number"
                   value={editingInputs[key] || ''}
                   onChange={(e) => handleInputChange(key, Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                 />
               ) : (
                 <input
                   type="text"
                   value={editingInputs[key] || ''}
                   onChange={(e) => handleInputChange(key, e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                 />
               )}
             </div>
           ))}
 
-          <button
-            onClick={handleRegenerate}
-            className="w-full py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Regenerate Simulation
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={handleUseRandomData}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium border-2 border-border rounded-lg hover:bg-muted transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Use Random Data
+            </button>
+            <button
+              onClick={handleRegenerate}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Run with Custom Data
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Source indicator */}
       {source && (
@@ -416,6 +509,16 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
              source === 'fallback' ? 'Basic' :
              'Generated'}
           </span>
+
+          {/* Custom data indicator */}
+          {usingCustomData && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Custom Data
+            </span>
+          )}
 
           {detectionSource === 'backend' && detectionConfidence && (
             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
