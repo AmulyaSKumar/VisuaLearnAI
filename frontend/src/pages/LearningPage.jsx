@@ -556,7 +556,7 @@ function LearningPageContent() {
         const assistantMsg = msgs?.find(m => m.role === 'assistant');
         const stored = assistantMsg?.metadata?.learningContent;
         const storedFact = assistantMsg?.metadata?.factCheck;
-        const storedDocumentId = assistantMsg?.metadata?.documentId || null;
+        const storedDocumentId = assistantMsg?.metadata?.documentId || userMessage?.metadata?.documentId || null;
 
         if (storedDocumentId) {
           setDocumentId(storedDocumentId);
@@ -835,7 +835,9 @@ function LearningPageContent() {
     // Could track interactions for analytics
   };
 
-  // Handle block regeneration
+  // Handle block regeneration - persists to database
+  // When user clicks "Explain Differently", they didn't understand the original
+  // So we save the new explanation to replace the old one
   const handleRegenerateBlock = useCallback(async (conceptId, block, blockIndex) => {
     if (!userQuery && !conversation?.title) return;
 
@@ -843,26 +845,48 @@ function LearningPageContent() {
     const newBlock = await regenerateBlock(query, block, accessToken, { mode: depthLevel });
 
     if (newBlock) {
-      // Update the content with the new block
-      setStoredContent(prev => {
-        if (!prev) return prev;
-        const updated = { ...prev };
-        const keyIdeas = [...(updated.key_ideas || [])];
-        const conceptIndex = keyIdeas.findIndex(idea => idea.id === conceptId);
+      // Build updated content first (outside setState for persistence)
+      const currentContent = storedContentRef.current;
+      if (!currentContent) return;
 
-        if (conceptIndex !== -1 && keyIdeas[conceptIndex].blocks) {
-          keyIdeas[conceptIndex] = {
-            ...keyIdeas[conceptIndex],
-            blocks: keyIdeas[conceptIndex].blocks.map((b, idx) =>
-              idx === blockIndex ? { ...b, ...newBlock } : b
-            )
-          };
-          updated.key_ideas = keyIdeas;
+      const updatedKeyIdeas = [...(currentContent.key_ideas || [])];
+      const conceptIndex = updatedKeyIdeas.findIndex(idea => idea.id === conceptId);
+
+      if (conceptIndex !== -1 && updatedKeyIdeas[conceptIndex].blocks) {
+        updatedKeyIdeas[conceptIndex] = {
+          ...updatedKeyIdeas[conceptIndex],
+          blocks: updatedKeyIdeas[conceptIndex].blocks.map((b, idx) =>
+            idx === blockIndex ? { ...b, ...newBlock } : b
+          )
+        };
+      }
+
+      const updatedContent = {
+        ...currentContent,
+        key_ideas: updatedKeyIdeas
+      };
+
+      // Update local state
+      setStoredContent(updatedContent);
+
+      // Persist to database so regenerated explanation is saved
+      if (conversationId) {
+        try {
+          const assistantMessage = messages?.find(m => m.role === 'assistant');
+          await saveResource(
+            RESOURCE_TYPES.LEARN,
+            query,
+            updatedContent,
+            assistantMessage?.id || null
+          );
+          console.log('[LearningPage] Regenerated block saved to database');
+        } catch (err) {
+          console.error('[LearningPage] Failed to save regenerated block:', err);
+          // Non-blocking - local state is already updated
         }
-        return updated;
-      });
+      }
     }
-  }, [userQuery, conversation?.title, accessToken, depthLevel, regenerateBlock]);
+  }, [userQuery, conversation?.title, accessToken, depthLevel, regenerateBlock, conversationId, messages, saveResource]);
 
   // Handle content expansion (progressive disclosure)
   // Used when user clicks "Learn More" on a quick explanation
