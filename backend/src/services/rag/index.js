@@ -170,13 +170,14 @@ export async function generateEmbedding(text) {
     // Use Azure OpenAI for embeddings (ada-002)
     const azureEndpoint = config.azure.endpoint;
     const azureKey = config.azure.apiKey;
+    const embeddingDeployment = process.env.AZURE_EMBEDDING_DEPLOYMENT || process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002';
 
     if (!azureEndpoint || !azureKey) {
       logger.warn('Azure OpenAI not configured, skipping embedding generation');
       return null;
     }
 
-    const response = await fetch(`${azureEndpoint}/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-02-01`, {
+    const response = await fetch(`${azureEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=2024-02-01`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -195,8 +196,8 @@ export async function generateEmbedding(text) {
     const data = await response.json();
     return data.data[0].embedding;
   } catch (error) {
-    logger.error({ error }, 'Failed to generate embedding');
-    throw error;
+    logger.warn({ error: error.message }, 'Failed to generate embedding, falling back to keyword-only indexing');
+    return null;
   }
 }
 
@@ -205,6 +206,7 @@ export async function generateEmbedding(text) {
  */
 export async function storeChunks(documentId, chunks) {
   const storedChunks = [];
+  let failedChunks = 0;
 
   for (const chunk of chunks) {
     try {
@@ -232,7 +234,7 @@ export async function storeChunks(documentId, chunks) {
       await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       logger.error({ error, documentId, chunkIndex: chunk.chunkIndex }, 'Failed to store chunk');
-      // Continue with other chunks
+      failedChunks++;
     }
   }
 
@@ -243,7 +245,11 @@ export async function storeChunks(documentId, chunks) {
     .eq('id', documentId);
 
   logger.info({ documentId, chunkCount: storedChunks.length }, 'Chunks stored');
-  return storedChunks;
+  return {
+    storedChunks,
+    storedCount: storedChunks.length,
+    failedCount: failedChunks,
+  };
 }
 
 /**
@@ -368,14 +374,14 @@ export async function retrieveChunks(documentId, query, limit = 5, threshold = 0
 async function fallbackTextSearch(documentId, query, limit = 5) {
   try {
     // Simple keyword-based search
-    const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
 
     const { data, error } = await supabase
       .from('document_chunks')
       .select('*')
       .eq('document_id', documentId)
       .order('chunk_index', { ascending: true })
-      .limit(limit * 2); // Get more to filter
+      .limit(200); // Search a meaningful window, not just the first few chunks
 
     if (error) throw error;
 
@@ -383,7 +389,9 @@ async function fallbackTextSearch(documentId, query, limit = 5) {
     const scored = (data || []).map(chunk => {
       const text = chunk.text.toLowerCase();
       const matches = keywords.filter(kw => text.includes(kw)).length;
-      return { ...chunk, similarity: matches / keywords.length };
+      const phraseBonus = text.includes(query.toLowerCase()) ? 1 : 0;
+      const score = keywords.length > 0 ? (matches / keywords.length) + phraseBonus : 0;
+      return { ...chunk, similarity: score };
     });
 
     // Sort by score and return top results
@@ -430,14 +438,25 @@ export async function deleteDocument(documentId, userId) {
       throw new Error('Document not found or access denied');
     }
 
-    // Delete from storage
+    // Delete from storage first. Missing files should not block DB cleanup.
     if (doc.storage_path) {
-      await supabase.storage
+      const { error: storageError } = await supabase.storage
         .from('documents')
         .remove([doc.storage_path]);
+      if (storageError) {
+        logger.warn({ error: storageError.message, documentId, storagePath: doc.storage_path }, 'Failed to remove document from storage');
+      }
     }
 
-    // Delete document (chunks cascade delete via FK)
+    // Delete associated chunks explicitly so deletion works even if the FK cascade is missing.
+    const { error: chunksError } = await supabase
+      .from('document_chunks')
+      .delete()
+      .eq('document_id', documentId);
+
+    if (chunksError) throw chunksError;
+
+    // Delete document row
     const { error } = await supabase
       .from('documents')
       .delete()

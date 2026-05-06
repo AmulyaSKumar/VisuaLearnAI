@@ -18,7 +18,7 @@ import {
   formatChunksAsContext,
   getDocumentSummary,
 } from '../../services/rag/index.js';
-import { processPdfBuffer, validatePdf } from '../../services/rag/pdfProcessor.js';
+import { processPdfBuffer, processPdfFromStorage, validatePdf } from '../../services/rag/pdfProcessor.js';
 
 const router = Router();
 
@@ -36,6 +36,20 @@ const upload = multer({
     }
   },
 });
+
+async function ensureDocumentIndexed(document) {
+  if (!document) return document;
+  if (document.status === 'ready' && (document.chunk_count || 0) > 0) {
+    return document;
+  }
+  if (!document.storage_path) {
+    return document;
+  }
+
+  logger.warn({ documentId: document.id, status: document.status, chunkCount: document.chunk_count }, 'Document missing indexed chunks, attempting repair');
+  await processPdfFromStorage(document.id, document.storage_path);
+  return getDocument(document.id);
+}
 
 /**
  * POST /api/documents/upload
@@ -165,7 +179,7 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
-    const document = await getDocument(documentId);
+    let document = await getDocument(documentId);
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
@@ -248,13 +262,15 @@ router.post('/:id/query', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (document.status !== 'ready') {
+    document = await ensureDocumentIndexed(document);
+
+    if (document.status !== 'ready' || (document.chunk_count || 0) === 0) {
       return res.status(400).json({
         error: 'Document not ready',
         status: document.status,
         message: document.status === 'processing'
           ? 'Document is still being processed. Please wait.'
-          : 'Document processing failed.',
+          : 'Document has not been indexed successfully yet.',
       });
     }
 
@@ -301,7 +317,7 @@ router.get('/:id/summary', async (req, res) => {
   }
 
   try {
-    const document = await getDocument(documentId);
+    let document = await getDocument(documentId);
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
@@ -311,6 +327,7 @@ router.get('/:id/summary', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    document = await ensureDocumentIndexed(document);
     const summary = await getDocumentSummary(documentId);
 
     res.json({
@@ -342,7 +359,7 @@ router.get('/:id/preview', async (req, res) => {
   }
 
   try {
-    const document = await getDocument(documentId);
+    let document = await getDocument(documentId);
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
@@ -352,7 +369,9 @@ router.get('/:id/preview', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    if (document.status !== 'ready') {
+    document = await ensureDocumentIndexed(document);
+
+    if (document.status !== 'ready' || (document.chunk_count || 0) === 0) {
       return res.json({
         success: true,
         status: document.status,

@@ -52,7 +52,7 @@ const server = http.createServer((req, res) => {
     if (config.cors.origin.includes(origin)) {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Max-Age': '86400',
       });

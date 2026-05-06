@@ -26,6 +26,7 @@ export default function DocumentList({
       await onDelete(documentId);
     } catch (err) {
       console.error('Delete failed:', err);
+      alert(err.message || 'Failed to delete document');
     } finally {
       setDeletingId(null);
     }

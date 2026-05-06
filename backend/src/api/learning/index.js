@@ -22,6 +22,7 @@ import {
   retrieveChunks,
   formatChunksAsContext,
 } from '../../services/rag/index.js';
+import { processPdfFromStorage } from '../../services/rag/pdfProcessor.js';
 import { classifySimulationIntent, mightBeSimulationRelated } from '../../simulation/classifier.js';
 import { saveLearningResource, RESOURCE_TYPES } from '../../database/client.js';
 import { searchForLearning } from '../../services/webSearch.js';
@@ -346,20 +347,25 @@ router.post('/learning-content', async (req, res) => {
     if (documentId) {
       try {
         // Verify document exists and is ready
-        const document = await getDocument(documentId);
+        let document = await getDocument(documentId);
         if (!document) {
           return res.status(404).json({ error: 'Document not found' });
         }
         if (document.user_id !== userId) {
           return res.status(403).json({ error: 'Access denied to document' });
         }
-        if (document.status !== 'ready') {
+        if (document.status === 'ready' && (document.chunk_count || 0) === 0 && document.storage_path) {
+          console.warn(`[LearningContent] RAG: Repairing unindexed ready document ${documentId}`);
+          await processPdfFromStorage(documentId, document.storage_path);
+          document = await getDocument(documentId);
+        }
+        if (document.status !== 'ready' || (document.chunk_count || 0) === 0) {
           return res.status(400).json({
             error: 'Document not ready',
             status: document.status,
             message: document.status === 'processing'
               ? 'Document is still being processed. Please wait.'
-              : 'Document processing failed.',
+              : 'Document has not been indexed successfully yet.',
           });
         }
 

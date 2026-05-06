@@ -136,12 +136,13 @@ export function useDocuments() {
     try {
       await deleteDocument(documentId, accessToken);
       setDocuments(prev => prev.filter(d => d.id !== documentId));
+      await fetchDocuments();
     } catch (err) {
       console.error('Delete failed:', err);
       setError(err.message);
       throw err;
     }
-  }, [accessToken]);
+  }, [accessToken, fetchDocuments]);
 
   // Clean up polling on unmount
   useEffect(() => {

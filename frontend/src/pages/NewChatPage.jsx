@@ -94,7 +94,9 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           conversation_id: conversation.id,
           role: 'user',
           content: text,
-          metadata: {}
+          metadata: {
+            documentId: selectedDocumentId,
+          }
         });
 
       if (msgError) throw msgError;
@@ -183,6 +185,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             role: 'assistant',
             content: fullText || '',
             metadata: {
+              documentId: selectedDocumentId,
               learningContent,
               factCheck
             }

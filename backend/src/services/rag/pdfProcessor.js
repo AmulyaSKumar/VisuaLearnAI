@@ -54,12 +54,16 @@ export async function processPdfFromStorage(documentId, storagePath) {
 
     logger.info({ documentId, chunkCount: chunks.length }, 'Text chunked');
 
-    // Store chunks with embeddings
-    await storeChunks(documentId, chunks);
+    // Store chunks with embeddings or text-only fallback
+    const storeResult = await storeChunks(documentId, chunks);
+
+    if (!storeResult || storeResult.storedCount === 0) {
+      throw new Error('No document chunks could be indexed');
+    }
 
     // Update status to ready
     await updateDocumentStatus(documentId, 'ready', null, {
-      chunk_count: chunks.length,
+      chunk_count: storeResult.storedCount,
     });
 
     logger.info({ documentId }, 'PDF processing complete');
@@ -67,7 +71,7 @@ export async function processPdfFromStorage(documentId, storagePath) {
     return {
       success: true,
       pageCount: pdfData.numpages,
-      chunkCount: chunks.length,
+      chunkCount: storeResult.storedCount,
     };
   } catch (error) {
     logger.error({ error, documentId }, 'PDF processing failed');
@@ -119,13 +123,17 @@ export async function processPdfBuffer(documentId, buffer) {
 
     logger.info({ documentId, chunkCount: allChunks.length }, 'Text chunked');
 
-    // Store chunks with embeddings
-    await storeChunks(documentId, allChunks);
+    // Store chunks with embeddings or text-only fallback
+    const storeResult = await storeChunks(documentId, allChunks);
+
+    if (!storeResult || storeResult.storedCount === 0) {
+      throw new Error('No document chunks could be indexed');
+    }
 
     // Update status to ready
     await updateDocumentStatus(documentId, 'ready', null, {
       page_count: pdfData.numpages,
-      chunk_count: allChunks.length,
+      chunk_count: storeResult.storedCount,
     });
 
     logger.info({ documentId }, 'PDF processing complete');
@@ -133,7 +141,7 @@ export async function processPdfBuffer(documentId, buffer) {
     return {
       success: true,
       pageCount: pdfData.numpages,
-      chunkCount: allChunks.length,
+      chunkCount: storeResult.storedCount,
     };
   } catch (error) {
     logger.error({ error, documentId }, 'PDF processing failed');
