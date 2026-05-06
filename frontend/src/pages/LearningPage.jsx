@@ -98,6 +98,7 @@ function LearningPageContent() {
   const [loadedTabs, setLoadedTabs] = useState(new Set(['learn'])); // Track which tabs have content
   const [tabErrors, setTabErrors] = useState({}); // { tabId: "error message" }
   const [userQuery, setUserQuery] = useState(null); // Store user query for lazy loading
+  const [documentId, setDocumentId] = useState(null); // Persist selected document for RAG-backed lazy tabs
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -180,6 +181,9 @@ function LearningPageContent() {
   // State for 3D regeneration
   const [isRegenerating3D, setIsRegenerating3D] = useState(false);
 
+  // NEW: State for content expansion (progressive disclosure)
+  const [isExpandingContent, setIsExpandingContent] = useState(false);
+
   // Track if resources have been checked (to avoid race condition)
   const resourcesCheckedRef = useRef(false);
 
@@ -193,6 +197,10 @@ function LearningPageContent() {
     regenerateBlock,
     simulationDetection: hookSimulationDetection,
     clearContent,
+    // NEW: Response mode and intent classification for adaptive UI
+    responseMode: hookResponseMode,
+    intentClassification: hookIntentClassification,
+    expandContent,
   } = useLearningContent();
 
   // Refs to avoid callbacks causing infinite loops in useEffect
@@ -205,6 +213,11 @@ function LearningPageContent() {
   useEffect(() => {
     fetchTabContentRef.current = fetchTabContent;
   }, [fetchTabContent]);
+
+  const expandContentRef = useRef(expandContent);
+  useEffect(() => {
+    expandContentRef.current = expandContent;
+  }, [expandContent]);
 
   // State for simulation detection (from hook or local)
   const [localSimulationDetection, setLocalSimulationDetection] = useState(null);
@@ -264,14 +277,19 @@ function LearningPageContent() {
         console.log('[LearningPage] Simulation SUPPORTED:', {
           type: data.type,
           algorithm: data.algorithm,
-          confidence: data.confidence
+          confidence: data.confidence,
+          hasInputSchema: !!data.inputSchema
         });
         setLocalSimulationDetection({
           supported: data.supported,
           type: data.type,
           algorithm: data.algorithm,
           confidence: data.confidence,
-          reason: data.reason
+          reason: data.reason,
+          // NEW: Include fields for custom input UI
+          generatorKey: data.generatorKey,
+          inputSchema: data.inputSchema,
+          suggestedInputs: data.suggestedInputs
         });
       } else {
         console.log('[LearningPage] Simulation NOT supported:', data.reason || 'No match');
@@ -491,6 +509,7 @@ function LearningPageContent() {
       setVisualizationHintChecked(false);
       clearContentRef.current(); // Use ref to avoid infinite loop
       setStoredContent(null);
+      setDocumentId(null);
       // NOTE: visibleTabs and loadedTabs are managed by the persistedTypes sync effect
       // Don't reset them here or we'll lose persisted tabs!
       setTabErrors({});
@@ -537,6 +556,11 @@ function LearningPageContent() {
         const assistantMsg = msgs?.find(m => m.role === 'assistant');
         const stored = assistantMsg?.metadata?.learningContent;
         const storedFact = assistantMsg?.metadata?.factCheck;
+        const storedDocumentId = assistantMsg?.metadata?.documentId || null;
+
+        if (storedDocumentId) {
+          setDocumentId(storedDocumentId);
+        }
 
         if (stored) {
           console.log('[LearningPage] Using stored content from message metadata');
@@ -571,7 +595,7 @@ function LearningPageContent() {
           // Pass preferences with mode based on depthLevel
           // IMPORTANT: Await so loading state shows properly
           // Use ref to avoid infinite loop (fetchTabContent changes on every render)
-          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel }, conversationId);
+          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel }, conversationId, storedDocumentId);
 
           // Also run simulation detection for fresh content
           runSimulationDetection(userMessage.content);
@@ -709,7 +733,8 @@ function LearningPageContent() {
         userId,
         accessToken,
         { mode: depthLevel },
-        conversationId // Pass conversationId for resource persistence
+        conversationId, // Pass conversationId for resource persistence
+        documentId
       );
 
       if (!newContent) {
@@ -839,6 +864,36 @@ function LearningPageContent() {
     }
   }, [userQuery, conversation?.title, accessToken, depthLevel, regenerateBlock]);
 
+  // Handle content expansion (progressive disclosure)
+  // Used when user clicks "Learn More" on a quick explanation
+  const handleExpandContent = useCallback(async (targetMode) => {
+    if (!userQuery || isExpandingContent) return;
+
+    console.log('[LearningPage] Expanding content to mode:', targetMode);
+    setIsExpandingContent(true);
+
+    try {
+      const result = await expandContentRef.current(
+        targetMode,
+        userQuery,
+        userId,
+        accessToken,
+        { mode: depthLevel },
+        conversationId
+      );
+
+      if (result) {
+        // Content was successfully expanded
+        // The hook will update storedContent automatically
+        console.log('[LearningPage] Content expanded successfully');
+      }
+    } catch (err) {
+      console.error('[LearningPage] Content expansion failed:', err);
+    } finally {
+      setIsExpandingContent(false);
+    }
+  }, [userQuery, isExpandingContent, userId, accessToken, depthLevel, conversationId]);
+
   // Handle 3D visualization regeneration
   const handleRegenerate3D = useCallback(async () => {
     if (!userQuery || isRegenerating3D) return;
@@ -962,6 +1017,10 @@ function LearningPageContent() {
             onOpenTab={handleOpenTab}
             cognitiveState={derivedCognitiveState}
             simulationDetection={simulationDetection}
+            // NEW: Adaptive response mode support
+            responseMode={hookResponseMode || learningContent?.responseMode}
+            onExpandContent={handleExpandContent}
+            isExpanding={isExpandingContent}
           />
         );
 

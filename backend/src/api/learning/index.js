@@ -6,6 +6,7 @@
  */
 import { Router } from 'express';
 import { learningContentAgent, regenerateBlockAgent } from '../../agents/learning-content.js';
+import { learningOrchestrator } from '../../agents/learning-orchestrator.js';
 import { analyzeUserProfile, getUserMetrics } from '../../agents/personalization.js';
 import {
   bandit,
@@ -409,13 +410,22 @@ router.post('/learning-content', async (req, res) => {
 
     // STEP 2: Generate learning content with bandit action
     // IMPORTANT: Pass banditAction so content matches the selected approach
+    // For 'learn' content type, use the adaptive orchestrator
     console.log(`[LearningContent] Starting generation with action: ${banditDecision.selectedAction}...`);
     const startTime = Date.now();
 
     // Get action-specific instructions for content generation
     const actionInstructions = getActionInstructions(banditDecision.selectedAction);
 
-    const result = await learningContentAgent.run({
+    // Determine which agent to use based on content type
+    // For 'learn' or unspecified contentType, use the orchestrator for adaptive responses
+    // For other types (examples, quiz, flashcards), use the standard agent
+    const useOrchestrator = !contentType || contentType === 'learn';
+
+    const agentToUse = useOrchestrator ? learningOrchestrator : learningContentAgent;
+    console.log(`[LearningContent] Using ${useOrchestrator ? 'learningOrchestrator' : 'learningContentAgent'}`);
+
+    const result = await agentToUse.run({
       query,
       profile: mergedProfile,
       contentType,
@@ -631,9 +641,20 @@ router.post('/learning-content', async (req, res) => {
       }
     }
 
+    // Extract responseMode and intent classification from result
+    const responseMode = result.result?.responseMode || 'deep_learn';
+    const intentClassification = result.result?._orchestration || null;
+
+    // Remove internal orchestration metadata from the content sent to frontend
+    const contentToSend = { ...result.result };
+    delete contentToSend._orchestration;
+
     res.json({
       success: true,
-      content: result.result,
+      content: contentToSend,
+      // NEW: Include response mode and intent classification for frontend
+      responseMode,
+      intentClassification,
       simulationDetection, // Include detection result for frontend tiered UI
       executionTime: result.executionTime,
       // Include bandit decision for reward tracking

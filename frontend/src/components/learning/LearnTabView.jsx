@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ListenButton from './ListenButton';
+import QuickExplainView from './QuickExplainView';
+import ConceptualView from './ConceptualView';
+import CodingHelpView from './CodingHelpView';
 
 // ============================================
 // PROFESSIONAL CONTENT BLOCK LABELS
@@ -1061,6 +1064,10 @@ export default function LearnTabView({
   onOpenTab, // New: handles opening tabs dynamically
   cognitiveState = 'flow', // 'struggling' | 'confused' | 'flow' | 'bored' | 'mastering'
   simulationDetection = null, // { supported, type, confidence, algorithm, reason }
+  // NEW: Adaptive response mode support
+  responseMode = null, // 'quick_explain' | 'deep_learn' | 'coding_help' | 'conceptual_noncs' | 'simulation'
+  onExpandContent = null, // Handler for progressive disclosure (expand to deeper content)
+  isExpanding = false, // Loading state when expanding content
 }) {
   const [activeConceptId, setActiveConceptId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1147,6 +1154,53 @@ export default function LearnTabView({
   // Simulation available banner: show for high confidence (>0.8) auto-shown tabs
   const showSimulationAvailable = simulationDetection?.supported &&
     simulationDetection.confidence >= 0.8;
+
+  // ============================================
+  // MODE-AWARE RENDERING
+  // Detect response mode and render appropriate view
+  // ============================================
+
+  // Detect responseMode from content or prop
+  const detectedMode = responseMode || learningContent?.responseMode || 'deep_learn';
+
+  // Quick Explain Mode
+  if (detectedMode === 'quick_explain' && learningContent) {
+    return (
+      <QuickExplainView
+        content={learningContent}
+        topic={topic}
+        onExpand={onExpandContent}
+        onOpenTab={onOpenTab}
+        isExpanding={isExpanding}
+      />
+    );
+  }
+
+  // Conceptual (Non-CS) Mode
+  if (detectedMode === 'conceptual_noncs' && learningContent) {
+    return (
+      <ConceptualView
+        content={learningContent}
+        topic={topic}
+        onOpenTab={onOpenTab}
+      />
+    );
+  }
+
+  // Coding Help Mode
+  if (detectedMode === 'coding_help' && learningContent) {
+    return (
+      <CodingHelpView
+        content={learningContent}
+        topic={topic}
+        onOpenTab={onOpenTab}
+      />
+    );
+  }
+
+  // ============================================
+  // STANDARD DEEP LEARN MODE (existing behavior)
+  // ============================================
 
   if (!keyIdeas || keyIdeas.length === 0) {
     return (

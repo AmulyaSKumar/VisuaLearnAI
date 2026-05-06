@@ -55,6 +55,10 @@ export function useLearningContent() {
   // Simulation detection from API
   const [simulationDetection, setSimulationDetection] = useState(null);
 
+  // NEW: Response mode tracking for adaptive UI
+  const [responseMode, setResponseMode] = useState(null); // 'quick_explain' | 'deep_learn' | 'coding_help' | 'conceptual_noncs' | 'simulation'
+  const [intentClassification, setIntentClassification] = useState(null);
+
   // In-flight request tracking
   const inFlightRequestRef = useRef({});
   const lastQueryRef = useRef(null);
@@ -67,8 +71,9 @@ export function useLearningContent() {
    * @param {string} accessToken - Auth token
    * @param {object} preferences - User preferences { mode: 'simple'|'balanced'|'deep', style: 'story'|'visual'|'step-by-step' }
    * @param {string} conversationId - Conversation ID for resource persistence
+   * @param {string|null} documentId - Selected document ID for RAG grounding
    */
-  const fetchTabContent = useCallback(async (query, tabType, userId = null, accessToken = null, preferences = null, conversationId = null) => {
+  const fetchTabContent = useCallback(async (query, tabType, userId = null, accessToken = null, preferences = null, conversationId = null, documentId = null) => {
     if (!query?.trim() || !tabType) return null;
 
     // Map tab types to state keys
@@ -108,7 +113,7 @@ export function useLearningContent() {
         const response = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ query, userId, contentType: tabType, preferences, conversationId })
+          body: JSON.stringify({ query, userId, contentType: tabType, preferences, conversationId, documentId })
         });
 
         const data = await parseJsonResponse(
@@ -131,6 +136,16 @@ export function useLearningContent() {
         // Extract simulation detection for learn content type
         if (tabType === 'learn' && data.simulationDetection) {
           setSimulationDetection(data.simulationDetection);
+        }
+
+        // NEW: Extract response mode and intent classification
+        if (tabType === 'learn') {
+          if (data.responseMode) {
+            setResponseMode(data.responseMode);
+          }
+          if (data.intentClassification) {
+            setIntentClassification(data.intentClassification);
+          }
         }
 
         // Also update legacy combined content
@@ -387,12 +402,58 @@ export function useLearningContent() {
     }
   }, []);
 
+  /**
+   * Expand content to a deeper mode (progressive disclosure)
+   * Used when user clicks "Learn More" on a quick explanation
+   * @param {string} targetMode - The mode to expand to: 'deep_learn', 'examples', 'quiz', etc.
+   * @param {string} query - The learning topic
+   * @param {string} userId - User ID
+   * @param {string} accessToken - Auth token
+   * @param {object} preferences - User preferences
+   */
+  const expandContent = useCallback(async (targetMode, query, userId = null, accessToken = null, preferences = null, conversationId = null) => {
+    if (!query?.trim()) return null;
+
+    console.log(`[useLearningContent] Expanding to mode: ${targetMode}`);
+
+    // For 'deep_learn', force a full content fetch with skipIntentDetection
+    if (targetMode === 'deep_learn') {
+      // Clear the learn tab to force a re-fetch
+      setContentByTab(prev => ({ ...prev, learn: null }));
+      setFetchedTabs(prev => {
+        const next = new Set(prev);
+        next.delete('learn');
+        return next;
+      });
+
+      // Fetch with forced deep mode
+      return await fetchTabContent(query, 'learn', userId, accessToken, { ...preferences, forceMode: 'deep_learn' }, conversationId);
+    }
+
+    // For other modes (examples, quiz, flashcards), use normal lazy loading
+    const tabMap = {
+      'examples': 'examples',
+      'quiz': 'quiz',
+      'flashcards': 'flashcards-mindmap',
+      'mindmap': 'flashcards-mindmap',
+    };
+
+    const tabType = tabMap[targetMode];
+    if (tabType) {
+      return await fetchTabContent(query, tabType, userId, accessToken, preferences, conversationId);
+    }
+
+    return null;
+  }, [fetchTabContent]);
+
   const clearContent = useCallback(() => {
     setContent(null);
     setContentByTab({ learn: null, examples: null, flashcardsMindmap: null, quiz: null });
     setFetchedTabs(new Set());
     setError(null);
     setSimulationDetection(null);
+    setResponseMode(null);
+    setIntentClassification(null);
     lastQueryRef.current = null;
   }, []);
 
@@ -410,6 +471,10 @@ export function useLearningContent() {
     // Simulation detection
     simulationDetection,
 
+    // NEW: Response mode and intent classification for adaptive UI
+    responseMode, // 'quick_explain' | 'deep_learn' | 'coding_help' | 'conceptual_noncs' | 'simulation'
+    intentClassification, // { intent, confidence, domain, suggestedDepth, needsCode, reason }
+
     // Methods
     generateContent,
     fetchTabContent,
@@ -420,6 +485,7 @@ export function useLearningContent() {
     trackInteraction,
     clearContent,
     regenerateBlock,
+    expandContent, // NEW: Progressive disclosure method
 
     // Store last query for lazy loading
     lastQuery: lastQueryRef.current,

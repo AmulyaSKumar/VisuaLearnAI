@@ -402,8 +402,25 @@ export class LearnAgent extends BaseAgent {
   }
 
   async execute(input, context = {}) {
-    const { query, profile = {}, documentContext, contextChunks, webSearchContext, webSearchEnabled } = input;
+    const { query, profile = {}, documentContext, contextChunks, webSearchContext, webSearchEnabled, intent, simulationFirst } = input;
     if (!query) throw new Error('Query is required');
+
+    // Dynamic configuration based on intent
+    const suggestedDepth = intent?.suggestedDepth || 'comprehensive';
+    const needsCode = intent?.needsCode !== false;
+    const domain = intent?.domain || 'cs';
+
+    // Calculate key_ideas count based on depth
+    const keyIdeasCount = {
+      'minimal': 2,
+      'moderate': 4,
+      'comprehensive': 6,
+    }[suggestedDepth] || 6;
+
+    // Determine which blocks to include
+    const includeCodeBlocks = needsCode && domain === 'cs';
+    const includeMistakeBlocks = suggestedDepth !== 'minimal';
+    const includeInsightBlocks = suggestedDepth !== 'minimal';
 
     const learningLevel = profile.comprehension_level || profile.knowledge_level || 'intermediate';
     const learningStyle = profile.learning_style || 'visual';
@@ -455,11 +472,11 @@ User Level: ${learningLevel}, Style: ${learningStyle}
 
 ${personalization}
 
-ABSOLUTE REQUIREMENTS - FAILURE TO COMPLY IS UNACCEPTABLE:
-1. You MUST generate EXACTLY 6 key_ideas (not 3, not 4, EXACTLY 6)
-2. For ANY programming/CS/algorithm topic: EVERY key_idea MUST have a "code" block with REAL, RUNNABLE code
-3. EVERY key_idea MUST have ALL 4 block types: concept, code, mistake, insight
-4. Generic/vague explanations are REJECTED - be specific with actual code and examples
+ADAPTIVE REQUIREMENTS (based on query complexity):
+1. Generate ${keyIdeasCount} key_ideas (this is the TARGET count for this query)
+2. ${includeCodeBlocks ? 'For programming/CS topics: EVERY key_idea MUST have a "code" block with REAL, RUNNABLE code' : 'Code blocks are OPTIONAL for this query - include only if genuinely helpful'}
+3. ${includeMistakeBlocks ? 'Include "mistake" blocks showing common errors' : 'Skip "mistake" blocks for this query'}
+4. ${includeInsightBlocks ? 'Include "insight" blocks with pro tips' : 'Skip "insight" blocks for this query'}
 5. Titles must be SPECIFIC to the topic (BANNED: "Core Concept", "How to study it", "Practical applications", "Getting started")
 
 EXAMPLES OF BAD VS GOOD TITLES:
@@ -547,16 +564,19 @@ Return JSON with this EXACT structure:
     { "name": "Optimization", "weight": 0.3, "concepts": ["concept_5", "concept_6"] }
   ],
   "next_topics": ["Related topic 1", "Related topic 2", "Related topic 3"],
-  "image_search_keywords": ["${query} diagram", "${query} visualization", "${query} step by step"]
+  "image_search_keywords": ["${query} diagram", "${query} visualization", "${query} step by step"],
+  "responseMode": "deep_learn"
 }
 
 MANDATORY CHECKLIST - VERIFY BEFORE RESPONDING:
-[ ] Exactly 6 key_ideas generated
+[ ] ${keyIdeasCount} key_ideas generated
 [ ] Every title is SPECIFIC to ${query} (no generic titles)
-[ ] Every key_idea has concept, code, mistake, and insight blocks
-[ ] Every code block has RUNNABLE code with example usage
-[ ] Every mistake block has BOTH wrong AND right code
-[ ] Content progresses from foundational to advanced`
+[ ] Every key_idea has a concept block
+${includeCodeBlocks ? '[ ] Every key_idea has a code block with RUNNABLE code' : '[ ] Code blocks included only where genuinely helpful'}
+${includeMistakeBlocks ? '[ ] Include mistake blocks with BOTH wrong AND right examples' : ''}
+${includeInsightBlocks ? '[ ] Include insight blocks with pro tips' : ''}
+[ ] Content progresses from foundational to ${keyIdeasCount > 3 ? 'advanced' : 'intermediate'}
+[ ] responseMode field is set to "deep_learn"`
         }]
       });
 
@@ -568,25 +588,33 @@ MANDATORY CHECKLIST - VERIFY BEFORE RESPONDING:
       const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
       const result = parseJsonResponse(text);
 
-      // Validate and retry if insufficient
-      if (!result.key_ideas || result.key_ideas.length < 5) {
-        console.warn(`LearnAgent: Only ${result.key_ideas?.length || 0} key_ideas generated, expected 5+`);
+      // Validate and retry if insufficient (using dynamic keyIdeasCount)
+      const minExpected = Math.max(1, keyIdeasCount - 2); // Allow some variance
+      if (!result.key_ideas || result.key_ideas.length < minExpected) {
+        console.warn(`LearnAgent: Only ${result.key_ideas?.length || 0} key_ideas generated, expected ${minExpected}+`);
         if (retryCount < 1) {
           console.log('LearnAgent: Retrying with stricter prompt...');
           return generateContent(retryCount + 1);
         }
       }
 
-      // Validate that each key_idea has required blocks
+      // Validate that each key_idea has required blocks (based on dynamic config)
       result.key_ideas?.forEach((idea, idx) => {
-        if (!idea.blocks || idea.blocks.length < 4) {
-          console.warn(`LearnAgent: key_idea ${idx} has only ${idea.blocks?.length || 0} blocks, expected 4`);
+        const minBlocks = includeCodeBlocks && includeMistakeBlocks && includeInsightBlocks ? 4 :
+                         includeCodeBlocks || includeMistakeBlocks ? 2 : 1;
+        if (!idea.blocks || idea.blocks.length < minBlocks) {
+          console.warn(`LearnAgent: key_idea ${idx} has only ${idea.blocks?.length || 0} blocks, expected ${minBlocks}`);
         }
-        const hasCode = idea.blocks?.some(b => b.type === 'code');
-        if (!hasCode) {
-          console.warn(`LearnAgent: key_idea ${idx} missing code block`);
+        if (includeCodeBlocks) {
+          const hasCode = idea.blocks?.some(b => b.type === 'code');
+          if (!hasCode) {
+            console.warn(`LearnAgent: key_idea ${idx} missing code block`);
+          }
         }
       });
+
+      // Ensure responseMode is set
+      result.responseMode = 'deep_learn';
 
       return result;
     };

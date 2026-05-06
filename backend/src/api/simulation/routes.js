@@ -310,6 +310,18 @@ router.post('/detect', async (req, res) => {
     // Full classification
     const classification = await classifySimulationIntent(query);
 
+    // Get generator metadata for inputSchema (needed for custom input UI)
+    let inputSchema = null;
+    let suggestedInputs = classification.inputs;
+
+    if (classification.simulatable && classification.algorithm) {
+      const generator = registry.get(classification.algorithm);
+      if (generator) {
+        inputSchema = generator.inputSchema || null;
+        suggestedInputs = classification.inputs || generator.getDefaults();
+      }
+    }
+
     // Map new format to legacy format
     res.json({
       success: true,
@@ -320,7 +332,8 @@ router.post('/detect', async (req, res) => {
       reason: classification.reason,
       // New fields for enhanced frontend
       generatorKey: classification.algorithm,
-      suggestedInputs: classification.inputs
+      suggestedInputs,
+      inputSchema  // NEW: Include inputSchema for custom input UI
     });
 
   } catch (error) {
