@@ -21,6 +21,7 @@ import { config } from '../config/environment.js';
 // Keep preview and GA handling explicit so the URL shape and session payload stay consistent.
 const DEFAULT_PREVIEW_DEPLOYMENT = process.env.AZURE_REALTIME_DEPLOYMENT || 'gpt-4o-mini-realtime-preview';
 const PREVIEW_API_VERSION = '2024-10-01-preview';
+const DEFAULT_TRANSCRIPTION_MODEL = process.env.AZURE_REALTIME_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe';
 
 function normalizeWebSocketUrl(endpoint) {
   return endpoint.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -40,12 +41,23 @@ function buildAzureRealtimeTarget() {
     return null;
   }
 
-  // Full user-provided URL wins. We only normalize scheme and derive the protocol mode.
-  if ((endpoint.includes('/openai/realtime') || endpoint.includes('/openai/v1/realtime')) && endpoint.includes('deployment=')) {
+  // Full user-provided URL usually wins, except for GA realtime models that must use /openai/v1/realtime.
+  if ((endpoint.includes('/openai/realtime') || endpoint.includes('/openai/v1/realtime')) && (endpoint.includes('deployment=') || endpoint.includes('model='))) {
+    const deploymentMatch = endpoint.match(/[?&](deployment|model)=([^&]+)/);
+    const deployment = deploymentMatch?.[2] || DEFAULT_PREVIEW_DEPLOYMENT;
+    const forceGa = /^gpt-realtime-1\.5$/i.test(deployment) || /^gpt-realtime$/i.test(deployment) || /^gpt-realtime-mini$/i.test(deployment);
+
+    if (forceGa) {
+      const host = endpoint.replace(/^https?:\/\//, '').replace(/^wss?:\/\//, '').split('/')[0];
+      const url = `wss://${host}/openai/v1/realtime?model=${deployment}`;
+      logger.info({ builtUrl: url, source: 'forced-ga-from-env', mode: 'ga' }, 'Forcing GA Azure Realtime URL for realtime model');
+      return { url, mode: 'ga', deployment };
+    }
+
     const url = normalizeWebSocketUrl(endpoint);
     const mode = detectRealtimeMode(url);
     logger.info({ builtUrl: url, source: 'env-as-is', mode }, 'Using provided Azure Realtime URL');
-    return { url, mode };
+    return { url, mode, deployment };
   }
 
   const urlStr = endpoint
@@ -63,11 +75,11 @@ function buildAzureRealtimeTarget() {
   const prefersGa = /^gpt-realtime/i.test(deployment);
   const mode = prefersGa ? 'ga' : 'preview';
   const url = prefersGa
-    ? `wss://${host}/openai/v1/realtime?deployment=${deployment}`
+    ? `wss://${host}/openai/v1/realtime?model=${deployment}`
     : `wss://${host}/openai/realtime?api-version=${PREVIEW_API_VERSION}&deployment=${deployment}`;
 
   logger.info({ builtUrl: url, source: 'constructed', mode }, 'Built Azure Realtime URL');
-  return { url, mode };
+  return { url, mode, deployment };
 }
 
 // Constants
@@ -656,6 +668,7 @@ export function createRealtimeProxy(clientWs, requestUrl, user = null) {
     const azureTarget = buildAzureRealtimeTarget();
     const azureUrl = azureTarget?.url;
     const realtimeMode = azureTarget?.mode || 'preview';
+    const realtimeDeployment = azureTarget?.deployment || DEFAULT_PREVIEW_DEPLOYMENT;
     const apiKey = config.azure.realtimeApiKey || process.env.AZURE_OPENAI_API_KEY;
 
     if (!azureUrl) {
@@ -678,7 +691,7 @@ export function createRealtimeProxy(clientWs, requestUrl, user = null) {
       return;
     }
 
-    logger.info({ azureUrl, realtimeMode }, 'Connecting to Azure Realtime API');
+    logger.info({ azureUrl, realtimeMode, realtimeDeployment }, 'Connecting to Azure Realtime API');
 
     // GA protocol: api-key header only, no OpenAI-Beta header needed
     azureWs = new WebSocket(azureUrl, {
@@ -689,6 +702,11 @@ export function createRealtimeProxy(clientWs, requestUrl, user = null) {
 
     azureWs.on('open', () => {
       logger.info('Connected to Azure Realtime API successfully');
+      clientWs.send(JSON.stringify({
+        type: 'visualearn.realtime_mode',
+        mode: realtimeMode,
+        deployment: realtimeDeployment,
+      }));
     });
 
     // Handle non-101 responses (auth failures, wrong endpoint, etc.)
@@ -726,23 +744,28 @@ export function createRealtimeProxy(clientWs, requestUrl, user = null) {
           // Keep session payload aligned with the selected Azure realtime protocol.
           const sessionUpdate = {
             type: 'session.update',
-            session: {
-              voice: 'alloy',
-              instructions: instructions,
-              modalities: ['text', 'audio'],
-              input_audio_format: 'pcm16',
-              output_audio_format: 'pcm16',
-              input_audio_transcription: {
-                model: 'whisper-1',
-              },
-              turn_detection: {
-                type: 'server_vad',
-                threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 500,
-                ...(realtimeMode === 'preview' ? { create_response: true } : {}),
-              },
-            },
+            session: realtimeMode === 'ga'
+              ? {
+                  type: 'realtime',
+                  instructions: instructions,
+                }
+              : {
+                  voice: 'alloy',
+                  instructions: instructions,
+                  modalities: ['text', 'audio'],
+                  input_audio_format: 'pcm16',
+                  output_audio_format: 'pcm16',
+                  input_audio_transcription: {
+                    model: 'whisper-1',
+                  },
+                  turn_detection: {
+                    type: 'server_vad',
+                    threshold: 0.5,
+                    prefix_padding_ms: 300,
+                    silence_duration_ms: 500,
+                    create_response: true,
+                  },
+                },
           };
 
           logger.debug({ sessionUpdate: JSON.stringify(sessionUpdate).slice(0, 200) }, 'Sending session.update');

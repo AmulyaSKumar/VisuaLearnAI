@@ -51,6 +51,7 @@ export default function useRealtimeAudio({
   const [timeRemaining, setTimeRemaining] = useState(null); // Warning state
 
   const wsRef = useRef(null);
+  const realtimeModeRef = useRef('preview');
   const audioCtxRef = useRef(null);
   const micStreamRef = useRef(null);
   const workletNodeRef = useRef(null);
@@ -62,6 +63,7 @@ export default function useRealtimeAudio({
   const maxDurationTimeoutRef = useRef(null);
   const warningTimeoutRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const sessionConfiguredTimeoutRef = useRef(null);
   const intentionalCloseRef = useRef(false);
 
   // Update state and notify
@@ -160,6 +162,10 @@ export default function useRealtimeAudio({
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    if (sessionConfiguredTimeoutRef.current) {
+      clearTimeout(sessionConfiguredTimeoutRef.current);
+      sessionConfiguredTimeoutRef.current = null;
+    }
 
     // Close WebSocket
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -202,6 +208,7 @@ export default function useRealtimeAudio({
     setError(null);
     setErrorType(null);
     sessionStartRef.current = null;
+    realtimeModeRef.current = 'preview';
   }, [cleanup, updateState]);
 
   // Check browser compatibility
@@ -337,6 +344,7 @@ export default function useRealtimeAudio({
       // 5. Connect to Azure Realtime
       const ws = new WebSocket(wsEndpoint);
       wsRef.current = ws;
+      realtimeModeRef.current = 'preview';
 
       // Track session start time
       sessionStartRef.current = Date.now();
@@ -371,6 +379,13 @@ export default function useRealtimeAudio({
       ws.onopen = () => {
         console.log("Voice WS connected successfully");
         // Session config is handled by the backend proxy
+        sessionConfiguredTimeoutRef.current = setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN && state !== VOICE_STATES.LISTENING) {
+            setError("Voice session setup timed out");
+            setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+            ws.close();
+          }
+        }, 12000);
       };
 
       ws.onmessage = (event) => {
@@ -378,6 +393,11 @@ export default function useRealtimeAudio({
         try { msg = JSON.parse(event.data); } catch { return; }
 
         switch (msg.type) {
+          case "visualearn.realtime_mode":
+            realtimeModeRef.current = msg.mode || 'preview';
+            console.log("Realtime mode:", realtimeModeRef.current, msg.deployment || '');
+            break;
+
           case "session.created":
             // Session created - wait for session.updated before starting mic
             // Backend proxy sends session.update with personalization config
@@ -388,6 +408,10 @@ export default function useRealtimeAudio({
           case "session.updated":
             // Session fully configured - NOW start mic pipeline
             console.log("Session configured, starting mic");
+            if (sessionConfiguredTimeoutRef.current) {
+              clearTimeout(sessionConfiguredTimeoutRef.current);
+              sessionConfiguredTimeoutRef.current = null;
+            }
             updateState(VOICE_STATES.LISTENING);
             // Start mic → worklet → WS pipeline
             micSource.connect(workletNode);
@@ -416,6 +440,15 @@ export default function useRealtimeAudio({
 
           case "input_audio_buffer.speech_stopped":
             updateState(VOICE_STATES.PROCESSING);
+            if (realtimeModeRef.current === 'ga' && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+              ws.send(JSON.stringify({
+                type: "response.create",
+                response: {
+                  modalities: ["text", "audio"],
+                },
+              }));
+            }
             break;
 
           case "conversation.item.input_audio_transcription.completed":
