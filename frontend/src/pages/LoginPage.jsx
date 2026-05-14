@@ -1,10 +1,11 @@
 /**
- * LoginPage - Combined Sign In / Sign Up
- * Single card with tab navigation between sign in and sign up modes
+ * LoginPage - Premium UI with Raisin & Caramel Theme
+ * High-contrast sign in/sign up with proper focus states and interactions
  */
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { hasSupabaseConfig, signInWithEmail, signUpWithEmail, signInWithGoogle } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -128,75 +129,112 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-md space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="w-full max-w-md space-y-8"
+      >
         {/* Logo and Title */}
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center neu-circle">
-            <svg className="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="text-center"
+        >
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center bg-gradient-to-br from-caramel/20 to-caramel/10 rounded-2xl border border-caramel/30"
+          >
+            <svg
+              className="h-8 w-8 text-caramel"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">VisuaLearn</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          </motion.div>
+          <h1 className="text-3xl font-bold font-headline text-foreground">VisuaLearn</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             AI-powered interactive learning
           </p>
-        </div>
+        </motion.div>
 
         {/* Auth Card */}
-        <div className="neu-card overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="rounded-2xl bg-card/50 border border-border/40 backdrop-blur-sm shadow-lg p-8 space-y-6"
+        >
           {/* Tab Navigation */}
-          <div className="flex gap-2 mb-6 p-1 neu-pressed rounded-xl">
-            <button
+          <div className="flex gap-3 p-1 bg-background/50 rounded-xl border border-border/40">
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => switchMode('signin')}
-              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-all rounded-lg ${
+              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${
                 mode === 'signin'
-                  ? 'neu-raised-sm text-primary'
+                  ? 'bg-gradient-to-br from-caramel to-caramel-dark text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Sign In
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => switchMode('signup')}
-              className={`flex-1 py-3 min-h-[44px] text-sm font-medium transition-all rounded-lg ${
+              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${
                 mode === 'signup'
-                  ? 'neu-raised-sm text-primary'
+                  ? 'bg-gradient-to-br from-caramel to-caramel-dark text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Sign Up
-            </button>
+            </motion.button>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error Message */}
             {error && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive"
+              >
                 {error}
-              </div>
+              </motion.div>
             )}
 
             {/* Success Message */}
             {success && (
-              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 text-sm text-green-600 dark:text-green-400">
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 text-sm text-green-600 dark:text-green-400"
+              >
                 {success}
-              </div>
+              </motion.div>
             )}
 
             {/* Supabase Warning */}
             {!hasSupabaseConfig && (
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-700 dark:text-amber-300">
-                Supabase is not configured. Add <code className="font-mono text-xs">VITE_SUPABASE_URL</code> and <code className="font-mono text-xs">VITE_SUPABASE_ANON_KEY</code> to your environment.
+                Supabase is not configured. Add <code className="font-mono text-xs">VITE_SUPABASE_URL</code> and{' '}
+                <code className="font-mono text-xs">VITE_SUPABASE_ANON_KEY</code> to your environment.
               </div>
             )}
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-foreground mb-2">
                 Email
               </label>
               <input
@@ -207,13 +245,13 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
-                className="w-full neu-input"
+                className="w-full px-4 py-3 bg-background/50 border border-border/40 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-caramel/50 focus:border-caramel/30 focus:bg-background transition-all duration-200"
               />
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
                 Password
               </label>
               <input
@@ -224,14 +262,14 @@ export default function LoginPage() {
                 placeholder={mode === 'signup' ? 'At least 8 characters' : 'Enter your password'}
                 required
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                className="w-full neu-input"
+                className="w-full px-4 py-3 bg-background/50 border border-border/40 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-caramel/50 focus:border-caramel/30 focus:bg-background transition-all duration-200"
               />
             </div>
 
             {/* Confirm Password (Sign Up only) */}
             {mode === 'signup' && (
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="confirmPassword" className="block text-sm font-semibold text-foreground mb-2">
                   Confirm Password
                 </label>
                 <input
@@ -242,16 +280,18 @@ export default function LoginPage() {
                   placeholder="Confirm your password"
                   required
                   autoComplete="new-password"
-                  className="w-full neu-input"
+                  className="w-full px-4 py-3 bg-background/50 border border-border/40 rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-caramel/50 focus:border-caramel/30 focus:bg-background transition-all duration-200"
                 />
               </div>
             )}
 
-            {/* Submit Button */}
-            <button
+            {/* Submit Button - HIGH CONTRAST */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2, boxShadow: '0 10px 25px -5px rgba(200, 119, 64, 0.3)' }}
+              whileTap={{ scale: 0.95 }}
               type="submit"
               disabled={loading || !hasSupabaseConfig}
-              className="w-full neu-btn-primary px-4 py-3 min-h-[48px] font-medium mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-6 py-3 min-h-[48px] text-lg font-bold bg-gradient-to-br from-caramel to-caramel-dark text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -261,25 +301,29 @@ export default function LoginPage() {
                   </svg>
                   {mode === 'signup' ? 'Creating account...' : 'Signing in...'}
                 </span>
+              ) : mode === 'signup' ? (
+                'Create Account'
               ) : (
-                mode === 'signup' ? 'Create Account' : 'Sign In'
+                'Sign In'
               )}
-            </button>
+            </motion.button>
 
-            {/* Divider */}
+            {/* Divider - LIGHTER TEXT */}
             <div className="relative my-6">
-              <div className="neu-divider"></div>
+              <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="bg-card px-3 text-xs uppercase text-muted-foreground">Or continue with</span>
+                <span className="bg-card px-3 text-xs uppercase text-muted-foreground/70 tracking-wider">Or continue with</span>
               </div>
             </div>
 
-            {/* Google Sign In */}
-            <button
+            {/* Google Sign In - Updated Styling */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.95 }}
               type="button"
               onClick={handleGoogleSignIn}
               disabled={googleLoading || !hasSupabaseConfig}
-              className="w-full flex items-center justify-center gap-3 neu-btn px-4 py-3 min-h-[48px] font-medium text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 px-6 py-3 min-h-[48px] font-semibold text-foreground bg-background/50 border border-border/40 rounded-lg hover:border-border/60 hover:bg-card/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {googleLoading ? (
                 <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -307,39 +351,39 @@ export default function LoginPage() {
                 </svg>
               )}
               <span>Google</span>
-            </button>
+            </motion.button>
 
             {/* Mode Switch Text */}
             <p className="text-center text-sm text-muted-foreground pt-2">
               {mode === 'signin' ? (
                 <>
                   Don&apos;t have an account?{' '}
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
                     type="button"
                     onClick={() => switchMode('signup')}
-                    className="font-medium text-primary hover:underline"
+                    className="font-semibold text-caramel hover:text-caramel-dark transition-colors"
                   >
                     Sign up
-                  </button>
+                  </motion.button>
                 </>
               ) : (
                 <>
                   Already have an account?{' '}
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
                     type="button"
                     onClick={() => switchMode('signin')}
-                    className="font-medium text-primary hover:underline"
+                    className="font-semibold text-caramel hover:text-caramel-dark transition-colors"
                   >
                     Sign in
-                  </button>
+                  </motion.button>
                 </>
               )}
             </p>
           </form>
-        </div>
-
-      
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
