@@ -222,22 +222,22 @@ function AppContent() {
 
   // If authenticated, show app with sidebar
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden selection:bg-primary/30">
+    <div className="app-shell flex h-screen bg-background text-foreground overflow-hidden selection:bg-primary/30">
       {/* Persona Selection Modal - shows when user hasn't selected a persona */}
       {user && !hasCompletedSetup && <PersonaSelectionModal />}
 
       {/* Overlay when sidebar is open */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40"
+          className="fixed inset-0 bg-black/45 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar - hidden by default, shown when sidebarOpen is true */}
+      {/* Sidebar - persistent on desktop, drawer on smaller screens */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:z-auto lg:block lg:shrink-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -255,20 +255,27 @@ function AppContent() {
 
       <main className="flex-1 flex flex-col relative h-full min-h-0 overflow-hidden">
         {/* Header with sidebar toggle */}
-        <div className="flex-shrink-0 border-b border-border bg-card/50">
-          <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex-shrink-0 border-b border-border bg-card/70 backdrop-blur-xl">
+          <div className="flex items-center justify-between px-4 py-3 lg:px-6">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="flex items-center justify-center w-11 h-11 -ml-2 neu-btn rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center justify-center w-11 h-11 -ml-2 neu-btn rounded-lg text-muted-foreground hover:text-foreground transition-colors lg:hidden"
               aria-label="Open menu"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <span className="font-semibold text-foreground">VisuaLearn</span>
-            <div className="w-11 h-11" />
+            <div className="min-w-0">
+              <span className="block text-sm font-semibold text-foreground">VisuaLearn</span>
+              <span className="hidden sm:block text-xs text-muted-foreground">Adaptive learning workspace</span>
+            </div>
+            <div className="w-11 h-11 lg:w-auto lg:min-w-[140px] flex items-center justify-end">
+              <span className="hidden lg:inline-flex rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+                AI learning mode
+              </span>
+            </div>
           </div>
         </div>
 

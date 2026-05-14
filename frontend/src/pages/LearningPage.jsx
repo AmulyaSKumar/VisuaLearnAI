@@ -49,9 +49,6 @@ const DEPTH_LEVELS = [
   { id: 'deep', label: 'Technical', description: 'Full detail, industry terms' },
 ];
 
-// Map depth levels to API mode values
-const depthToMode = (depth) => depth; // Now using 'deep' directly
-
 // Inner component that uses the Learning Intelligence context
 function LearningPageContent() {
   const { id: conversationId } = useParams();
@@ -117,7 +114,7 @@ function LearningPageContent() {
   // Learning Intelligence context
   const {
     depthLevel,
-    setDepthLevel,
+    
     updateConceptMastery,
     recordQuizResult,
     getConceptStatus,
@@ -173,12 +170,10 @@ function LearningPageContent() {
     resources: persistedResources,
     availableTypes: persistedTypes,
     isLoading: isResourcesLoading,
-    fetchResources,
-    getResource,
+    
     hasResource,
     saveResource,
-    addAvailableType,
-    getTabs: getPersistedTabs,
+    
   } = useLearningResources(conversationId, accessToken);
 
   const {
@@ -217,7 +212,6 @@ function LearningPageContent() {
     clearContent,
     // NEW: Response mode and intent classification for adaptive UI
     responseMode: hookResponseMode,
-    intentClassification: hookIntentClassification,
     expandContent,
   } = useLearningContent();
 
@@ -1314,13 +1308,16 @@ function LearningPageContent() {
       )}
 
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-border">
+      <div className="flex-shrink-0 border-b border-border bg-card/65 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate tracking-tight">
+              <h1 className="text-lg sm:text-xl font-bold text-foreground truncate tracking-tight">
                 {conversation?.title || 'Learning Session'}
               </h1>
+              <p className="hidden sm:block text-xs text-muted-foreground mt-1">
+                Review notes, simulations, quizzes, mind maps, and exports from one workspace.
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1334,7 +1331,7 @@ function LearningPageContent() {
               <button
                 onClick={openNotionExport}
                 disabled={availableNotionArtifacts.length === 0}
-                className="px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                className="px-3 py-2 text-sm font-semibold text-primary-foreground bg-primary rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
               >
                 Save to Notion
               </button>
@@ -1342,13 +1339,13 @@ function LearningPageContent() {
               {/* Stats Badge */}
               {stats.studyStreak > 0 && (
                 <span className="hidden sm:inline px-2.5 py-1.5 text-xs font-medium text-muted-foreground border border-border rounded-md">
-                  {stats.studyStreak} 
+                  {stats.studyStreak}
                 </span>
               )}
 
               <button
                 onClick={() => navigate('/chat/new')}
-                className="px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                className="px-3 py-2 text-sm font-semibold text-foreground border border-border rounded-xl hover:bg-muted transition-colors"
               >
                 New
               </button>
@@ -1357,7 +1354,7 @@ function LearningPageContent() {
 
           {/* Tab Bar - Shows when more than Learn tab exists */}
           {visibleTabs.length > 1 && (
-            <div className="flex gap-1.5 mt-4 p-1.5 neu-pressed rounded-xl overflow-x-auto">
+            <div className="flex gap-1.5 mt-4 p-1.5 bg-muted/70 border border-border rounded-2xl overflow-x-auto">
               {visibleTabs.map(tabId => {
                 const isActive = activeTab === tabId;
                 const isTabLoading = loadingTabs.has(tabId);
@@ -1367,13 +1364,12 @@ function LearningPageContent() {
                   <button
                     key={tabId}
                     onClick={() => handleOpenTab(tabId)}
-                    className={`px-3 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap ${
-                      isActive
-                        ? 'neu-raised-sm text-primary'
+                    className={`px-3 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap ${isActive
+                        ? 'bg-card shadow-sm text-primary'
                         : hasError
-                          ? 'text-destructive hover:neu-raised-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:neu-raised-sm'
-                    }`}
+                          ? 'text-destructive hover:bg-card/60'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-card/60'
+                      }`}
                   >
                     {TAB_LABELS[tabId]}
                     {isTabLoading && (
@@ -1395,11 +1391,10 @@ function LearningPageContent() {
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
           {/* Fact Check Banner */}
           {factCheck && (
-            <div className={`mb-4 p-3 rounded-lg border ${
-              factCheck.verified
+            <div className={`mb-4 p-3 rounded-lg border ${factCheck.verified
                 ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800'
                 : 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800'
-            }`}>
+              }`}>
               <div className="flex items-center gap-2">
                 {factCheck.verified ? (
                   <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1410,11 +1405,10 @@ function LearningPageContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 )}
-                <span className={`font-medium text-sm ${
-                  factCheck.verified
+                <span className={`font-medium text-sm ${factCheck.verified
                     ? 'text-green-700 dark:text-green-300'
                     : 'text-amber-700 dark:text-amber-300'
-                }`}>
+                  }`}>
                   {factCheck.verified ? 'Verified' : 'Unverified'}
                   {factCheck.confidence && ` (${Math.round(factCheck.confidence * 100)}%)`}
                 </span>
@@ -1434,8 +1428,8 @@ function LearningPageContent() {
       </div>
 
       {showNotionExport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/75 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-2xl premium-surface overflow-hidden">
             <div className="p-5 border-b border-border">
               <div className="flex items-start justify-between gap-4">
                 <div>

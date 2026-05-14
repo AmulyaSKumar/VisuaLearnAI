@@ -220,31 +220,31 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
-      <div className="w-full max-w-2xl space-y-6 sm:space-y-8">
+    <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-background overflow-y-auto">
+      <div className="w-full max-w-3xl space-y-6 sm:space-y-8">
         {/* Hero */}
-        <div className="text-center space-y-3 sm:space-y-4">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto neu-circle flex items-center justify-center">
-            <svg className="w-7 h-7 sm:w-9 sm:h-9 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="text-center space-y-4 sm:space-y-5">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-primary-foreground shadow-2xl shadow-primary/20">
+            <svg className="w-7 h-7 sm:w-9 sm:h-9 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">What do you want to learn?</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-foreground text-balance">What do you want to learn?</h1>
+          <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
             Ask any question and get an interactive learning experience
           </p>
         </div>
 
         {/* Document Section */}
-        <div className="neu-card-sm overflow-hidden">
+        <div className="premium-surface overflow-hidden rounded-2xl">
           {/* Document Header */}
           <button
             onClick={() => setShowDocuments(!showDocuments)}
-            className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+            className="w-full flex items-center justify-between p-4 bg-card/40 hover:bg-muted/50 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
                 <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -418,7 +418,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
                   }
                 }}
                 disabled={!!selectedDocumentId}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                   webSearchEnabled
                     ? 'bg-primary text-primary-foreground'
                     : 'neu-btn text-foreground/70 hover:text-foreground'
@@ -436,7 +436,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               {/* Document Toggle (existing functionality) */}
               <button
                 onClick={() => setShowDocuments(!showDocuments)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                   selectedDocumentId
                     ? 'bg-primary text-primary-foreground'
                     : 'neu-btn text-foreground/70 hover:text-foreground'
@@ -480,9 +480,9 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
                   <button
                     key={idx}
                     onClick={() => handleSuggestionClick(suggestion)}
-                    className="flex items-center gap-3 p-4 min-h-[52px] neu-btn text-left group"
-                  >
-                    <div className="w-8 h-8 neu-circle-pressed flex items-center justify-center flex-shrink-0">
+                  className="flex items-center gap-3 p-4 min-h-[56px] neu-btn text-left group"
+                >
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>

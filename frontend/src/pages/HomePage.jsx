@@ -5,8 +5,8 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import {  AnimatePresence } from 'framer-motion';
 
 // Typing animation component
 function TypeWriter({ texts, speed = 50, deleteSpeed = 30, pauseTime = 2000 }) {
@@ -105,13 +105,12 @@ function SortingAnimation() {
       {bars.map((height, idx) => (
         <motion.div
           key={idx}
-          className={`w-4 rounded-t transition-colors duration-150 ${
-            sortedIndices.includes(idx)
+          className={`w-4 rounded-t transition-colors duration-150 ${sortedIndices.includes(idx)
               ? 'bg-green-500'
               : activeIndices.includes(idx)
-              ? 'bg-primary'
-              : 'bg-muted-foreground/30'
-          }`}
+                ? 'bg-primary'
+                : 'bg-muted-foreground/30'
+            }`}
           animate={{ height: `${height}%` }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         />
@@ -198,8 +197,8 @@ function GraphAnimation() {
             activeNode === node.id
               ? '#c94f1e'
               : visitedNodes.includes(node.id)
-              ? '#22c55e'
-              : '#d1d5db'
+                ? '#22c55e'
+                : '#d1d5db'
           }
           animate={{
             scale: activeNode === node.id ? [1, 1.3, 1] : 1,
@@ -566,7 +565,7 @@ export default function HomePage() {
                 className="relative z-10 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl hover:shadow-2xl hover:border-caramel/30 transition-all"
               >
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-caramel/5 to-transparent pointer-events-none" />
-                
+
                 <div className="relative space-y-6">
                   {/* Title */}
                   <div className="flex items-center gap-3">
@@ -850,7 +849,7 @@ export default function HomePage() {
           >
             {/* Gradient Background */}
             <div className="absolute inset-0 bg-gradient-to-br from-caramel/90 via-caramel-dark/80 to-raisin-dark/90" />
-            
+
             {/* Decorative Orbs */}
             <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full mix-blend-overlay filter blur-3xl opacity-10 animate-pulse" />
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-overlay filter blur-3xl opacity-10 animate-pulse" style={{ animationDelay: '2s' }} />
@@ -932,303 +931,6 @@ export default function HomePage() {
               <span className="font-headline font-bold text-foreground">VisuaLearn</span>
             </div>
             <p className="text-sm text-muted-foreground">© 2026 VisuaLearn. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
-
-        {/* Simulation Showcase Section */}
-        <section className="py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              See algorithms <span className="text-primary">in action</span>
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Don't just read about algorithms—watch them execute step by step.
-              Interactive simulations make complex concepts crystal clear.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Sorting Visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="neu-card p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-headline font-semibold text-foreground">Sorting Algorithms</h3>
-                  <p className="text-xs text-muted-foreground">Bubble, Quick, Merge & more</p>
-                </div>
-              </div>
-              <SortingAnimation />
-              <p className="text-sm text-muted-foreground mt-4 text-center">
-                Watch elements swap in real-time
-              </p>
-            </motion.div>
-
-            {/* Graph Visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="neu-card p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-headline font-semibold text-foreground">Graph Traversal</h3>
-                  <p className="text-xs text-muted-foreground">BFS, DFS, Dijkstra</p>
-                </div>
-              </div>
-              <GraphAnimation />
-              <p className="text-sm text-muted-foreground mt-4 text-center">
-                Follow the path as it explores
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Ornamental Line */}
-        <div className="ornamental-line"></div>
-
-        {/* Document Learning Section */}
-        <section className="py-16">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-2 lg:order-1"
-            >
-              <motion.div
-                whileHover={{ y: -5 }}
-                className="neu-card p-6"
-              >
-                <DocumentAnimation />
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Intelligent chunking</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Semantic search</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Contextual answers</span>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-1 lg:order-2 space-y-4"
-            >
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Learn from <span className="text-primary">your documents</span>
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Upload your lecture notes, textbooks, or research papers.
-                Ask questions and get answers grounded in your own materials.
-              </p>
-              <ul className="space-y-3 pt-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">PDF, DOCX, and text files supported</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">AI finds relevant sections automatically</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">Generate quizzes from your content</span>
-                </li>
-              </ul>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
-
-        {/* Adaptive Learning Section */}
-        <section className="py-16">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="space-y-4"
-            >
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Learning that <span className="text-primary">adapts to you</span>
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Our AI monitors your progress in real-time. Struggling? Get more guidance.
-                Mastering it? Face new challenges. No two learning paths are the same.
-              </p>
-              <div className="grid grid-cols-2 gap-4 pt-4">
-                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                  <p className="font-semibold text-orange-600 text-sm">Struggling</p>
-                  <p className="text-xs text-muted-foreground mt-1">Step-by-step hints</p>
-                </div>
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <p className="font-semibold text-green-600 text-sm">Mastering</p>
-                  <p className="text-xs text-muted-foreground mt-1">Challenge problems</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <motion.div
-                whileHover={{ y: -5 }}
-                className="neu-card p-6"
-              >
-                <p className="text-sm font-medium text-foreground mb-4">Real-time adaptation</p>
-                <AdaptiveAnimation />
-              </motion.div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Ornamental Line */}
-        <div className="ornamental-line"></div>
-
-        {/* Features Grid */}
-        <section className="py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="font-headline text-3xl font-bold text-foreground mb-4">
-              Everything you need to learn
-            </h2>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: '📖', title: 'Explanations', desc: 'Clear, step-by-step' },
-              { icon: '🗺️', title: 'Mind Maps', desc: 'Visual connections' },
-              { icon: '🃏', title: 'Flashcards', desc: 'Active recall' },
-              { icon: '✅', title: 'Quizzes', desc: 'Test yourself' },
-            ].map((feature, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className="neu-card-sm p-5 text-center cursor-pointer"
-              >
-                <span className="text-3xl mb-3 block">{feature.icon}</span>
-                <h3 className="font-semibold text-foreground">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{feature.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="py-20">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="neu-card p-12 text-center relative overflow-hidden"
-          >
-            {/* Background decoration */}
-            <div className="absolute inset-0 opacity-5">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary rounded-full blur-3xl" />
-            </div>
-
-            <div className="relative z-10 max-w-2xl mx-auto space-y-6">
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Ready to learn <span className="text-primary">smarter</span>?
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Join thousands of learners who've transformed how they understand the world.
-              </p>
-              <motion.button
-                whileHover={{ scale: 1.05, y: -3 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/login')}
-                className="neu-btn-primary px-10 py-4 text-lg font-semibold shadow-lg"
-              >
-                Get Started Free
-              </motion.button>
-              <p className="text-sm text-muted-foreground">No credit card required</p>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border bg-card/30 py-8">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-              </svg>
-              <span className="font-headline font-semibold text-foreground">VisuaLearn</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              AI-powered interactive learning
-            </p>
           </div>
         </div>
       </footer>

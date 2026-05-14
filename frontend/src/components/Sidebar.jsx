@@ -129,18 +129,21 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-[280px] h-full bg-sidebar flex flex-col pt-4 pb-4 neu-raised-lg">
-      <div className="px-4 mb-6 flex items-center justify-between">
+    <aside className="w-[304px] h-full bg-sidebar/95 flex flex-col pt-5 pb-5 border-r border-sidebar-border shadow-[18px_0_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl">
+      <div className="px-5 mb-6 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 group min-h-[44px]">
-          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-cyan-500 flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
           </div>
-          <span className="font-semibold text-sidebar-foreground text-[13px] tracking-tight group-hover:text-primary transition-colors">
-            VisuaLearn AI
-          </span>
+          <div>
+            <span className="block font-bold text-sidebar-foreground text-[15px] tracking-tight group-hover:text-primary transition-colors">
+              VisuaLearn AI
+            </span>
+            <span className="block text-[11px] text-muted-foreground">Structured learning system</span>
+          </div>
         </Link>
         {/* Mobile close button */}
         {onClose && (
@@ -157,7 +160,7 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="px-3 mb-5">
+      <div className="px-4 mb-5">
         <button
           onClick={() => {
             clearModes();
@@ -173,7 +176,7 @@ export default function Sidebar({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3">
+      <div className="flex-1 overflow-y-auto px-4">
         <p className="text-[10px] font-semibold text-muted-foreground mb-2 px-2 uppercase tracking-widest">
           Recent Sessions
         </p>
@@ -203,10 +206,10 @@ export default function Sidebar({
                   key={conversation.id}
                   ref={isDeleteConfirming ? deleteContainerRef : null}
                   data-conversation-item-id={conversation.id}
-                  className={`group/item rounded-xl px-2 py-2 min-h-[44px] transition-all ${
+                  className={`group/item rounded-xl px-2.5 py-2 min-h-[44px] transition-all ${
                     isActive
-                      ? "neu-pressed-sm text-foreground"
-                      : "text-sidebar-foreground hover:neu-raised-sm"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm border border-sidebar-border"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
                   }`}
                 >
                   {isDeleteConfirming ? (
@@ -367,7 +370,23 @@ export default function Sidebar({
             className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center neu-btn rounded-xl"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
-            <span className="text-xl">{theme === "dark" ? "🌙" : "☀️"}</span>
+            {theme === "dark" ? (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="m4.93 4.93 1.41 1.41" />
+                <path d="m17.66 17.66 1.41 1.41" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="m6.34 17.66-1.41 1.41" />
+                <path d="m19.07 4.93-1.41 1.41" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20.9 13.4A8 8 0 1 1 10.6 3.1 6.5 6.5 0 1 0 20.9 13.4Z" />
+              </svg>
+            )}
           </button>
 
           <button
@@ -401,6 +420,6 @@ export default function Sidebar({
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

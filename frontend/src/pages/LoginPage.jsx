@@ -178,11 +178,10 @@ export default function LoginPage() {
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => switchMode('signin')}
-              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${
-                mode === 'signin'
+              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${mode === 'signin'
                   ? 'bg-gradient-to-br from-caramel to-caramel-dark text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               Sign In
             </motion.button>
@@ -190,11 +189,10 @@ export default function LoginPage() {
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => switchMode('signup')}
-              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${
-                mode === 'signup'
+              className={`flex-1 py-2.5 min-h-[44px] text-sm font-semibold transition-all rounded-lg ${mode === 'signup'
                   ? 'bg-gradient-to-br from-caramel to-caramel-dark text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               Sign Up
             </motion.button>
