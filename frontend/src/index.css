@@ -1,10 +1,10 @@
 /* ============================================
-   GOOGLE FONTS - Editorial Typography
-   Lora (serif) for headlines - editorial/book feel
-   Nunito for body - friendly and readable
+   PREMIUM LUXURY FONTS - Playfair Display & Outfit
+   Playfair Display (headlines) - luxury, editorial, premium
+   Outfit (body) - clean, modern, premium tech aesthetic
    MUST be before @import "tailwindcss" to satisfy CSS @import ordering rules
    ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
@@ -40,121 +40,131 @@
 }
 
 /* ============================================
-   EDITORIAL LIGHT THEME
-   Cream background, paper-white surfaces, terracotta accent
+   PREMIUM RAISIN & CARAMEL THEME
+   Raisin (#2E1F26) - deep dark brown for sophistication
+   Caramel (#C87740) - warm golden-brown accent
    ============================================ */
 :root {
-  /* Typography */
-  --font-headline: 'Lora', Georgia, 'Times New Roman', serif;
-  --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Typography - Premium Luxury Fonts */
+  --font-headline: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Editorial Color Palette */
-  --cream: #fdf6ee;
-  --paper-white: #fffcf7;
-  --paper-warm: #f8f1e8;
-  --terracotta: #c94f1e;
-  --terracotta-light: #e06830;
-  --terracotta-dark: #a13d15;
+  /* Premium Color Palette - Raisin & Caramel */
+  --raisin-dark: #2E1F26;
+  --raisin-medium: #4a3540;
+  --raisin-light: #5c4655;
+  --caramel: #C87740;
+  --caramel-light: #d99060;
+  --caramel-dark: #b0652d;
+  
+  /* Backgrounds */
+  --cream-premium: #faf8f5;
+  --paper-light: #f5f2ed;
+  --paper-medium: #ede8e1;
 
-  /* Ink colors */
-  --ink-dark: #2c1810;
-  --ink-medium: #4a3728;
-  --ink-light: #6b5546;
-  --ink-faded: #8c7a6b;
+  /* Text colors */
+  --text-dark: #2E1F26;
+  --text-medium: #6b5c65;
+  --text-light: #9a8a94;
+  --text-muted: #b8a8b2;
 
   /* Semantic mapping */
-  --primary: var(--terracotta);
-  --primary-light: var(--terracotta-light);
-  --primary-dark: var(--terracotta-dark);
+  --primary: var(--caramel);
+  --primary-light: var(--caramel-light);
+  --primary-dark: var(--caramel-dark);
   --primary-foreground: #ffffff;
 
-  --card: var(--paper-white);
-  --ring: var(--terracotta);
-  --input: var(--paper-warm);
-  --muted: #ebe3d8;
-  --accent: #e8dfd3;
-  --border: rgba(107, 85, 70, 0.15);
+  --card: var(--cream-premium);
+  --ring: var(--caramel);
+  --input: var(--paper-light);
+  --muted: #e5dcd5;
+  --accent: var(--caramel-light);
+  --border: rgba(46, 31, 38, 0.12);
   --radius: 10px;
-  --popover: var(--paper-white);
-  --sidebar: var(--paper-warm);
-  --secondary: #f5ede3;
-  --background: var(--cream);
-  --foreground: var(--ink-dark);
-  --destructive: #c94f1e;
-  --sidebar-ring: var(--terracotta);
-  --sidebar-accent: #e8dfd3;
-  --sidebar-border: rgba(107, 85, 70, 0.12);
-  --card-foreground: var(--ink-dark);
-  --sidebar-primary: var(--terracotta);
-  --muted-foreground: var(--ink-light);
-  --accent-foreground: var(--ink-dark);
-  --popover-foreground: var(--ink-dark);
-  --sidebar-foreground: var(--ink-medium);
-  --secondary-foreground: var(--ink-dark);
+  --popover: var(--cream-premium);
+  --sidebar: var(--paper-light);
+  --secondary: #f0eae3;
+  --background: var(--cream-premium);
+  --foreground: var(--raisin-dark);
+  --destructive: #d9534f;
+  --sidebar-ring: var(--caramel);
+  --sidebar-accent: var(--caramel-light);
+  --sidebar-border: rgba(46, 31, 38, 0.1);
+  --card-foreground: var(--raisin-dark);
+  --sidebar-primary: var(--caramel);
+  --muted-foreground: var(--text-light);
+  --accent-foreground: var(--raisin-dark);
+  --popover-foreground: var(--raisin-dark);
+  --sidebar-foreground: var(--text-medium);
+  --secondary-foreground: var(--raisin-dark);
   --destructive-foreground: #ffffff;
-  --sidebar-accent-foreground: var(--ink-dark);
+  --sidebar-accent-foreground: var(--raisin-dark);
   --sidebar-primary-foreground: #ffffff;
 
   /* Chart colors */
-  --chart-1: #c94f1e;
-  --chart-2: #d97706;
-  --chart-3: #059669;
-  --chart-4: #7c3aed;
-  --chart-5: #db2777;
+  --chart-1: #C87740;
+  --chart-2: #d99060;
+  --chart-3: #2E1F26;
+  --chart-4: #b0652d;
+  --chart-5: #9a8a94;
 }
 
 /* ============================================
-   EDITORIAL DARK THEME
+   PREMIUM DARK THEME - Raisin & Caramel
    ============================================ */
 .dark {
-  --cream: #1a1614;
-  --paper-white: #242019;
-  --paper-warm: #1e1a17;
-  --terracotta: #e06830;
-  --terracotta-light: #f07a42;
-  --terracotta-dark: #c94f1e;
+  --raisin-dark: #1a0f15;
+  --raisin-medium: #2E1F26;
+  --raisin-light: #4a3540;
+  --caramel: #d99060;
+  --caramel-light: #e0a570;
+  --caramel-dark: #c87740;
+  
+  --cream-premium: #1a1410;
+  --paper-light: #251d23;
+  --paper-medium: #2e2428;
 
-  --ink-dark: #f5ede3;
-  --ink-medium: #d4c8b8;
-  --ink-light: #a89888;
-  --ink-faded: #7a6a5a;
+  --text-dark: #f0eae3;
+  --text-medium: #d4c8c0;
+  --text-light: #a89a92;
+  --text-muted: #8a7c74;
 
-  --primary: var(--terracotta);
-  --primary-light: var(--terracotta-light);
-  --primary-dark: var(--terracotta-dark);
-  --primary-foreground: #0f0d0c;
+  --primary: var(--caramel);
+  --primary-light: var(--caramel-light);
+  --primary-dark: var(--caramel-dark);
+  --primary-foreground: #1a0f15;
 
-  --card: var(--paper-white);
-  --ring: var(--terracotta);
-  --input: var(--paper-warm);
-  --muted: #2a2420;
-  --accent: #322a24;
-  --border: rgba(168, 152, 136, 0.18);
-  --popover: var(--paper-white);
-  --sidebar: #161311;
-  --secondary: #282220;
-  --background: var(--cream);
-  --foreground: var(--ink-dark);
-  --destructive: #f07a42;
-  --sidebar-ring: var(--terracotta);
-  --sidebar-accent: #322a24;
-  --sidebar-border: rgba(168, 152, 136, 0.12);
-  --card-foreground: var(--ink-dark);
-  --sidebar-primary: var(--terracotta);
-  --muted-foreground: var(--ink-light);
-  --accent-foreground: var(--ink-dark);
-  --popover-foreground: var(--ink-dark);
-  --sidebar-foreground: var(--ink-medium);
-  --secondary-foreground: var(--ink-dark);
-  --destructive-foreground: #0f0d0c;
-  --sidebar-accent-foreground: var(--ink-dark);
-  --sidebar-primary-foreground: #0f0d0c;
+  --card: var(--paper-light);
+  --ring: var(--caramel);
+  --input: var(--paper-medium);
+  --muted: #3a3238;
+  --accent: var(--caramel-light);
+  --border: rgba(217, 144, 96, 0.12);
+  --popover: var(--paper-light);
+  --sidebar: #1a1410;
+  --secondary: #322a30;
+  --background: var(--cream-premium);
+  --foreground: var(--text-dark);
+  --destructive: #f07a73;
+  --sidebar-ring: var(--caramel);
+  --sidebar-accent: var(--caramel-light);
+  --sidebar-border: rgba(217, 144, 96, 0.1);
+  --card-foreground: var(--text-dark);
+  --sidebar-primary: var(--caramel);
+  --muted-foreground: var(--text-light);
+  --accent-foreground: var(--text-dark);
+  --popover-foreground: var(--text-dark);
+  --sidebar-foreground: var(--text-medium);
+  --secondary-foreground: var(--text-dark);
+  --destructive-foreground: #1a0f15;
+  --sidebar-accent-foreground: var(--text-dark);
+  --sidebar-primary-foreground: #1a0f15;
 
-  --chart-1: #e06830;
-  --chart-2: #f59e0b;
-  --chart-3: #10b981;
-  --chart-4: #a78bfa;
-  --chart-5: #f472b6;
+  --chart-1: #d99060;
+  --chart-2: #e0a570;
+  --chart-3: #f0eae3;
+  --chart-4: #c87740;
+  --chart-5: #d4c8c0;
 }
 
 /* ============================================

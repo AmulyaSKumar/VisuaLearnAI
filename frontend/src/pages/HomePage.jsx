@@ -432,40 +432,41 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Header */}
+      {/* Header - Premium Styling */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50"
+        className="border-b border-border/40 bg-card/40 backdrop-blur-md sticky top-0 z-50 shadow-sm"
       >
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <motion.div
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"
+              whileHover={{ scale: 1.08, rotate: 8 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+              className="w-10 h-10 rounded-lg bg-gradient-to-br from-caramel to-caramel-dark flex items-center justify-center shadow-md hover:shadow-lg transition-shadow"
             >
-              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                 <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
               </svg>
             </motion.div>
-            <span className="font-headline text-xl font-semibold text-foreground">VisuaLearn</span>
+            <span className="font-headline text-xl font-bold text-foreground hidden sm:inline">VisuaLearn</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/login')}
-              className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              className="px-3 sm:px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Sign In
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.05, y: -2 }}
+              whileHover={{ scale: 1.05, y: -2, boxShadow: '0 10px 25px -5px rgba(200, 119, 64, 0.3)' }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/login')}
-              className="neu-btn-primary px-5 py-2.5 text-sm font-semibold"
+              className="px-4 sm:px-6 py-2.5 text-sm font-semibold bg-gradient-to-br from-caramel to-caramel-dark text-white rounded-lg shadow-lg hover:shadow-xl transition-all"
             >
               Get Started
             </motion.button>
@@ -473,30 +474,30 @@ export default function HomePage() {
         </div>
       </motion.header>
 
-      {/* Hero Section */}
-      <main className="max-w-6xl mx-auto px-6">
-        <section className="py-16 lg:py-24">
+      {/* Hero Section - Premium Edition */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6">
+        <section className="py-16 lg:py-28">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             {/* Left: Text Content */}
             <motion.div
-              initial={{ opacity: 0, x: -30 }}
+              initial={{ opacity: 0, x: -40 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
               className="space-y-8"
             >
               <div className="space-y-4">
                 <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-primary font-medium text-sm uppercase tracking-wider"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.6 }}
+                  className="text-caramel font-bold text-xs sm:text-sm uppercase tracking-widest"
                 >
-                  AI-Powered Visual Learning
+                  ✨ AI-Powered Visual Learning
                 </motion.p>
-                <h1 className="font-headline text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground leading-tight">
+                <h1 className="font-headline text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground leading-tight">
                   Learn
                   <br />
-                  <span className="text-primary">
+                  <span className="bg-gradient-to-r from-caramel via-caramel to-caramel-dark bg-clip-text text-transparent">
                     <TypeWriter
                       texts={[
                         'algorithms visually',
@@ -510,57 +511,433 @@ export default function HomePage() {
                     />
                   </span>
                 </h1>
-                <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
-                  Watch algorithms come alive. Upload your notes and learn from them.
-                  Our AI adapts to your level in real-time.
+                <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-2xl">
+                  Transform complex concepts into interactive visualizations. Upload your notes and let AI create personalized learning experiences that adapt to your pace.
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <motion.button
-                  whileHover={{ scale: 1.03, y: -3 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.05, y: -4, boxShadow: '0 20px 40px -10px rgba(200, 119, 64, 0.4)' }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => navigate('/login')}
-                  className="neu-btn-primary px-8 py-4 text-base font-semibold shadow-lg"
+                  className="px-8 py-4 text-base font-bold bg-gradient-to-br from-caramel to-caramel-dark text-white rounded-lg shadow-xl hover:shadow-2xl transition-all duration-200"
                 >
                   Start Learning Free
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.03, y: -2 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.05, y: -2, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => navigate('/login')}
-                  className="neu-btn px-8 py-4 text-base font-medium text-foreground"
+                  className="px-8 py-4 text-base font-bold text-foreground border-2 border-border/50 rounded-lg hover:border-caramel/50 hover:bg-caramel/5 transition-all duration-200"
                 >
                   Watch Demo
                 </motion.button>
               </div>
+
+              {/* Trust Indicators */}
+              <div className="flex items-center gap-6 pt-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                  <span>No credit card required</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                  <span>Free forever plan</span>
+                </div>
+              </div>
             </motion.div>
 
-            {/* Right: Live Preview */}
+            {/* Right: Live Preview - Glassmorphism */}
             <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative"
+              initial={{ opacity: 0, x: 40, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+              className="relative hidden lg:block"
             >
-              <div className="corner-brackets p-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                  className="neu-card p-5 space-y-4"
-                >
+              {/* Decorative Orbs */}
+              <div className="absolute top-0 right-0 w-72 h-72 bg-caramel rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
+              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-caramel rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse animation-delay-2000" />
+
+              {/* Glassmorphic Card */}
+              <motion.div
+                whileHover={{ y: -8, scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="relative z-10 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl hover:shadow-2xl hover:border-caramel/30 transition-all"
+              >
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-caramel/5 to-transparent pointer-events-none" />
+                
+                <div className="relative space-y-6">
+                  {/* Title */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-caramel"></div>
+                    <span className="text-sm font-semibold text-caramel uppercase tracking-wide">Live Simulation</span>
+                  </div>
+
+                  {/* Live Animation */}
                   <LiveResponseAnimation />
 
-                  {/* Mini simulation preview */}
-                  <div className="pt-3 border-t border-border">
-                    <p className="text-xs text-muted-foreground mb-2">Live Simulation</p>
+                  {/* Divider */}
+                  <div className="h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
+
+                  {/* Mini Simulation Preview */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Algorithm Visualization</p>
                     <SortingAnimation />
                   </div>
-                </motion.div>
-              </div>
+
+                  {/* Bottom Stats */}
+                  <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-caramel">50+</p>
+                      <p className="text-xs text-muted-foreground">Algorithms</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-caramel">100%</p>
+                      <p className="text-xs text-muted-foreground">Interactive</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-caramel">Real-time</p>
+                      <p className="text-xs text-muted-foreground">Adaptive</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
           </div>
         </section>
+
+        {/* Ornamental Divider */}
+        <div className="relative py-12">
+          <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-caramel mx-4" />
+          </div>
+        </div>
+
+        {/* Simulation Showcase Section - Bento Grid */}
+        <section className="py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            className="text-center mb-16"
+          >
+            <h2 className="font-headline text-4xl lg:text-5xl font-bold text-foreground mb-4 leading-tight">
+              See algorithms <span className="bg-gradient-to-r from-caramel to-caramel-dark bg-clip-text text-transparent">in action</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed">
+              Stop reading about algorithms. Watch them execute step by step with interactive simulations that make complex concepts crystal clear.
+            </p>
+          </motion.div>
+
+          {/* Bento Grid Layout */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Large Card - Left */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              whileHover={{ y: -6, scale: 1.02 }}
+              className="md:col-span-2 md:row-span-2 backdrop-blur-sm bg-card/60 border border-border/40 rounded-2xl p-8 shadow-lg hover:shadow-xl hover:border-caramel/30 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-caramel/20 to-caramel/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-caramel" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-headline font-bold text-foreground">Sorting Algorithms</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Bubble, Quick, Merge & more</p>
+                </div>
+              </div>
+              <div className="h-32 flex items-center justify-center">
+                <SortingAnimation />
+              </div>
+              <p className="text-sm text-muted-foreground mt-6 text-center">Watch elements swap in real-time with step-by-step visualization</p>
+            </motion.div>
+
+            {/* Small Cards - Right */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ y: -6, scale: 1.02 }}
+              className="backdrop-blur-sm bg-card/60 border border-border/40 rounded-2xl p-6 shadow-lg hover:shadow-xl hover:border-caramel/30 transition-all"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-caramel/20 to-caramel/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-caramel" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-headline font-semibold text-foreground">Graph Traversal</h3>
+                  <p className="text-xs text-muted-foreground">BFS, DFS, Dijkstra</p>
+                </div>
+              </div>
+              <div className="h-20 flex items-center justify-center">
+                <GraphAnimation />
+              </div>
+            </motion.div>
+
+            {/* Feature Cards */}
+            {[
+              { icon: '🎯', title: 'Dynamic Memory', desc: 'Adapts to your learning style' },
+              { icon: '⚡', title: 'Real-time Analysis', desc: 'Instant feedback & hints' },
+            ].map((feature, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2 + idx * 0.1 }}
+                whileHover={{ y: -6, scale: 1.02 }}
+                className="backdrop-blur-sm bg-card/60 border border-border/40 rounded-2xl p-6 shadow-lg hover:shadow-xl hover:border-caramel/30 transition-all flex flex-col"
+              >
+                <span className="text-4xl mb-3">{feature.icon}</span>
+                <h4 className="font-headline font-semibold text-foreground mb-2">{feature.title}</h4>
+                <p className="text-sm text-muted-foreground">{feature.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Ornamental Divider */}
+        <div className="relative py-12">
+          <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-caramel mx-4" />
+          </div>
+        </div>
+
+        {/* Document Learning Section */}
+        <section className="py-16">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="order-2 lg:order-1"
+            >
+              <motion.div
+                whileHover={{ y: -6, scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="backdrop-blur-sm bg-card/60 border border-border/40 rounded-2xl p-8 shadow-lg hover:shadow-xl hover:border-caramel/30 transition-all"
+              >
+                <DocumentAnimation />
+                <div className="mt-8 space-y-3">
+                  {[
+                    'Intelligent semantic chunking',
+                    'Multi-language RAG support',
+                    'Contextual Q&A generation'
+                  ].map((item, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.1 * idx }}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-caramel to-caramel-dark"></div>
+                      <span className="text-sm text-foreground">{item}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="order-1 lg:order-2 space-y-6"
+            >
+              <h2 className="font-headline text-4xl lg:text-5xl font-bold text-foreground leading-1.2">
+                Learn from <span className="bg-gradient-to-r from-caramel to-caramel-dark bg-clip-text text-transparent">your documents</span>
+              </h2>
+              <p className="text-muted-foreground text-lg leading-1.6">
+                Upload lecture notes, textbooks, or research papers. Ask questions and get answers grounded in your own materials with AI-powered document understanding.
+              </p>
+              <ul className="space-y-4 pt-4">
+                {[
+                  'PDF, DOCX, and text files supported',
+                  'AI finds relevant sections automatically',
+                  'Generate quizzes from your content',
+                  'Export summaries and key concepts'
+                ].map((item, idx) => (
+                  <motion.li
+                    key={idx}
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.05 * idx }}
+                    className="flex items-start gap-4"
+                  >
+                    <svg className="w-6 h-6 text-caramel mt-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-foreground text-lg">{item}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Ornamental Divider */}
+        <div className="relative py-12">
+          <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-caramel mx-4" />
+          </div>
+        </div>
+
+        {/* Adaptive Learning Section */}
+        <section className="py-16">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="space-y-6"
+            >
+              <h2 className="font-headline text-4xl lg:text-5xl font-bold text-foreground leading-1.2">
+                Learning that <span className="bg-gradient-to-r from-caramel to-caramel-dark bg-clip-text text-transparent">adapts to you</span>
+              </h2>
+              <p className="text-muted-foreground text-lg leading-relaxed">
+                Our AI monitors your progress in real-time. Struggling? Get more guidance. Mastering it? Face new challenges. No two learning paths are the same.
+              </p>
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <div className="p-6 rounded-xl bg-orange-500/10 border border-orange-500/30 hover:border-orange-500/50 transition-colors">
+                  <p className="font-headline font-bold text-orange-600">Struggling</p>
+                  <p className="text-sm text-muted-foreground mt-2">Step-by-step guided hints</p>
+                </div>
+                <div className="p-6 rounded-xl bg-green-500/10 border border-green-500/30 hover:border-green-500/50 transition-colors">
+                  <p className="font-headline font-bold text-green-600">Mastering</p>
+                  <p className="text-sm text-muted-foreground mt-2">Challenging problems</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <motion.div
+                whileHover={{ y: -6, scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="backdrop-blur-sm bg-card/60 border border-border/40 rounded-2xl p-8 shadow-lg hover:shadow-xl hover:border-caramel/30 transition-all"
+              >
+                <p className="text-sm font-bold text-caramel uppercase tracking-wider mb-6">Real-time Adaptation</p>
+                <AdaptiveAnimation />
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* CTA Section - Premium */}
+        <section className="py-20">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 30 }}
+            whileInView={{ opacity: 1, scale: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="relative overflow-hidden rounded-3xl"
+          >
+            {/* Gradient Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-caramel/90 via-caramel-dark/80 to-raisin-dark/90" />
+            
+            {/* Decorative Orbs */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full mix-blend-overlay filter blur-3xl opacity-10 animate-pulse" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-overlay filter blur-3xl opacity-10 animate-pulse" style={{ animationDelay: '2s' }} />
+
+            {/* Grid Pattern */}
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute inset-0" style={{
+                backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+                backgroundSize: '50px 50px'
+              }} />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 px-6 sm:px-8 py-16 sm:py-20 max-w-4xl mx-auto text-center space-y-8">
+              <h2 className="font-headline text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-1.2">
+                Ready to learn <span className="text-white/90">smarter</span>?
+              </h2>
+              <p className="text-white/80 text-lg sm:text-xl leading-relaxed max-w-2xl mx-auto">
+                Join thousands of learners who've transformed how they understand complex concepts through interactive visualization and adaptive AI.
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.08, y: -4, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)' }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/login')}
+                className="px-10 sm:px-12 py-4 sm:py-5 text-lg sm:text-xl font-bold bg-white text-caramel rounded-xl shadow-2xl hover:shadow-2xl transition-all duration-200 inline-block"
+              >
+                Get Started Free Today
+              </motion.button>
+              <p className="text-white/70 text-sm">No credit card required • Free forever plan available</p>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* Ornamental Divider */}
+        <div className="relative py-12">
+          <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+        </div>
+      </main>
+
+      {/* Footer - Premium */}
+      <footer className="border-t border-border/40 bg-card/50 backdrop-blur-sm py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <h3 className="font-headline font-bold text-foreground mb-4">Product</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-caramel transition">Features</a></li>
+                <li><a href="#" className="hover:text-caramel transition">Pricing</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-headline font-bold text-foreground mb-4">Company</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-caramel transition">About</a></li>
+                <li><a href="#" className="hover:text-caramel transition">Blog</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-headline font-bold text-foreground mb-4">Legal</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-caramel transition">Privacy</a></li>
+                <li><a href="#" className="hover:text-caramel transition">Terms</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-headline font-bold text-foreground mb-4">Connect</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-caramel transition">Twitter</a></li>
+                <li><a href="#" className="hover:text-caramel transition">GitHub</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-border/40 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-caramel" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+              </svg>
+              <span className="font-headline font-bold text-foreground">VisuaLearn</span>
+            </div>
+            <p className="text-sm text-muted-foreground">© 2026 VisuaLearn. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
 
         {/* Diamond Divider */}
         <div className="diamond-divider">
