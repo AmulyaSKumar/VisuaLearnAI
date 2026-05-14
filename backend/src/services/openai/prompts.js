@@ -1,15 +1,18 @@
 // Locked CDN versions for consistency
 export const CDN_VERSIONS = {
   chartjs: 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
-  threejs: 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js',
-  threejsModule: 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js',
-  orbitControls: 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js',
-  orbitControlsModule: 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js',
+  // Keep the non-module Three.js build paired with the legacy global
+  // OrbitControls script. Newer Three.js releases only publish OrbitControls
+  // as an ES module, but the widget shell expects window.THREE.OrbitControls.
+  threejs: 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+  threejsModule: 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js',
+  orbitControls: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js',
+  orbitControlsModule: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js',
   d3: 'https://d3js.org/d3.v7.min.js',
   plotly: 'https://cdn.plot.ly/plotly-2.27.0.min.js',
 };
 
-// 3D widget guidelines for Claude
+// 3D widget guidelines for the configured chat model
 export const THREE_JS_GUIDELINES = `
 ## 3D Visualization Guidelines (Three.js)
 

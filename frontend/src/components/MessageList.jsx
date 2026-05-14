@@ -56,7 +56,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
               </div>
             ))}
 
-            {/* Widget Loading Card — shown while Claude is generating */}
+            {/* Widget Loading Card - shown while the model is generating */}
             {msg.role === "assistant" && msg.loadingWidget && (
               <WidgetLoading />
             )}

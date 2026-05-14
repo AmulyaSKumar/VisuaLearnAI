@@ -7,14 +7,7 @@
  * - QuizAgent: quiz questions only (Quiz tab)
  */
 import { BaseAgent } from './base-agent.js';
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-});
-
-const model = process.env.ANTHROPIC_MODEL ;
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 // ============================================
 // PERSONALIZATION INSTRUCTIONS
@@ -507,9 +500,8 @@ Instructions:
         userMessagePrefix = buildRAGUserMessage(query, documentContext, contextChunks);
       }
 
-      const response = await client.messages.create({
-        model,
-        max_tokens: 16000,
+      const text = await createTextCompletion({
+        maxTokens: 16000,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -580,12 +572,6 @@ ${includeInsightBlocks ? '[ ] Include insight blocks with pro tips' : ''}
         }]
       });
 
-      // Check for truncation due to max_tokens
-      if (response.stop_reason === 'max_tokens') {
-        console.warn(`LearnAgent: Response truncated (stop_reason=max_tokens). Output may be incomplete.`);
-      }
-
-      const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
       const result = parseJsonResponse(text);
 
       // Validate and retry if insufficient (using dynamic keyIdeasCount)
@@ -680,9 +666,8 @@ CRITICAL: Respond with RAW JSON only. No explanation, no preamble, no markdown f
       ? buildRAGUserMessage(`Generate examples for: "${query}"`, documentContext, contextChunks)
       : `Generate 6 specific, real-world examples for: "${query}"`;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8000,
+    const text = await createTextCompletion({
+      maxTokens: 8000,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -733,7 +718,6 @@ Generate 6 examples covering different domains:
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
     return parseJsonResponse(text);
   }
 }
@@ -785,9 +769,8 @@ CRITICAL: Respond with RAW JSON only. No explanation, no preamble, no markdown f
       ? buildRAGUserMessage(`Generate quiz questions for: "${query}"`, documentContext, contextChunks)
       : `Generate quiz questions for: "${query}"`;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8000,
+    const text = await createTextCompletion({
+      maxTokens: 8000,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -851,7 +834,6 @@ REQUIREMENTS:
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
     return parseJsonResponse(text);
   }
 }
@@ -922,9 +904,8 @@ CRITICAL: Respond with RAW JSON only. No explanation, no preamble, no markdown f
         ? buildRAGUserMessage(`Generate flashcards and mind map for: "${query}"`, documentContext, contextChunks)
         : `Generate flashcards and mind map for: "${query}"`;
 
-      const response = await client.messages.create({
-        model,
-        max_tokens: 8000,
+      const text = await createTextCompletion({
+        maxTokens: 8000,
         system: systemPrompt,
         messages: [{
           role: 'user',
@@ -1013,7 +994,6 @@ MIND MAP (CRITICAL - DO NOT VIOLATE):
         }]
       });
 
-      const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
       const result = parseJsonResponse(text);
 
       // Validate mind map branches and retry if insufficient
@@ -1234,9 +1214,8 @@ export class RegenerateBlockAgent extends BaseAgent {
     // Pick a random style different from the current one
     const style = styles[Math.floor(Math.random() * styles.length)];
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2000,
+    const text = await createTextCompletion({
+      maxTokens: 2000,
       system: `You are an expert educational content writer. Your task is to re-explain a concept in a different style.
 
 STYLE: ${style.name.toUpperCase()}
@@ -1271,7 +1250,6 @@ Return JSON with this structure:
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
     return parseJsonResponse(text);
   }
 }

@@ -3,15 +3,7 @@
  * Lightweight LLM-powered intent classification for learning queries
  * Used to route queries to appropriate response modes
  */
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-});
-
-// Use a fast model for classification (haiku equivalent or configured model)
-const classifierModel = process.env.ANTHROPIC_CLASSIFIER_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5';
+import { createTextCompletion } from './openai/azure-client.js';
 
 // Intent types
 export const INTENT_TYPES = {
@@ -218,9 +210,8 @@ export async function classifyLearningIntent(query, options = {}) {
   console.log('[IntentClassifier] Using LLM for:', normalizedQuery.slice(0, 50));
 
   try {
-    const response = await client.messages.create({
-      model: classifierModel,
-      max_tokens: 500,
+    const text = await createTextCompletion({
+      maxTokens: 500,
       system: `You are an intent classifier for an educational platform. Classify learning queries into intent types.
 
 INTENT TYPES:
@@ -246,7 +237,6 @@ Respond with ONLY valid JSON, no markdown fences:
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('');
     const result = JSON.parse(text.trim());
 
     // Validate and normalize result

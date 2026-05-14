@@ -3,7 +3,7 @@
  * Two-stage fact-checking: Claim extraction + LLM verification
  *
  * Pipeline:
- * 1. Extract claims from answer using Claude Haiku
+ * 1. Extract claims from answer using the configured chat model
  * 2. Retrieve evidence from provided chunks or pgvector
  * 3. LLM judge evaluates each claim against evidence
  * 4. Aggregate results with confidence scoring
@@ -12,20 +12,11 @@
  * Output: { confidence, supportedClaims, unsupportedClaims, sources, method }
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { BaseAgent } from './base-agent.js';
 import { logger } from '../utils/logger.js';
 import { supabase } from '../database/client.js';
 import crypto from 'crypto';
-
-// Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-});
-
-// Models
-const HAIKU_MODEL = 'claude-haiku-4-5-20241022';
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 // Timeouts
 const PIPELINE_TIMEOUT_MS = 8000;
@@ -91,7 +82,7 @@ export class FactCheckerAgent extends BaseAgent {
    * Main fact-checking pipeline
    */
   async _runPipeline(answer, retrievedChunks, query) {
-    // STAGE 1: Extract claims using Claude Haiku
+    // STAGE 1: Extract claims using the configured chat model
     const claims = await this._extractClaims(answer);
 
     if (claims.length === 0) {
@@ -121,13 +112,12 @@ export class FactCheckerAgent extends BaseAgent {
   }
 
   /**
-   * STAGE 1: Extract claims from answer using Claude Haiku
+   * STAGE 1: Extract claims from answer using the configured chat model
    */
   async _extractClaims(answer) {
     try {
-      const response = await anthropic.messages.create({
-        model: HAIKU_MODEL,
-        max_tokens: 1024,
+      const content = await createTextCompletion({
+        maxTokens: 1024,
         messages: [{
           role: 'user',
           content: `Extract all factual claims from this answer as a JSON array of strings. Only include verifiable facts, not opinions or questions. Maximum 5 claims.
@@ -137,8 +127,6 @@ Answer: ${answer}
 Respond with ONLY a JSON array, no other text. Example: ["The Earth orbits the Sun", "Water is H2O"]`,
         }],
       });
-
-      const content = response.content[0]?.text || '[]';
 
       // Parse JSON response
       const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -229,9 +217,8 @@ Respond with ONLY a JSON array, no other text. Example: ["The Earth orbits the S
       : 'No specific evidence provided. Use general knowledge to assess plausibility.';
 
     try {
-      const response = await anthropic.messages.create({
-        model: HAIKU_MODEL,
-        max_tokens: 2048,
+      const content = await createTextCompletion({
+        maxTokens: 2048,
         system: `You are a fact-checking judge. For each claim, determine if the evidence supports, refutes, or is insufficient to verify it. Be strict but fair.
 
 Response format (JSON only):
@@ -254,8 +241,6 @@ ${evidenceText}
 Respond with JSON only.`,
         }],
       });
-
-      const content = response.content[0]?.text || '{}';
 
       // Parse JSON response
       const jsonMatch = content.match(/\{[\s\S]*\}/);

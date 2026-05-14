@@ -5,30 +5,22 @@
  */
 
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../../config/environment.js';
 import { logger } from '../../utils/logger.js';
 import {
   CDN_VERSIONS,
   build3DSceneSpecPrompt,
   build3DCodePrompt,
   build3DCriticPrompt,
-} from '../../services/anthropic/prompts.js';
+} from '../../services/openai/prompts.js';
 import { should3DVisualize, get3DComplexityLevel } from '../../agents/visual-intelligence.js';
 import {
   sanitizeWidgetCode,
   validate3DWidgetSafety,
   inject3DSafetyWrapper,
 } from '../../utils/sanitize-widget.js';
+import { createTextCompletion } from '../../services/openai/azure-client.js';
 
 const router = Router();
-
-const client = new Anthropic({
-  apiKey: config.anthropic.apiKey,
-  baseURL: config.anthropic.baseUrl,
-});
-
-const model = config.anthropic.model || 'claude-sonnet-4-5';
 
 /**
  * Generate 3D visualization widget
@@ -165,7 +157,7 @@ router.post('/generate-3d', async (req, res) => {
 
 async function generateSceneSpec(topic, context, complexity) {
   const prompt = build3DSceneSpecPrompt(topic, context, complexity);
-  const text = await runAnthropicText(prompt, 1800);
+  const text = await runModelText(prompt, 1800);
   const parsed = extractJsonObject(text);
   if (!parsed) {
     logger.warn({ topic, preview: text.slice(0, 300) }, '3D planner returned invalid JSON');
@@ -182,7 +174,7 @@ async function generateSceneSpec(topic, context, complexity) {
 
 async function generateSceneLogic(sceneSpec, context, complexity) {
   const prompt = build3DCodePrompt(JSON.stringify(sceneSpec, null, 2), context, complexity);
-  const text = await runAnthropicText(prompt, 3200);
+  const text = await runModelText(prompt, 3200);
   return extractSceneLogic(text);
 }
 
@@ -192,7 +184,7 @@ async function fixSceneLogic(sceneSpec, sceneLogic, issues) {
     serializeSceneLogic(sceneLogic),
     issues,
   );
-  const text = await runAnthropicText(prompt, 3200);
+  const text = await runModelText(prompt, 3200);
   const fixed = extractSceneLogic(text);
   if (fixed) {
     fixed.fixedByCritic = true;
@@ -200,18 +192,11 @@ async function fixSceneLogic(sceneSpec, sceneLogic, issues) {
   return fixed;
 }
 
-async function runAnthropicText(prompt, maxTokens) {
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
+async function runModelText(prompt, maxTokens) {
+  return createTextCompletion({
+    maxTokens,
     messages: [{ role: 'user', content: prompt }],
   });
-
-  return (response.content || [])
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('')
-    .trim();
 }
 
 function extractJsonObject(text) {

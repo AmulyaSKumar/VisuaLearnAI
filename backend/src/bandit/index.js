@@ -229,6 +229,8 @@ export async function getBanditDecision({
   adaptiveContext = {},
   metrics = {},
   conversationId = null,
+  behavior = null,
+  topicHistory = null,
 }) {
   // Ensure initialized
   if (!bandit.isReady()) {
@@ -273,10 +275,12 @@ export async function getBanditDecision({
 
   // Derive numeric context
   const context = deriveNumericContext({
-    cognitiveState: adaptiveContext.cognitive_state || 'flow',
-    engagementLevel: metrics.engagementLevel || adaptiveContext.engagement_level || 'medium',
-    topicStatus: metrics.topicStatus || 'neutral',
-    performanceTrend: metrics.performanceTrend || 'stable',
+    profile,
+    metrics,
+    adaptiveContext,
+    topicHistory,
+    topicLabel: topic,
+    behavior,
   });
 
   // Select action using LinUCB with cold start handling

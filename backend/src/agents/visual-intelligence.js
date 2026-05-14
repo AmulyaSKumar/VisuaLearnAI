@@ -7,9 +7,9 @@
  */
 
 import { BaseAgent } from './base-agent.js';
-import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
-import { CDN_VERSIONS, THREE_JS_GUIDELINES } from '../services/anthropic/prompts.js';
+import { CDN_VERSIONS, THREE_JS_GUIDELINES } from '../services/openai/prompts.js';
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 /**
  * Semantic 3D visualization detection
@@ -156,7 +156,7 @@ export class VisualIntelligenceAgent extends BaseAgent {
       '1.0.0'
     );
 
-    // Widget library instructions for Claude with locked versions
+    // Widget library instructions for the configured chat model with locked versions
     this.libInstructions = {
       chartjs: `Chart.js 4.4.1 from CDN: ${CDN_VERSIONS.chartjs}`,
       plotly: `Plotly.js from CDN: ${CDN_VERSIONS.plotly}`,
@@ -314,12 +314,12 @@ export class VisualIntelligenceAgent extends BaseAgent {
   async _generateWidget(step, resource, vizType, planTitle, learningStyle) {
     const widgetId = `${planTitle}-${step.number}`.replace(/\s+/g, '-').toLowerCase();
 
-    // Build prompt for Claude to generate widget
+    // Build prompt for the configured chat model to generate widget
     const prompt = this._buildWidgetPrompt(step, resource, vizType, planTitle, learningStyle);
 
     try {
-      // Call Claude to generate widget code
-      const widgetCode = await this._generateWidgetWithClaude(prompt, vizType);
+      // Call the configured model to generate widget code
+      const widgetCode = await this._generateWidgetWithModel(prompt, vizType);
 
       return {
         id: widgetId,
@@ -344,7 +344,7 @@ export class VisualIntelligenceAgent extends BaseAgent {
   }
 
   /**
-   * Build Claude prompt for widget generation
+   * Build prompt for widget generation
    */
   _buildWidgetPrompt(step, resource, vizType, planTitle, learningStyle, deviceCapabilities = {}) {
     const libInstructions = Object.values(this.libInstructions).join('\n');
@@ -414,21 +414,12 @@ Generate the complete HTML widget code now:`;
   }
 
   /**
-   * Call Claude to generate widget code
+   * Call the configured model to generate widget code
    */
-  async _generateWidgetWithClaude(prompt, vizType) {
+  async _generateWidgetWithModel(prompt, vizType) {
     try {
-      const { Anthropic } = await import('@anthropic-ai/sdk');
-
-      const client = new Anthropic({
-        apiKey: config.anthropic.apiKey,
-        baseURL: config.anthropic.baseUrl,
-      });
-
-      // Use sonnet model for visual intelligence - better quality for complex widget generation
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1500,
+      const responseText = await createTextCompletion({
+        maxTokens: 1500,
         messages: [
           {
             role: 'user',
@@ -436,11 +427,6 @@ Generate the complete HTML widget code now:`;
           },
         ],
       });
-
-      const responseText = message.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n');
 
       // Extract HTML from response
       const htmlMatch = responseText.match(/<html[\s\S]*?<\/html>/i) ||
@@ -459,7 +445,7 @@ Generate the complete HTML widget code now:`;
       // Fallback: widget code not properly generated
       throw new Error('No HTML widget code in response');
     } catch (error) {
-      logger.debug('Visual Intelligence: Claude widget generation failed', {
+      logger.debug('Visual Intelligence: widget generation failed', {
         error: error.message,
       });
       throw error;
@@ -485,7 +471,7 @@ Generate the complete HTML widget code now:`;
   }
 
   /**
-   * Return fallback widget when Claude fails
+   * Return fallback widget when model generation fails
    */
   _getFallbackWidget(step, vizType, planTitle) {
     const widgetId = `${planTitle}-${step.number}`.replace(/\s+/g, '-').toLowerCase();

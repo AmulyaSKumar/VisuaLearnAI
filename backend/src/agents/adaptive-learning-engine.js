@@ -492,7 +492,7 @@ export class AdaptiveLearningEngine extends BaseAgent {
    */
   _generateWidgetHTML(topic, widgetType, personalization, interactionModel, cognitiveState, escalation) {
     // For this implementation, generate a comprehensive adaptive widget
-    // In production, this would call Claude to generate specific content
+    // In production, this would call the configured chat model to generate specific content
 
     const isRecursion = topic.toLowerCase().includes('recursion');
     const isGraphs = topic.toLowerCase().includes('graph');

@@ -17,8 +17,9 @@ function validateEnv() {
     'SUPABASE_URL',
     'SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_KEY',
-    'ANTHROPIC_API_KEY',
-    'ANTHROPIC_MODEL',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_DEPLOYMENT',
   ];
 
   const missing = required.filter(key => !process.env[key]);
@@ -46,17 +47,12 @@ export const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY,
   },
 
-  // Anthropic
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.ANTHROPIC_MODEL,
-    baseUrl: process.env.ANTHROPIC_BASE_URL,
-  },
-
   // Azure OpenAI
   azure: {
     endpoint: process.env.AZURE_OPENAI_ENDPOINT,
     apiKey: process.env.AZURE_OPENAI_API_KEY,
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
+    chatDeployment: process.env.AZURE_OPENAI_DEPLOYMENT,
     imageEndpoint: process.env.AZURE_IMAGE_ENDPOINT,
     imageApiVersion: process.env.AZURE_IMAGE_API_VERSION || '2024-02-01',
     ttsModel: process.env.AZURE_TTS_MODEL,
@@ -66,6 +62,17 @@ export const config = {
     realtimeApiKey: process.env.AZURE_REALTIME_API_KEY,
     realtimeModel: process.env.AZURE_REALTIME_MODEL || 'gpt-realtime-1.5',
   },
+
+  // Notion export integration
+  notion: {
+    clientId: process.env.NOTION_CLIENT_ID,
+    clientSecret: process.env.NOTION_CLIENT_SECRET,
+    redirectUri: process.env.NOTION_REDIRECT_URI,
+    version: process.env.NOTION_VERSION || '2026-03-11',
+    tokenEncryptionKey: process.env.NOTION_TOKEN_ENCRYPTION_KEY,
+  },
+
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 
   // CORS
   cors: {

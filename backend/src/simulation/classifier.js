@@ -3,19 +3,12 @@
  * Uses LLM to classify user queries and extract simulation parameters
  * This is the ONLY place where LLM is used in the simulation system
  */
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../config/environment.js';
-import { resolveGeneratorKey, fuzzyMatchGenerator } from './key-mapper.js';
+import { resolveGeneratorKey, fuzzyMatchGenerator, getTypeForKey } from './key-mapper.js';
 import { classifyWithCache } from './cache.js';
+import { createTextCompletion } from '../services/openai/azure-client.js';
 // Import generators first to ensure they're registered before using registry
 import './generators/index.js';
 import registry from './registry.js';
-
-// Initialize Anthropic client
-const client = new Anthropic({
-  apiKey: config.anthropic.apiKey,
-  ...(config.anthropic.baseUrl && { baseURL: config.anthropic.baseUrl }),
-});
 
 /**
  * System prompt for classification
@@ -289,16 +282,120 @@ function parseClassificationResponse(content) {
   }
 }
 
+function classifyLocally(query) {
+  const normalized = query.toLowerCase().trim().replace(/\s+/g, ' ');
+  let generatorKey = resolveGeneratorKey(normalized) || fuzzyMatchGenerator(normalized, registry);
+
+  if (!generatorKey) {
+    if (/\b(sort|sorting)\b/.test(normalized)) generatorKey = 'bubble_sort';
+    else if (/\b(search|find)\b/.test(normalized) && /\[[^\]]+\]|\barray\b/.test(normalized)) generatorKey = 'binary_search';
+    else if (/\b(search|searching)\s+algorithms?\b/.test(normalized)) generatorKey = 'binary_search';
+    else if (/\b(graph|traversal)\b/.test(normalized)) generatorKey = 'bfs';
+    else if (/\b(tree|binary tree)\b/.test(normalized)) generatorKey = 'inorder_traversal';
+    else if (/\bdynamic programming\b|\bdp\b/.test(normalized)) generatorKey = 'dp_fibonacci';
+  }
+
+  if (!generatorKey || !registry.has(generatorKey)) {
+    return null;
+  }
+
+  return {
+    simulatable: true,
+    type: getTypeForKey(generatorKey) || registry.get(generatorKey)?.type || null,
+    algorithm: generatorKey,
+    generatorKey,
+    inputs: extractInputs(generatorKey, query),
+    confidence: 0.9,
+    reason: null
+  };
+}
+
+function extractInputs(generatorKey, query) {
+  const defaults = registry.get(generatorKey)?.getDefaults() || null;
+  const array = extractArray(query);
+  const firstNumber = extractFirstNumber(query);
+
+  if (generatorKey.endsWith('_sort') && array) {
+    return { array };
+  }
+
+  if ((generatorKey === 'binary_search' || generatorKey === 'linear_search')) {
+    const target = extractSearchTarget(query) ?? firstNumber;
+    return {
+      ...(array ? { array } : {}),
+      ...(target !== null ? { target } : {}),
+    };
+  }
+
+  if (generatorKey === 'dp_fibonacci' && firstNumber !== null) {
+    return { n: firstNumber };
+  }
+
+  if (generatorKey === 'round_robin' && firstNumber !== null) {
+    return { quantum: firstNumber };
+  }
+
+  if (generatorKey === 'bst_insert' && firstNumber !== null) {
+    return { value: firstNumber };
+  }
+
+  if (generatorKey === 'bst_search' && firstNumber !== null) {
+    return { target: firstNumber };
+  }
+
+  return defaults;
+}
+
+function extractArray(query) {
+  const bracketMatch = query.match(/\[([^\]]+)\]/);
+  if (!bracketMatch) return null;
+
+  const values = bracketMatch[1]
+    .split(/[,\s]+/)
+    .map(value => Number(value.trim()))
+    .filter(Number.isFinite);
+
+  return values.length > 0 ? values : null;
+}
+
+function extractFirstNumber(query) {
+  const match = query.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const value = Number(match[0]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function extractSearchTarget(query) {
+  const patterns = [
+    /\b(?:search|find|target)\s+(?:for\s+)?(-?\d+(?:\.\d+)?)/i,
+    /\bfor\s+(-?\d+(?:\.\d+)?)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match) {
+      const value = Number(match[1]);
+      if (Number.isFinite(value)) return value;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Classify a user query for simulation intent
  * @param {string} query - User's query
  * @returns {Promise<object>} Classification result
  */
 async function classifyIntent(query) {
+  const localClassification = classifyLocally(query);
+  if (localClassification) {
+    return localClassification;
+  }
+
   try {
-    const response = await client.messages.create({
-      model: config.anthropic.model || 'claude-sonnet-4-5',
-      max_tokens: 500,
+    const content = await createTextCompletion({
+      maxTokens: 500,
       messages: [
         {
           role: 'user',
@@ -308,7 +405,6 @@ async function classifyIntent(query) {
       system: CLASSIFICATION_PROMPT
     });
 
-    const content = response.content[0]?.text || '';
     const classification = parseClassificationResponse(content);
 
     // Validate algorithm against registry using safe key mapping
@@ -336,7 +432,7 @@ async function classifyIntent(query) {
 
     return classification;
   } catch (error) {
-    console.error('[Classifier] Classification failed:', error);
+    console.warn('[Classifier] Azure classification failed:', error.message);
     return {
       simulatable: false,
       type: null,

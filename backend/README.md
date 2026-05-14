@@ -105,8 +105,8 @@ await manager.initialize();
 await manager.addUserMessage(content);
 ```
 
-#### `/services/anthropic` (coming Day 2)
-Claude API integration and streaming
+#### `/services/openai`
+Azure OpenAI chat model integration and streaming
 
 #### `/services/azure` (coming Day 4)
 Azure OpenAI services (images, audio, realtime voice)
@@ -158,7 +158,7 @@ Controller (api/feature/controller.js)
      ↓
 Services (services/*, database/*, agents/*)
      ↓
-Supabase / Claude API / Azure API
+Supabase / Azure OpenAI API
      ↓
 Response/Stream
 ```
@@ -244,16 +244,23 @@ import { config } from './config/environment.js';
 
 config.port              // Server port (3001)
 config.supabase.url      // Supabase project URL
-config.anthropic.model   // Claude model version
+config.azure.chatDeployment // Azure OpenAI chat deployment
 config.azure.endpoint    // Azure OpenAI endpoint
 ```
 
 Environment variables in `.env`:
 ```
 SUPABASE_URL=...
-ANTHROPIC_API_KEY=...
-ANTHROPIC_MODEL=claude-sonnet-4-5
 AZURE_OPENAI_ENDPOINT=...
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_DEPLOYMENT=...
+AZURE_OPENAI_API_VERSION=...
+NOTION_CLIENT_ID=...
+NOTION_CLIENT_SECRET=...
+NOTION_REDIRECT_URI=http://localhost:3001/api/notion/callback
+NOTION_VERSION=2026-03-11
+NOTION_TOKEN_ENCRYPTION_KEY=...
+FRONTEND_URL=http://localhost:5173
 PORT=3001
 LOG_LEVEL=info
 NODE_ENV=development

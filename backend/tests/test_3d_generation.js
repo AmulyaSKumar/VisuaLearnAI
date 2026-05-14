@@ -233,14 +233,10 @@ async function testAPIEndpoint() {
 async function testDirect3DGeneration() {
   console.log('\nTesting direct 3D widget generation (no auth required)...');
 
-  const { Anthropic } = await import('@anthropic-ai/sdk');
-  const { CDN_VERSIONS, THREE_JS_GUIDELINES } = await import('../src/services/anthropic/prompts.js');
-  const { config } = await import('../src/config/environment.js');
+  const { CDN_VERSIONS } = await import('../src/services/openai/prompts.js');
+  const { getAzureTextClient, getAzureTextModel } = await import('../src/services/openai/azure-client.js');
 
-  const client = new Anthropic({
-    apiKey: config.anthropic.apiKey,
-    baseURL: config.anthropic.baseUrl,
-  });
+  const client = getAzureTextClient();
 
   const topic = 'car engine';
   const prompt = `Create an interactive 3D visualization for: "${topic}"
@@ -264,48 +260,41 @@ Generate a simple 3D visualization of a car engine piston mechanism:`;
   console.log('Streaming response...\n');
 
   try {
-    const stream = await client.messages.stream({
-      model: config.anthropic.model || 'claude-sonnet-4-5',
-      max_tokens: 4096,
+    const stream = await client.chat.completions.create({
+      model: getAzureTextModel(),
+      max_completion_tokens: 4096,
+      stream: true,
       messages: [{ role: 'user', content: prompt }],
     });
 
     let fullCode = '';
     let charCount = 0;
 
-    stream.on('text', (text) => {
-      fullCode += text;
-      charCount += text.length;
-      // Show progress
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content || '';
+      if (!delta) continue;
+      fullCode += delta;
+      charCount += delta.length;
       if (charCount % 500 === 0 || charCount < 100) {
         process.stdout.write('.');
       }
-    });
+    }
 
-    stream.on('end', () => {
-      console.log(`\n\n✓ Generation complete! (${fullCode.length} chars)`);
+    console.log(`\n\nGeneration complete! (${fullCode.length} chars)`);
 
-      // Validate the generated code
-      console.log('\n--- Code Validation ---');
-      console.log(`Has Three.js import:    ${fullCode.includes('three') ? '✓' : '✗'}`);
-      console.log(`Has container div:      ${fullCode.includes('container') ? '✓' : '✗'}`);
-      console.log(`Has WebGLRenderer:      ${fullCode.includes('WebGLRenderer') ? '✓' : '✗'}`);
-      console.log(`Has OrbitControls:      ${fullCode.includes('OrbitControls') ? '✓' : '✗'}`);
-      console.log(`Has animate function:   ${fullCode.includes('animate') ? '✓' : '✗'}`);
-      console.log(`Has scene:              ${fullCode.includes('Scene') ? '✓' : '✗'}`);
-      console.log(`Has camera:             ${fullCode.includes('Camera') ? '✓' : '✗'}`);
+    console.log('\n--- Code Validation ---');
+    console.log(`Has Three.js import:    ${fullCode.includes('three') ? 'yes' : 'no'}`);
+    console.log(`Has container div:      ${fullCode.includes('container') ? 'yes' : 'no'}`);
+    console.log(`Has WebGLRenderer:      ${fullCode.includes('WebGLRenderer') ? 'yes' : 'no'}`);
+    console.log(`Has OrbitControls:      ${fullCode.includes('OrbitControls') ? 'yes' : 'no'}`);
+    console.log(`Has animate function:   ${fullCode.includes('animate') ? 'yes' : 'no'}`);
+    console.log(`Has scene:              ${fullCode.includes('Scene') ? 'yes' : 'no'}`);
+    console.log(`Has camera:             ${fullCode.includes('Camera') ? 'yes' : 'no'}`);
 
-      // Show first 500 chars of code
-      console.log('\n--- Code Preview (first 500 chars) ---');
-      console.log(fullCode.slice(0, 500) + '...');
-    });
-
-    stream.on('error', (error) => {
-      console.log(`\n✗ Stream error: ${error.message}`);
-    });
-
+    console.log('\n--- Code Preview (first 500 chars) ---');
+    console.log(fullCode.slice(0, 500) + '...');
   } catch (error) {
-    console.log(`\n✗ Error: ${error.message}`);
+    console.log(`\nError: ${error.message}`);
   }
 }
 

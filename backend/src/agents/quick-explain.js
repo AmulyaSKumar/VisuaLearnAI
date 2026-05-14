@@ -4,14 +4,7 @@
  * Output: 1-2 paragraphs + analogy + optional tiny example
  */
 import { BaseAgent } from './base-agent.js';
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-});
-
-const model = process.env.ANTHROPIC_MODEL;
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 /**
  * Parse JSON response with error handling
@@ -48,9 +41,8 @@ export class QuickExplainAgent extends BaseAgent {
     const domain = intent.domain || 'cs';
     const needsCode = intent.needsCode !== false && domain === 'cs';
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 2000,
+    const text = await createTextCompletion({
+      maxTokens: 2000,
       system: `You are an expert educator who excels at simple, clear explanations.
 Your goal is to explain concepts in the most accessible way possible.
 
@@ -92,7 +84,6 @@ Return JSON with this EXACT structure:
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('');
     const result = parseJsonResponse(text);
 
     // Ensure responseMode is set

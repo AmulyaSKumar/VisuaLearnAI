@@ -16,12 +16,7 @@ const DAILY_BUDGET_USD = parseFloat(process.env.DAILY_BUDGET_USD || '2.00');
  * Format: { input: dollars, output: dollars }
  */
 const MODEL_COSTS = {
-  // Anthropic models
-  'claude-sonnet-4-5': { input: 3.00, output: 15.00 },
-  'claude-sonnet-4-5-20241022': { input: 3.00, output: 15.00 },
-  'claude-haiku-4-5': { input: 0.25, output: 1.25 },
-  'claude-haiku-4-5-20241022': { input: 0.25, output: 1.25 },
-  // Fallback for unknown models
+  // Configure exact pricing per deployment here if needed.
   'default': { input: 3.00, output: 15.00 },
 };
 
@@ -108,7 +103,7 @@ function getUserDailyUsage(userId) {
 }
 
 /**
- * Estimate cost for a Claude API call
+ * Estimate cost for a chat model API call
  * @param {string} model - Model name
  * @param {number} inputTokens - Number of input tokens
  * @param {number} outputTokens - Number of output tokens

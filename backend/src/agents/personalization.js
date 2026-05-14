@@ -5,9 +5,9 @@
  */
 
 import { BaseAgent } from './base-agent.js';
-import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 import { supabase } from '../database/client.js';
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 export class PersonalizationAgent extends BaseAgent {
   constructor() {
@@ -45,8 +45,7 @@ export class PersonalizationAgent extends BaseAgent {
       // Detect comprehension level from interactions
       const comprehensionLevel = this._assessComprehensionLevel(interactions);
 
-      // Get personalization recommendations from Claude
-      const recommendations = await this._getRecommendationsFromClaude({
+      const recommendations = await this._getRecommendationsFromModel({
         userId,
         styleAnalysis,
         topicsOfInterest,
@@ -230,7 +229,7 @@ export class PersonalizationAgent extends BaseAgent {
     }
 
     // Simple heuristic: more interactions = higher comprehension attempt
-    // This would be replaced with actual Claude analysis
+    // This would be replaced with actual model analysis
     const interactionCount = interactions.length;
 
     if (interactionCount < 3) return 'beginner';
@@ -239,23 +238,14 @@ export class PersonalizationAgent extends BaseAgent {
   }
 
   /**
-   * Get personalization recommendations from Claude
+   * Get personalization recommendations from the configured chat model
    */
-  async _getRecommendationsFromClaude(analysisData) {
+  async _getRecommendationsFromModel(analysisData) {
     try {
-      const { Anthropic } = await import('@anthropic-ai/sdk');
-
-      const client = new Anthropic({
-        apiKey: config.anthropic.apiKey,
-        baseURL: config.anthropic.baseUrl,
-      });
-
       const prompt = this._buildPersonalizationPrompt(analysisData);
 
-      // Use fast model (haiku) for personalization - quick recommendation generation
-      const message = await client.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 1500,
+      const responseText = await createTextCompletion({
+        maxTokens: 1500,
         messages: [
           {
             role: 'user',
@@ -263,11 +253,6 @@ export class PersonalizationAgent extends BaseAgent {
           },
         ],
       });
-
-      const responseText = message.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n');
 
       // Parse JSON from response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -284,7 +269,7 @@ export class PersonalizationAgent extends BaseAgent {
 
       return JSON.parse(jsonMatch[0]);
     } catch (error) {
-      logger.warn('Personalization: Claude recommendation failed, using defaults', {
+      logger.warn('Personalization: model recommendation failed, using defaults', {
         error: error.message,
       });
 
@@ -300,7 +285,7 @@ export class PersonalizationAgent extends BaseAgent {
   }
 
   /**
-   * Build prompt for Claude to generate personalization recommendations
+   * Build prompt to generate personalization recommendations
    */
   _buildPersonalizationPrompt(analysisData) {
     const {

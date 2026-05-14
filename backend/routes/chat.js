@@ -1,15 +1,10 @@
 import { Router } from "express";
-import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
 import {
   SHOW_WIDGET_TOOL,
-  SYSTEM_PROMPT,
-  SYSTEM_PROMPT_TEXT_ONLY,
-  THREE_JS_GUIDELINES,
   createSystemPrompt,
   mergePersonaWithOverride,
-} from "../src/services/anthropic/prompts.js";
+} from "../src/services/openai/prompts.js";
 import { analyzeUserProfile, getUserMetrics } from "../src/agents/personalization.js";
-import { should3DVisualize, get3DComplexityLevel } from "../src/agents/visual-intelligence.js";
 import {
   bandit,
   getBanditDecision,
@@ -31,6 +26,12 @@ import {
   validate3DWidgetSafety,
   inject3DSafetyWrapper
 } from "../src/utils/sanitize-widget.js";
+import {
+  getAzureTextClient,
+  getAzureTextModel,
+  toOpenAIMessages,
+  toOpenAITools,
+} from "../src/services/openai/azure-client.js";
 
 const router = Router();
 
@@ -147,13 +148,8 @@ async function getCachedPersona(personaId, userId) {
   }
 }
 
-const client = new AnthropicFoundry({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-  apiVersion: "2023-06-01",
-});
-
-const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+const client = getAzureTextClient();
+const model = getAzureTextModel();
 
 function setupSSE(res) {
   res.setHeader("Content-Type", "text/event-stream");
@@ -168,81 +164,122 @@ function sendSSE(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-async function handleStream(messages, res) {
-  let aborted = false;
+function sanitizeWidgetInput(input = {}) {
+  if (!input?.widget_code) return input;
 
-  const stream = client.messages.stream({
-    model,
-    max_tokens: 8192,
-    system: SYSTEM_PROMPT,
-    messages,
-    tools: [SHOW_WIDGET_TOOL],
+  const widgetCode = input.widget_code;
+  const widgetType = input.widget_type || '2d';
+  const is3D = widgetType === '3d' ||
+               widgetCode.toLowerCase().includes('three.js') ||
+               widgetCode.toLowerCase().includes('webglrenderer');
+
+  const sanitizeResult = sanitizeWidgetCode(widgetCode, {
+    strict: false,
+    allowFetch: is3D,
   });
 
-  // Keep connection alive — send heartbeat every 15s
-  const heartbeat = setInterval(() => {
-    if (!aborted) res.write(":heartbeat\n\n");
-  }, 15000);
+  if (!sanitizeResult.safe) {
+    logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed");
+    return {
+      ...input,
+      widget_code: generateSafeFallback(input.title, sanitizeResult.violations),
+    };
+  }
 
-  stream.on("text", (text) => {
-    if (!aborted) sendSSE(res, { type: "text_delta", text });
-  });
-
-  stream.on("contentBlock", (block) => {
-    if (block.type === "tool_use" && !aborted) {
-      sendSSE(res, {
-        type: "tool_use",
-        id: block.id,
-        name: block.name,
-        input: block.input,
-      });
+  if (is3D) {
+    const safetyCheck = validate3DWidgetSafety(widgetCode);
+    if (!safetyCheck.valid) {
+      logger.debug({ missing: safetyCheck.missing }, "3D widget missing safety features, injecting wrapper");
+      return {
+        ...input,
+        widget_code: inject3DSafetyWrapper(widgetCode),
+      };
     }
-  });
+  }
 
-  stream.on("message", (message) => {
-    if (!aborted) {
-      sendSSE(res, {
-        type: "message_complete",
-        stop_reason: message.stop_reason,
-        id: message.id,
-      });
-    }
-  });
+  if (sanitizeResult.warnings.length > 0) {
+    logger.debug({ warnings: sanitizeResult.warnings }, "Widget code sanitization warnings");
+  }
 
-  stream.on("error", (error) => {
-    logger.error({ error }, "Stream error");
-    if (!aborted) {
-      sendSSE(res, { type: "error", error: error.message || "Stream error" });
-      clearInterval(heartbeat);
-      res.end();
-      aborted = true;
-    }
-  });
-
-  stream.on("end", () => {
-    if (!aborted) {
-      sendSSE(res, { type: "done" });
-      clearInterval(heartbeat);
-      res.end();
-      aborted = true;
-    }
-  });
-
-  req_cleanup(res, stream, heartbeat, () => { aborted = true; });
-
-  // Catch any unhandled stream.done() rejections
-  stream.done().catch(() => {});
+  return input;
 }
 
-function req_cleanup(res, stream, heartbeat, setAbort) {
-  // Listen on the underlying socket for close
-  const socket = res.socket || res.connection;
-  if (socket) {
-    socket.on("close", () => {
-      setAbort();
-      clearInterval(heartbeat);
-      try { stream.abort(); } catch (e) {}
+function parseToolArguments(rawArgs = '') {
+  if (!rawArgs) return {};
+  try {
+    return JSON.parse(rawArgs);
+  } catch (error) {
+    logger.warn({ error: error.message, preview: rawArgs.slice(0, 200) }, "Failed to parse tool arguments");
+    return {};
+  }
+}
+
+async function streamOpenAIChat({
+  messages,
+  system,
+  tools = [],
+  abortedRef,
+  onText,
+  onTool,
+  onComplete,
+}) {
+  const request = {
+    model,
+    max_completion_tokens: 8192,
+    stream: true,
+    messages: toOpenAIMessages(messages, system),
+  };
+
+  if (tools.length > 0) {
+    request.tools = toOpenAITools(tools);
+  }
+
+  const stream = await client.chat.completions.create(request);
+  const toolCalls = new Map();
+  let completionId = null;
+  let finishReason = null;
+
+  for await (const chunk of stream) {
+    if (abortedRef.aborted) break;
+    completionId = completionId || chunk.id;
+    const choice = chunk.choices?.[0];
+    if (!choice) continue;
+
+    if (choice.finish_reason) {
+      finishReason = choice.finish_reason;
+    }
+
+    const delta = choice.delta || {};
+    if (delta.content) {
+      onText?.(delta.content);
+    }
+
+    for (const toolDelta of delta.tool_calls || []) {
+      const index = toolDelta.index ?? 0;
+      const current = toolCalls.get(index) || {
+        id: toolDelta.id || `call_${Date.now()}_${index}`,
+        name: '',
+        arguments: '',
+      };
+
+      if (toolDelta.id) current.id = toolDelta.id;
+      if (toolDelta.function?.name) current.name += toolDelta.function.name;
+      if (toolDelta.function?.arguments) current.arguments += toolDelta.function.arguments;
+      toolCalls.set(index, current);
+    }
+  }
+
+  for (const call of toolCalls.values()) {
+    if (abortedRef.aborted) break;
+    onTool?.({
+      id: call.id,
+      name: call.name,
+      input: sanitizeWidgetInput(parseToolArguments(call.arguments)),
     });
+  }
+
+  if (!abortedRef.aborted) {
+    onComplete?.({ id: completionId, stop_reason: finishReason || 'stop' });
   }
 }
 
@@ -342,14 +379,6 @@ router.post("/chat", async (req, res) => {
     // Don't include widget tool when skip3D (text-only mode)
     const tools = skip3D ? [] : [SHOW_WIDGET_TOOL];
 
-    const stream = client.messages.stream({
-      model,
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages,
-      tools: tools.length > 0 ? tools : undefined,
-    });
-
     const heartbeat = setInterval(() => {
       if (!aborted) {
         try { res.write(":heartbeat\n\n"); } catch(e) {}
@@ -360,83 +389,45 @@ router.post("/chat", async (req, res) => {
     let responseText = "";
     const toolCalls = [];
 
-    stream.on("text", (text) => {
+    const abortedRef = {
+      get aborted() {
+        return aborted;
+      },
+    };
+
+    res.on("close", () => {
       if (!aborted) {
+        logger.debug("Response closed, aborting stream");
+        aborted = true;
+        clearInterval(heartbeat);
+      }
+    });
+
+    await streamOpenAIChat({
+      messages,
+      system: systemPrompt,
+      tools,
+      abortedRef,
+      onText: (text) => {
         responseText += text;
         sendSSE(res, { type: "text_delta", text });
-      }
-    });
-
-    stream.on("contentBlock", (block) => {
-      if (block.type === "tool_use" && !aborted) {
-        // If this is a widget tool, sanitize the code
-        if (block.name === "show_widget" && block.input?.widget_code) {
-          const widgetCode = block.input.widget_code;
-          const widgetType = block.input.widget_type || '2d';
-          const is3D = widgetType === '3d' ||
-                       widgetCode.toLowerCase().includes('three.js') ||
-                       widgetCode.toLowerCase().includes('webglrenderer');
-
-          // Sanitize widget code
-          const sanitizeResult = sanitizeWidgetCode(widgetCode, {
-            strict: false,
-            allowFetch: is3D  // Allow CDN fetches for 3D widgets
-          });
-
-          if (!sanitizeResult.safe) {
-            logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed");
-            // Send sanitized fallback
-            block.input.widget_code = generateSafeFallback(block.input.title, sanitizeResult.violations);
-          } else {
-            // For 3D widgets, inject safety wrapper if needed
-            if (is3D) {
-              const safetyCheck = validate3DWidgetSafety(widgetCode);
-              if (!safetyCheck.valid) {
-                logger.debug({ missing: safetyCheck.missing }, "3D widget missing safety features, injecting wrapper");
-                block.input.widget_code = inject3DSafetyWrapper(widgetCode);
-              }
-            }
-          }
-
-          // Log warnings if any
-          if (sanitizeResult.warnings.length > 0) {
-            logger.debug({ warnings: sanitizeResult.warnings }, "Widget code sanitization warnings");
-          }
-        }
-
-        // Collect tool calls for enforcement validation
-        toolCalls.push({ name: block.name, id: block.id, input: block.input });
+      },
+      onTool: (toolCall) => {
+        toolCalls.push({ name: toolCall.name, id: toolCall.id, input: toolCall.input });
         sendSSE(res, {
           type: "tool_use",
-          id: block.id,
-          name: block.name,
-          input: block.input,
+          id: toolCall.id,
+          name: toolCall.name,
+          input: toolCall.input,
         });
-      }
-    });
-
-    stream.on("message", (message) => {
-      if (!aborted) {
+      },
+      onComplete: (message) => {
         sendSSE(res, {
           type: "message_complete",
           stop_reason: message.stop_reason,
           id: message.id,
         });
-      }
-    });
 
-    stream.on("error", (error) => {
-      logger.error({ error }, "Stream error");
-      if (!aborted) {
-        sendSSE(res, { type: "error", error: error.message || "Stream error" });
-        clearInterval(heartbeat);
-        res.end();
-        aborted = true;
-      }
-    });
-
-    stream.on("end", () => {
-      if (!aborted) {
         // ENFORCEMENT: Validate response matches selected action
         const enforcement = enforceAction(
           banditDecision.id,
@@ -463,20 +454,8 @@ router.post("/chat", async (req, res) => {
         clearInterval(heartbeat);
         res.end();
         aborted = true;
-      }
+      },
     });
-
-    // Clean up on actual client disconnect (use res.on('close') instead of req)
-    res.on("close", () => {
-      if (!aborted) {
-        logger.debug("Response closed, aborting stream");
-        aborted = true;
-        clearInterval(heartbeat);
-        try { stream.abort(); } catch (e) {}
-      }
-    });
-
-    stream.done().catch(() => {});
 
   } catch (error) {
     logger.error({ error }, "Chat error");
@@ -534,99 +513,53 @@ router.post("/tool-result", async (req, res) => {
       systemPrompt += `\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
     }
 
-    const stream = client.messages.stream({
-      model,
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages,
-      tools: [SHOW_WIDGET_TOOL],
-    });
-
     const heartbeat = setInterval(() => {
       if (!aborted) {
         try { res.write(":heartbeat\n\n"); } catch(e) {}
       }
     }, 15000);
 
-    stream.on("text", (text) => {
-      if (!aborted) sendSSE(res, { type: "text_delta", text });
-    });
-
-    stream.on("contentBlock", (block) => {
-      if (block.type === "tool_use" && !aborted) {
-        // If this is a widget tool, sanitize the code
-        if (block.name === "show_widget" && block.input?.widget_code) {
-          const widgetCode = block.input.widget_code;
-          const widgetType = block.input.widget_type || '2d';
-          const is3D = widgetType === '3d' ||
-                       widgetCode.toLowerCase().includes('three.js') ||
-                       widgetCode.toLowerCase().includes('webglrenderer');
-
-          // Sanitize widget code
-          const sanitizeResult = sanitizeWidgetCode(widgetCode, {
-            strict: false,
-            allowFetch: is3D
-          });
-
-          if (!sanitizeResult.safe) {
-            logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed (tool-result)");
-            block.input.widget_code = generateSafeFallback(block.input.title, sanitizeResult.violations);
-          } else if (is3D) {
-            const safetyCheck = validate3DWidgetSafety(widgetCode);
-            if (!safetyCheck.valid) {
-              block.input.widget_code = inject3DSafetyWrapper(widgetCode);
-            }
-          }
-        }
-
-        sendSSE(res, {
-          type: "tool_use",
-          id: block.id,
-          name: block.name,
-          input: block.input,
-        });
-      }
-    });
-
-    stream.on("message", (message) => {
-      if (!aborted) {
-        sendSSE(res, {
-          type: "message_complete",
-          stop_reason: message.stop_reason,
-          id: message.id,
-        });
-      }
-    });
-
-    stream.on("error", (error) => {
-      logger.error({ error }, "Tool-result stream error");
-      if (!aborted) {
-        sendSSE(res, { type: "error", error: error.message || "Stream error" });
-        clearInterval(heartbeat);
-        res.end();
-        aborted = true;
-      }
-    });
-
-    stream.on("end", () => {
-      if (!aborted) {
-        sendSSE(res, { type: "done" });
-        clearInterval(heartbeat);
-        res.end();
-        aborted = true;
-      }
-    });
+    const abortedRef = {
+      get aborted() {
+        return aborted;
+      },
+    };
 
     res.on("close", () => {
       if (!aborted) {
         logger.debug("Response closed (tool-result), aborting stream");
         aborted = true;
         clearInterval(heartbeat);
-        try { stream.abort(); } catch (e) {}
       }
     });
 
-    stream.done().catch(() => {});
+    await streamOpenAIChat({
+      messages,
+      system: systemPrompt,
+      tools: [SHOW_WIDGET_TOOL],
+      abortedRef,
+      onText: (text) => sendSSE(res, { type: "text_delta", text }),
+      onTool: (toolCall) => {
+        sendSSE(res, {
+          type: "tool_use",
+          id: toolCall.id,
+          name: toolCall.name,
+          input: toolCall.input,
+        });
+      },
+      onComplete: (message) => {
+        sendSSE(res, {
+          type: "message_complete",
+          stop_reason: message.stop_reason,
+          id: message.id,
+        });
+
+        sendSSE(res, { type: "done" });
+        clearInterval(heartbeat);
+        res.end();
+        aborted = true;
+      },
+    });
 
   } catch (error) {
     logger.error({ error }, "Tool-result error");

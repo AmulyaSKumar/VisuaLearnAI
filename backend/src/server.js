@@ -157,7 +157,7 @@ export async function startServer() {
 
     server.listen(PORT, () => {
       logger.info(`VisuaLearn backend starting on http://localhost:${PORT}`);
-      logger.info({ model: config.anthropic.model }, 'Chat model configured');
+      logger.info({ model: config.azure.chatDeployment }, 'Chat model configured');
       logger.info({ connected: supabaseOk }, 'Supabase status');
       logger.info({ count: agentRegistry.agents.size }, 'Agents registered');
       logger.info({ redis: cacheStats.isRedisAvailable }, 'Cache status');

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   ReactFlow,
   useNodesState,
@@ -822,7 +822,7 @@ function MindMapFlow({ topic, keyIdeas, flowRef, getConceptStatus, weakAreas, on
 }
 
 // Main component
-export default function MindMapTabView({ mindMap, keyIdeas, getConceptStatus, weakAreas, onGoToQuiz }) {
+export default function MindMapTabView({ mindMap, keyIdeas, getConceptStatus, weakAreas, onGoToQuiz, onCaptureReady }) {
   const flowRef = useRef(null);
 
   // Get topic from mindMap or first keyIdea - ensure it's a string
@@ -840,6 +840,21 @@ export default function MindMapTabView({ mindMap, keyIdeas, getConceptStatus, we
 
   // Check if there are weak areas to highlight
   const hasWeakAreas = weakAreas && weakAreas.length > 0;
+
+  useEffect(() => {
+    if (!onCaptureReady) return undefined;
+
+    onCaptureReady(async () => {
+      if (!flowRef.current) return null;
+      return toPng(flowRef.current, {
+        backgroundColor: '#ffffff',
+        quality: 1,
+        pixelRatio: 2,
+      });
+    });
+
+    return () => onCaptureReady(null);
+  }, [onCaptureReady]);
 
   if ((!mindMap?.root && (!keyIdeas || keyIdeas.length === 0))) {
     return (

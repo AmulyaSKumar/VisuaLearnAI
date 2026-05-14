@@ -1,14 +1,19 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { usePersona } from '../contexts/PersonaContext';
 import PersonaCard from '../components/PersonaCard';
 import PersonaEditor from '../components/PersonaEditor';
+import { disconnectNotion, getNotionConnectUrl, getNotionStatus } from '../services/notionService';
 
 /**
  * SettingsPage: User settings including persona management
  */
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { session } = useAuth();
+  const accessToken = session?.access_token;
   const {
     systemPersonas,
     customPersonas,
@@ -25,6 +30,38 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [notionStatus, setNotionStatus] = useState({ connected: false, configured: true });
+  const [isNotionLoading, setIsNotionLoading] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const notionResult = searchParams.get('notion');
+    const notionMessage = searchParams.get('message');
+    if (notionResult === 'connected') {
+      setSuccessMessage('Notion connected successfully');
+      setSearchParams({}, { replace: true });
+    } else if (notionResult === 'error') {
+      setError(notionMessage || 'Notion connection failed');
+      setSearchParams({}, { replace: true });
+    }
+
+    refreshNotionStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken]);
+
+  const refreshNotionStatus = async () => {
+    if (!accessToken) return;
+    try {
+      setIsNotionLoading(true);
+      const status = await getNotionStatus(accessToken);
+      setNotionStatus(status);
+    } catch (err) {
+      setNotionStatus({ connected: false, configured: false });
+    } finally {
+      setIsNotionLoading(false);
+    }
+  };
 
   const handleSelectDefault = async (persona) => {
     try {
@@ -82,6 +119,33 @@ export default function SettingsPage() {
     setEditingPersona(null);
   };
 
+  const handleConnectNotion = async () => {
+    try {
+      setError(null);
+      setIsNotionLoading(true);
+      const { url } = await getNotionConnectUrl(accessToken);
+      window.location.href = url;
+    } catch (err) {
+      setError(err.message);
+      setIsNotionLoading(false);
+    }
+  };
+
+  const handleDisconnectNotion = async () => {
+    try {
+      setError(null);
+      setIsNotionLoading(true);
+      await disconnectNotion(accessToken);
+      setNotionStatus({ connected: false, configured: true });
+      setSuccessMessage('Notion disconnected');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsNotionLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -123,6 +187,45 @@ export default function SettingsPage() {
             {successMessage}
           </div>
         )}
+
+        {/* Notion Section */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Notion Export</h2>
+          <div className="p-4 rounded-xl border border-border bg-card">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {notionStatus.connected ? 'Connected to Notion' : 'Connect Notion'}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {notionStatus.connected
+                    ? `Workspace: ${notionStatus.workspaceName || 'Notion'}`
+                    : notionStatus.configured === false
+                      ? 'Notion is not configured on the backend.'
+                      : 'Export learning notes, quizzes, flashcards, and mind maps to a Notion database.'}
+                </p>
+              </div>
+
+              {notionStatus.connected ? (
+                <button
+                  onClick={handleDisconnectNotion}
+                  disabled={isNotionLoading}
+                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectNotion}
+                  disabled={isNotionLoading || !notionStatus.configured}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {isNotionLoading ? 'Connecting...' : 'Connect Notion'}
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Active Persona Section */}
         <section>

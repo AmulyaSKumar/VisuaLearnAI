@@ -17,6 +17,7 @@ import visualizationRoutes from './visualization/index.js';
 import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
 import realtimeRoutes from './realtime/routes.js';
+import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
 
@@ -230,6 +231,17 @@ export function registerRoutes(app) {
    * POST /api/realtime/session - Create ephemeral session for Azure OpenAI Realtime
    */
   router.use('/realtime', requireAuth, realtimeRoutes);
+
+  /**
+   * Notion Export API
+   * GET /api/notion/connect - Start Notion OAuth
+   * GET /api/notion/callback - Notion OAuth callback
+   * GET /api/notion/status - Get connection status
+   * DELETE /api/notion/disconnect - Remove Notion connection
+   * POST /api/notion/export - Export structured learning resources
+   */
+  router.use('/notion', notionCallbackRoutes);
+  router.use('/notion', requireAuth, notionRoutes);
 
   /**
    * Admin API - Requires admin user

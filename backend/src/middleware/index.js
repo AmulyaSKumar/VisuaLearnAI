@@ -23,7 +23,7 @@ export function setupMiddleware(app) {
   }));
 
   // JSON parsing
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '25mb' }));
 
   // Logging
   app.use((req, res, next) => {

@@ -170,10 +170,20 @@ export function deriveNumericContext({
   behavior = null,
 } = {}) {
   // Derive string labels first
-  const cognitiveStateLabel = adaptiveContext?.cognitive_state || 'flow';
-  const engagementLevelLabel = deriveEngagementLevel(metrics, behavior);
-  const topicStatusLabel = deriveTopicStatus(profile, topicLabel);
-  const performanceTrendLabel = derivePerformanceTrend(topicHistory);
+  const cognitiveStateLabel =
+    adaptiveContext?.cognitive_state ||
+    adaptiveContext?.cognitiveState ||
+    'flow';
+  const engagementLevelLabel =
+    metrics?.engagementLevel ||
+    adaptiveContext?.engagement_level ||
+    deriveEngagementLevel(metrics, behavior);
+  const topicStatusLabel =
+    metrics?.topicStatus ||
+    deriveTopicStatus(profile, topicLabel);
+  const performanceTrendLabel =
+    metrics?.performanceTrend ||
+    derivePerformanceTrend(topicHistory);
 
   // Convert to numeric values
   const cognitiveState = encodeCognitiveState(cognitiveStateLabel);

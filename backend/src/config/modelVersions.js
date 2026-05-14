@@ -10,25 +10,25 @@
  */
 export const MODEL_VERSIONS = {
   // Widget and visualization generation
-  widgetGenerator: 'claude-sonnet-4-5-20251001',
+  widgetGenerator: process.env.AZURE_OPENAI_DEPLOYMENT,
 
   // Learning plan generation
-  planner: 'claude-sonnet-4-5-20251001',
+  planner: process.env.AZURE_OPENAI_DEPLOYMENT,
 
-  // Fact checking (uses Haiku for speed)
-  factChecker: 'claude-haiku-4-5-20251001',
+  // Fact checking
+  factChecker: process.env.AZURE_OPENAI_DEPLOYMENT,
 
   // Image generation
   imageGenerator: 'gpt-image-1.5',
 
   // Chat and general responses
-  chat: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
+  chat: process.env.AZURE_OPENAI_DEPLOYMENT,
 
   // Learning content generation
-  learningContent: 'claude-sonnet-4-5-20251001',
+  learningContent: process.env.AZURE_OPENAI_DEPLOYMENT,
 
   // Personalization analysis
-  personalization: 'claude-haiku-4-5-20251001',
+  personalization: process.env.AZURE_OPENAI_DEPLOYMENT,
 };
 
 /**

@@ -7,11 +7,11 @@ import https from 'https';
 
 const router = Router();
 
-// Azure OpenAI configuration (from environment or fallback)
-const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || 'https://amuly-mh65e9uu-eastus2.cognitiveservices.azure.com';
+// Azure OpenAI configuration
+const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || '';
 const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY || '';
-const TTS_MODEL = 'gpt-audio-1.5';
-const API_VERSION = '2025-01-01-preview';
+const TTS_MODEL = process.env.AZURE_TTS_MODEL || '';
+const API_VERSION = process.env.AZURE_TTS_API_VERSION || process.env.AZURE_OPENAI_API_VERSION || '';
 
 /**
  * POST /api/tts
@@ -24,12 +24,11 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Text is required' });
   }
 
-  // If no API key configured, return a graceful fallback
-  if (!AZURE_API_KEY) {
-    console.warn('[TTS] Azure OpenAI API key not configured');
+  if (!AZURE_ENDPOINT || !AZURE_API_KEY || !TTS_MODEL || !API_VERSION) {
+    console.warn('[TTS] Azure OpenAI TTS configuration is incomplete');
     return res.status(503).json({
       error: 'TTS service not configured',
-      message: 'Audio playback is not available. Please configure Azure OpenAI credentials.'
+      message: 'Audio playback is not available. Please configure Azure OpenAI TTS environment variables.'
     });
   }
 

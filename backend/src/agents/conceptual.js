@@ -4,14 +4,7 @@
  * NO code blocks - focuses on visual descriptions and analogies
  */
 import { BaseAgent } from './base-agent.js';
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
-});
-
-const model = process.env.ANTHROPIC_MODEL;
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 /**
  * Parse JSON response with error handling
@@ -50,9 +43,8 @@ export class ConceptualAgent extends BaseAgent {
     // Determine number of concepts based on complexity
     const conceptCount = complexity === 'beginner' ? 3 : complexity === 'advanced' ? 6 : 4;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8000,
+    const text = await createTextCompletion({
+      maxTokens: 8000,
       system: `You are an expert educator specializing in explaining real-world concepts without code.
 Your explanations should be rich with visual descriptions, analogies, and relatable examples.
 
@@ -133,7 +125,6 @@ Make visual_description fields vivid and immersive.`
       }]
     });
 
-    const text = response.content.filter(item => item.type === 'text').map(item => item.text).join('');
     const result = parseJsonResponse(text);
 
     // Ensure responseMode is set

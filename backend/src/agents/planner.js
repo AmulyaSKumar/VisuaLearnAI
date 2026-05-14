@@ -5,9 +5,9 @@
  */
 
 import { BaseAgent } from './base-agent.js';
-import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 import { getTopicRecommendations } from './personalization.js';
+import { createTextCompletion } from '../services/openai/azure-client.js';
 
 export class PlannerAgent extends BaseAgent {
   /**
@@ -38,12 +38,11 @@ export class PlannerAgent extends BaseAgent {
 
     logger.info('Planner: Generating plan', { goal, userId });
 
-    // Build the prompt for Claude
+    // Build the prompt for the configured chat model
     const prompt = this._buildPlannerPrompt(goal, userContext, targetLevel, userProfile);
 
     try {
-      // Call Anthropic API to generate plan
-      const plan = await this._generatePlanWithClaude(prompt);
+      const plan = await this._generatePlanWithModel(prompt);
 
       logger.info('Planner: Plan generated successfully', { goal, steps: plan.steps?.length });
 
@@ -61,7 +60,7 @@ export class PlannerAgent extends BaseAgent {
   }
 
   /**
-   * Build a structured prompt for Claude to generate a learning plan
+   * Build a structured prompt to generate a learning plan
    * Enhanced with personalization based on user profile and topic strengths
    */
   _buildPlannerPrompt(goal, userContext, targetLevel, userProfile) {
@@ -252,22 +251,12 @@ IMPORTANT RULES:
   }
 
   /**
-   * Call Anthropic API to generate the plan
+   * Call the configured chat model to generate the plan
    */
-  async _generatePlanWithClaude(prompt) {
+  async _generatePlanWithModel(prompt) {
     try {
-      // Dynamically import Anthropic SDK to avoid circular dependencies
-      const { Anthropic } = await import('@anthropic-ai/sdk');
-
-      const client = new Anthropic({
-        apiKey: config.anthropic.apiKey,
-        baseURL: config.anthropic.baseUrl,
-      });
-
-      // Use fast model (haiku) for planner - good balance of speed & quality
-      const message = await client.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 4000,
+      const responseText = await createTextCompletion({
+        maxTokens: 4000,
         system: 'You are a learning plan generator. Always respond with valid JSON only, no additional text or markdown formatting. Start your response with { and end with }.',
         messages: [
           {
@@ -277,17 +266,11 @@ IMPORTANT RULES:
         ],
       });
 
-      // Extract the text response
-      const responseText = message.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n');
-
       // Try to extract and parse JSON with robust fallback
       const plan = this._parseJsonPlan(responseText, prompt.split('"')[1] || 'Learning');
       return plan;
     } catch (error) {
-      logger.error('Planner: Claude API error', { error: error.message });
+      logger.error('Planner: model API error', { error: error.message });
       throw error;
     }
   }
@@ -297,7 +280,7 @@ IMPORTANT RULES:
    */
   _parseJsonPlan(responseText, goal = '') {
     // Log response for debugging
-    logger.debug('Claude response received', {
+    logger.debug('Planner model response received', {
       length: responseText.length,
       preview: responseText.substring(0, 300),
     });
@@ -377,7 +360,7 @@ IMPORTANT RULES:
   }
 
   /**
-   * Return a fallback plan structure when Claude API fails
+   * Return a fallback plan structure when model generation fails
    */
   _getFallbackPlan(goal = 'the topic') {
     const topicName = goal.length > 50 ? goal.substring(0, 50) + '...' : goal;

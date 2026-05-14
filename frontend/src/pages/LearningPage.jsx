@@ -20,6 +20,7 @@ import EngagingLoader from "../components/learning/EngagingLoader";
 import WidgetFrame from "../components/WidgetFrame";
 import VoiceToggleButton from "../components/VoiceToggleButton";
 import VoiceIndicator from "../components/VoiceIndicator";
+import { exportToNotion, getNotionStatus } from "../services/notionService";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -27,6 +28,15 @@ const TAB_LABELS = {
   examples: 'Examples',
   flashcards: 'Flashcards',
   quiz: 'Quiz',
+  mindmap: 'Mind Map',
+  simulation: 'Simulation',
+  visualization: '3D View',
+};
+
+const NOTION_ARTIFACT_LABELS = {
+  learn: 'Learning Notes',
+  quiz: 'Quiz',
+  flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
   visualization: '3D View',
@@ -183,6 +193,15 @@ function LearningPageContent() {
 
   // NEW: State for content expansion (progressive disclosure)
   const [isExpandingContent, setIsExpandingContent] = useState(false);
+  const [showNotionExport, setShowNotionExport] = useState(false);
+  const [selectedNotionArtifacts, setSelectedNotionArtifacts] = useState([]);
+  const [notionExportState, setNotionExportState] = useState({
+    isExporting: false,
+    error: null,
+    url: null,
+  });
+  const [notionStatus, setNotionStatus] = useState({ connected: false, configured: true });
+  const mindmapCaptureRef = useRef(null);
 
   // Track if resources have been checked (to avoid race condition)
   const resourcesCheckedRef = useRef(false);
@@ -485,6 +504,17 @@ function LearningPageContent() {
   }, [rawContent]);
 
   const visualizationWidget = rawContent?.visualizationWidget || null;
+
+  const availableNotionArtifacts = useMemo(() => {
+    const artifacts = [];
+    if (learningContent?.summary || learningContent?.key_ideas?.length) artifacts.push('learn');
+    if (learningContent?.quiz?.length) artifacts.push('quiz');
+    if (learningContent?.flashcards?.length) artifacts.push('flashcards');
+    if (learningContent?.mind_map) artifacts.push('mindmap');
+    if (simulationDetection?.supported) artifacts.push('simulation');
+    if (visualizationWidget) artifacts.push('visualization');
+    return artifacts;
+  }, [learningContent, simulationDetection, visualizationWidget]);
 
   // Load conversation and messages
   // Wait for persisted resources to be loaded first to avoid unnecessary API calls
@@ -835,6 +865,65 @@ function LearningPageContent() {
     // Could track interactions for analytics
   };
 
+  const handleMindmapCaptureReady = useCallback((captureFn) => {
+    mindmapCaptureRef.current = captureFn;
+  }, []);
+
+  const refreshNotionStatus = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const status = await getNotionStatus(accessToken);
+      setNotionStatus(status);
+    } catch {
+      setNotionStatus({ connected: false, configured: false });
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    refreshNotionStatus();
+  }, [refreshNotionStatus]);
+
+  const openNotionExport = useCallback(() => {
+    setSelectedNotionArtifacts(availableNotionArtifacts);
+    setNotionExportState({ isExporting: false, error: null, url: null });
+    setShowNotionExport(true);
+    refreshNotionStatus();
+  }, [availableNotionArtifacts, refreshNotionStatus]);
+
+  const toggleNotionArtifact = useCallback((artifact) => {
+    setSelectedNotionArtifacts(prev =>
+      prev.includes(artifact)
+        ? prev.filter(item => item !== artifact)
+        : [...prev, artifact]
+    );
+  }, []);
+
+  const handleExportToNotion = useCallback(async () => {
+    if (!accessToken || selectedNotionArtifacts.length === 0) return;
+
+    setNotionExportState({ isExporting: true, error: null, url: null });
+    try {
+      let mindmapPngDataUrl = null;
+      if (selectedNotionArtifacts.includes('mindmap') && mindmapCaptureRef.current) {
+        mindmapPngDataUrl = await mindmapCaptureRef.current();
+      }
+
+      const result = await exportToNotion(accessToken, {
+        conversationId,
+        artifactTypes: selectedNotionArtifacts,
+        mindmapPngDataUrl,
+      });
+
+      setNotionExportState({ isExporting: false, error: null, url: result.url });
+    } catch (err) {
+      setNotionExportState({
+        isExporting: false,
+        error: err.message || 'Failed to export to Notion',
+        url: null,
+      });
+    }
+  }, [accessToken, conversationId, selectedNotionArtifacts]);
+
   // Handle block regeneration - persists to database
   // When user clicks "Explain Differently", they didn't understand the original
   // So we save the new explanation to replace the old one
@@ -1099,6 +1188,7 @@ function LearningPageContent() {
               getConceptStatus={getConceptStatus}
               weakAreas={weakAreas}
               onGoToQuiz={() => handleOpenTab('quiz')}
+              onCaptureReady={handleMindmapCaptureReady}
             />
           </>
         );
@@ -1243,6 +1333,14 @@ function LearningPageContent() {
                 Adapting
               </span>
 
+              <button
+                onClick={openNotionExport}
+                disabled={availableNotionArtifacts.length === 0}
+                className="px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Save to Notion
+              </button>
+
               {/* Depth Level Toggle */}
               <div className="relative">
                 <button
@@ -1372,6 +1470,111 @@ function LearningPageContent() {
           {renderTabContent()}
         </div>
       </div>
+
+      {showNotionExport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="p-5 border-b border-border">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Save to Notion</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Export selected learning artifacts to your Notion learning library.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowNotionExport(false)}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {!notionStatus.connected && (
+                <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm text-amber-700 dark:text-amber-300">
+                  Connect Notion in Settings before exporting.
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {availableNotionArtifacts.map(artifact => (
+                  <label
+                    key={artifact}
+                    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-foreground">
+                      {NOTION_ARTIFACT_LABELS[artifact] || artifact}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={selectedNotionArtifacts.includes(artifact)}
+                      onChange={() => toggleNotionArtifact(artifact)}
+                      className="w-4 h-4"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              {notionExportState.error && (
+                <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm text-destructive">
+                  {notionExportState.error}
+                </div>
+              )}
+
+              {notionExportState.url && (
+                <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/10 text-sm text-green-700 dark:text-green-300">
+                  Exported successfully.{' '}
+                  <a
+                    href={notionExportState.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium underline"
+                  >
+                    Open in Notion
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-border flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowNotionExport(false)}
+                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleExportToNotion}
+                disabled={
+                  notionExportState.isExporting ||
+                  !notionStatus.connected ||
+                  selectedNotionArtifacts.length === 0
+                }
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {notionExportState.isExporting ? 'Exporting...' : 'Export'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNotionExport && selectedNotionArtifacts.includes('mindmap') && learningContent?.mind_map && (
+        <div className="fixed -left-[10000px] top-0 w-[1000px] bg-background pointer-events-none">
+          <MindMapTabView
+            mindMap={learningContent.mind_map}
+            keyIdeas={learningContent?.key_ideas}
+            getConceptStatus={getConceptStatus}
+            weakAreas={weakAreas}
+            onCaptureReady={handleMindmapCaptureReady}
+          />
+        </div>
+      )}
     </div>
   );
 }

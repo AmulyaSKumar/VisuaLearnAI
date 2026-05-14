@@ -144,7 +144,7 @@ export class MemoryManager {
   }
 
   /**
-   * Get formatted message history for Claude API
+   * Get formatted message history for chat APIs
    * Excludes system messages, includes only role/content
    */
   getMessageHistory() {
