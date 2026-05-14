@@ -1331,12 +1331,6 @@ function LearningPageContent() {
                 disabled={!accessToken}
               />
 
-              {/* Adaptive Learning Indicator */}
-              <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground border border-border/50 rounded-md bg-muted/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                Adapting
-              </span>
-
               <button
                 onClick={openNotionExport}
                 disabled={availableNotionArtifacts.length === 0}
