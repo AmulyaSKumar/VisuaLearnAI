@@ -199,6 +199,20 @@ export function registerRoutes(app) {
   router.use('/simulation', simulationRoutes);
 
   /**
+   * Notion Export API
+   * GET /api/notion/connect - Start Notion OAuth
+   * GET /api/notion/callback - Notion OAuth callback
+   * GET /api/notion/status - Get connection status
+   * DELETE /api/notion/disconnect - Remove Notion connection
+   * POST /api/notion/export - Export structured learning resources
+   *
+   * Keep this before broad protected mounts such as visualizationRoutes.
+   * OAuth callbacks are browser redirects and cannot include an Authorization header.
+   */
+  router.use('/notion', notionCallbackRoutes);
+  router.use('/notion', requireAuth, notionRoutes);
+
+  /**
    * 3D Visualization API - Protected
    * POST /api/generate-3d - Generate 3D widget separately from chat
    */
@@ -231,17 +245,6 @@ export function registerRoutes(app) {
    * POST /api/realtime/session - Create ephemeral session for Azure OpenAI Realtime
    */
   router.use('/realtime', requireAuth, realtimeRoutes);
-
-  /**
-   * Notion Export API
-   * GET /api/notion/connect - Start Notion OAuth
-   * GET /api/notion/callback - Notion OAuth callback
-   * GET /api/notion/status - Get connection status
-   * DELETE /api/notion/disconnect - Remove Notion connection
-   * POST /api/notion/export - Export structured learning resources
-   */
-  router.use('/notion', notionCallbackRoutes);
-  router.use('/notion', requireAuth, notionRoutes);
 
   /**
    * Admin API - Requires admin user

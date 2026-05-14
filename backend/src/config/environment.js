@@ -6,8 +6,10 @@
 
 import dotenv from 'dotenv';
 
-// Load .env file
-dotenv.config();
+// Load .env file.
+// Local development often has stale Azure variables in the parent shell; the
+// project .env should be the source of truth for this backend process.
+dotenv.config({ override: true });
 
 /**
  * Validate required environment variables
@@ -67,7 +69,7 @@ export const config = {
   notion: {
     clientId: process.env.NOTION_CLIENT_ID,
     clientSecret: process.env.NOTION_CLIENT_SECRET,
-    redirectUri: process.env.NOTION_REDIRECT_URI,
+    redirectUri: process.env.NOTION_REDIRECT_URI || `http://localhost:${process.env.PORT || 3001}/api/notion/callback`,
     version: process.env.NOTION_VERSION || '2026-03-11',
     tokenEncryptionKey: process.env.NOTION_TOKEN_ENCRYPTION_KEY,
   },

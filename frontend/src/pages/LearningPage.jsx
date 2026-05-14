@@ -874,8 +874,12 @@ function LearningPageContent() {
     try {
       const status = await getNotionStatus(accessToken);
       setNotionStatus(status);
-    } catch {
-      setNotionStatus({ connected: false, configured: false });
+    } catch (err) {
+      setNotionStatus({
+        connected: false,
+        configured: false,
+        error: err.message,
+      });
     }
   }, [accessToken]);
 
@@ -1134,6 +1138,7 @@ function LearningPageContent() {
             responseMode={hookResponseMode || learningContent?.responseMode}
             onExpandContent={handleExpandContent}
             isExpanding={isExpandingContent}
+            onSaveToNotion={openNotionExport}
           />
         );
 
@@ -1496,8 +1501,26 @@ function LearningPageContent() {
 
             <div className="p-5 space-y-4">
               {!notionStatus.connected && (
-                <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm text-amber-700 dark:text-amber-300">
-                  Connect Notion in Settings before exporting.
+                <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm text-amber-800 dark:text-amber-200 space-y-3">
+                  <div>
+                    <p className="font-semibold text-foreground">Connect Notion before exporting</p>
+                    <p className="mt-1 text-muted-foreground">
+                      VisuaLearn saves structured notes directly into your Notion workspace. Connect your Notion account once, then come back here and export this session.
+                    </p>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Open Settings.</li>
+                    <li>In Notion Export, click Connect Notion.</li>
+                    <li>Choose the Notion workspace and page access.</li>
+                    <li>Return to this learning session and click Export.</li>
+                  </ol>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/settings')}
+                    className="px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Go to Settings
+                  </button>
                 </div>
               )}
 

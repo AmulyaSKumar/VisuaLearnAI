@@ -9,12 +9,17 @@ const DATABASE_TITLE = 'VisuaLearn Learning Library';
 const BLOCK_BATCH_SIZE = 90;
 
 export function isNotionConfigured() {
-  return Boolean(
-    config.notion.clientId &&
-    config.notion.clientSecret &&
-    config.notion.redirectUri &&
-    config.notion.tokenEncryptionKey
-  );
+  return getMissingNotionConfig().length === 0;
+}
+
+export function getMissingNotionConfig() {
+  const required = [
+    ['NOTION_CLIENT_ID', config.notion.clientId],
+    ['NOTION_CLIENT_SECRET', config.notion.clientSecret],
+    ['NOTION_TOKEN_ENCRYPTION_KEY', config.notion.tokenEncryptionKey],
+  ];
+
+  return required.filter(([, value]) => !value).map(([name]) => name);
 }
 
 export function getNotionAuthorizationUrl(userId) {
@@ -80,7 +85,7 @@ export async function handleNotionCallback({ code, state }) {
 
 export async function getNotionStatus(userId) {
   if (!isNotionConfigured()) {
-    return { connected: false, configured: false };
+    return { connected: false, configured: false, missing: getMissingNotionConfig() };
   }
 
   const connection = await getConnection(userId, { required: false });
@@ -298,7 +303,10 @@ function createNotionClient(auth) {
 
 function assertConfigured() {
   if (!isNotionConfigured()) {
-    throw statusError(503, 'Notion export is not configured.');
+    throw statusError(
+      503,
+      `Notion export is not configured. Missing: ${getMissingNotionConfig().join(', ')}`
+    );
   }
 }
 

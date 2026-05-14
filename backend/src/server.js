@@ -155,15 +155,28 @@ export async function startServer() {
     // Get cache status
     const cacheStats = cache.getStats();
 
-    server.listen(PORT, () => {
-      logger.info(`VisuaLearn backend starting on http://localhost:${PORT}`);
-      logger.info({ model: config.azure.chatDeployment }, 'Chat model configured');
-      logger.info({ connected: supabaseOk }, 'Supabase status');
-      logger.info({ count: agentRegistry.agents.size }, 'Agents registered');
-      logger.info({ redis: cacheStats.isRedisAvailable }, 'Cache status');
-      logger.info('Auth: Supabase JWT verification enabled');
-      logger.info('Rate limiting: enabled');
-      logger.info(`Server ready. Try: curl http://localhost:${PORT}/api/health`);
+    await new Promise((resolve, reject) => {
+      const onError = (error) => {
+        server.off('listening', onListening);
+        reject(error);
+      };
+
+      const onListening = () => {
+        server.off('error', onError);
+        logger.info(`VisuaLearn backend starting on http://localhost:${PORT}`);
+        logger.info({ model: config.azure.chatDeployment }, 'Chat model configured');
+        logger.info({ connected: supabaseOk }, 'Supabase status');
+        logger.info({ count: agentRegistry.agents.size }, 'Agents registered');
+        logger.info({ redis: cacheStats.isRedisAvailable }, 'Cache status');
+        logger.info('Auth: Supabase JWT verification enabled');
+        logger.info('Rate limiting: enabled');
+        logger.info(`Server ready. Try: curl http://localhost:${PORT}/api/health`);
+        resolve();
+      };
+
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(PORT);
     });
 
     // Graceful shutdown
@@ -191,7 +204,11 @@ export async function startServer() {
 
     return server;
   } catch (error) {
-    logger.error({ error }, 'Failed to start server');
+    if (error?.code === 'EADDRINUSE') {
+      logger.error({ err: error, port: PORT }, `Port ${PORT} is already in use. Stop the existing backend process or use a different PORT.`);
+    } else {
+      logger.error({ err: error }, 'Failed to start server');
+    }
     process.exit(1);
   }
 }

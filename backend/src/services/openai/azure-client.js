@@ -25,7 +25,11 @@ function normalizeAzureEndpoint(endpoint) {
     if (url.protocol !== 'https:') {
       throw new Error('AZURE_OPENAI_ENDPOINT must use https.');
     }
-    return trimmed;
+
+    // Azure Foundry often shows target URIs such as
+    // https://resource.cognitiveservices.azure.com/openai/responses?api-version=...
+    // The AzureOpenAI client expects the resource base URL.
+    return `${url.origin}/`;
   } catch {
     throw new Error('AZURE_OPENAI_ENDPOINT must be a valid absolute Azure OpenAI URL.');
   }

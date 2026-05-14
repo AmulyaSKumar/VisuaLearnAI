@@ -253,7 +253,7 @@ function AppContent() {
         />
       </div>
 
-      <main className="flex-1 flex flex-col relative h-full">
+      <main className="flex-1 flex flex-col relative h-full min-h-0 overflow-hidden">
         {/* Header with sidebar toggle */}
         <div className="flex-shrink-0 border-b border-border bg-card/50">
           <div className="flex items-center justify-between px-4 py-3">

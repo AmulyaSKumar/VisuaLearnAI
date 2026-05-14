@@ -799,98 +799,6 @@ function CompletionState({ topic, nextTopics = [], onGoToQuiz, onGoToFlashcards 
 }
 
 // ============================================
-// SAVE AS NOTES UTILITY
-// ============================================
-
-function generateNotesMarkdown(topic, summary, keyIdeas, highlights = []) {
-  const date = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
-  let md = `# ${topic || 'Learning Notes'}\n\n`;
-  md += `*Generated on ${date}*\n\n`;
-
-  if (summary) {
-    md += `## Overview\n\n${summary}\n\n`;
-  }
-
-  md += `---\n\n`;
-
-  keyIdeas.forEach((idea, ideaIdx) => {
-    md += `## ${ideaIdx + 1}. ${idea.title}\n\n`;
-
-    if (idea.subtitle) {
-      md += `*${idea.subtitle}*\n\n`;
-    }
-
-    const blocks = idea.blocks || [];
-    if (blocks.length > 0) {
-      blocks.forEach(block => {
-        if (block.type === 'concept' || block.type === 'insight') {
-          if (block.title) md += `### ${block.title}\n\n`;
-          if (block.content) md += `${block.content}\n\n`;
-        } else if (block.type === 'code') {
-          if (block.title) md += `### ${block.title}\n\n`;
-          if (block.code) md += `\`\`\`${block.language || ''}\n${block.code}\n\`\`\`\n\n`;
-          if (block.explanation) md += `${block.explanation}\n\n`;
-        } else if (block.type === 'mistake') {
-          md += `### Common Pitfall${block.title ? `: ${block.title}` : ''}\n\n`;
-          if (block.wrong) md += `**Avoid:**\n\`\`\`\n${block.wrong}\n\`\`\`\n\n`;
-          if (block.right) md += `**Prefer:**\n\`\`\`\n${block.right}\n\`\`\`\n\n`;
-          if (block.why) md += `**Why:** ${block.why}\n\n`;
-        } else if (block.type === 'comparison') {
-          if (block.title) md += `### ${block.title}\n\n`;
-          if (block.items?.length > 0) {
-            md += `| Feature | ${block.items.map(i => i.name).join(' | ')} |\n`;
-            md += `| --- | ${block.items.map(() => '---').join(' | ')} |\n`;
-            md += `| Description | ${block.items.map(i => i.description || '').join(' | ')} |\n`;
-            md += `| When to use | ${block.items.map(i => i.when_to_use || '').join(' | ')} |\n\n`;
-          }
-        } else if (block.type === 'challenge') {
-          md += `### Exercise${block.title ? `: ${block.title}` : ''}\n\n`;
-          if (block.prompt) md += `**Challenge:** ${block.prompt}\n\n`;
-          if (block.starter_code) md += `**Starter code:**\n\`\`\`\n${block.starter_code}\n\`\`\`\n\n`;
-        }
-      });
-    } else if (idea.explanation) {
-      md += `${idea.explanation}\n\n`;
-    }
-
-    if (idea.analogy) {
-      md += `> **Analogy:** ${idea.analogy}\n\n`;
-    }
-
-    md += `---\n\n`;
-  });
-
-  // Add highlights section if any
-  if (highlights.length > 0) {
-    md += `## Highlights\n\n`;
-    highlights.forEach((h, idx) => {
-      md += `${idx + 1}. "${h.text}"\n`;
-    });
-    md += `\n`;
-  }
-
-  return md;
-}
-
-function downloadNotes(topic, summary, keyIdeas, highlights) {
-  const markdown = generateNotesMarkdown(topic, summary, keyIdeas, highlights);
-  const blob = new Blob([markdown], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${(topic || 'learning-notes').toLowerCase().replace(/\s+/g, '-')}.md`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// ============================================
 // SMART SUGGESTIONS (MEMOIZED)
 // ============================================
 
@@ -1068,6 +976,7 @@ export default function LearnTabView({
   responseMode = null, // 'quick_explain' | 'deep_learn' | 'coding_help' | 'conceptual_noncs' | 'simulation'
   onExpandContent = null, // Handler for progressive disclosure (expand to deeper content)
   isExpanding = false, // Loading state when expanding content
+  onSaveToNotion = null,
 }) {
   const [activeConceptId, setActiveConceptId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1109,8 +1018,8 @@ export default function LearnTabView({
   }, [onRegenerateBlock, activeConceptId, regeneratingBlockIndex]);
 
   const handleSaveNotes = useCallback(() => {
-    downloadNotes(topic, summary, keyIdeas, highlights);
-  }, [topic, summary, keyIdeas, highlights]);
+    onSaveToNotion?.();
+  }, [onSaveToNotion]);
 
   // Safely access additional properties
   const skillAreas = learningContent?.skill_areas || [];
@@ -1350,19 +1259,19 @@ export default function LearnTabView({
           regeneratingBlockIndex={regeneratingBlockIndex}
         />
 
-        {/* Save as Notes Button */}
+        {/* Save Notes Button */}
         {keyIdeas.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
             <div>
               <button
                 onClick={handleSaveNotes}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
               >
-                Save as notes
+                Save to Notion
               </button>
               {highlights.length > 0 && (
                 <span className="ml-2 text-xs text-muted-foreground">
-                  ({highlights.length} highlight{highlights.length !== 1 ? 's' : ''} included)
+                  {highlights.length} highlight{highlights.length !== 1 ? 's' : ''} saved locally
                 </span>
               )}
             </div>

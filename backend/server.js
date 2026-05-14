@@ -14,11 +14,11 @@ import { logger } from './src/utils/logger.js';
 
 // Handle uncaught errors
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled rejection:', reason);
+  logger.error({ err: reason, promise }, 'Unhandled rejection');
 });
 
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception:', error);
+  logger.error({ err: error }, 'Uncaught exception');
   process.exit(1);
 });
 

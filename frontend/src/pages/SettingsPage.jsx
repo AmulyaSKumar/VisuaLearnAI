@@ -57,7 +57,12 @@ export default function SettingsPage() {
       const status = await getNotionStatus(accessToken);
       setNotionStatus(status);
     } catch (err) {
-      setNotionStatus({ connected: false, configured: false });
+      setNotionStatus({
+        connected: false,
+        configured: false,
+        missing: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET', 'NOTION_TOKEN_ENCRYPTION_KEY'],
+        error: err.message,
+      });
     } finally {
       setIsNotionLoading(false);
     }
@@ -158,7 +163,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full min-h-0 overflow-y-scroll bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
@@ -175,7 +180,7 @@ export default function SettingsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 py-8 pb-20 space-y-8">
         {/* Notifications */}
         {error && (
           <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500">
@@ -195,15 +200,22 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h3 className="font-semibold text-foreground">
-                  {notionStatus.connected ? 'Connected to Notion' : 'Connect Notion'}
+                  {notionStatus.connected ? 'Connected to Notion' : 'Connect your Notion workspace'}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   {notionStatus.connected
-                    ? `Workspace: ${notionStatus.workspaceName || 'Notion'}`
+                    ? `Ready to export. New learning pages will be created in ${notionStatus.workspaceName || 'your Notion workspace'}.`
                     : notionStatus.configured === false
-                      ? 'Notion is not configured on the backend.'
-                      : 'Export learning notes, quizzes, flashcards, and mind maps to a Notion database.'}
+                      ? `Backend setup is incomplete. Add these server env values, restart the backend, then retry: ${(notionStatus.missing?.length ? notionStatus.missing : ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET', 'NOTION_TOKEN_ENCRYPTION_KEY']).join(', ')}.`
+                      : 'Backend setup is ready. Click Connect Notion, approve access in Notion, and VisuaLearn will create a learning library database for future exports.'}
                 </p>
+                {!notionStatus.connected && notionStatus.configured !== false && (
+                  <ol className="mt-3 list-decimal list-inside space-y-1 text-xs text-muted-foreground">
+                    <li>Click Connect Notion.</li>
+                    <li>Select your workspace and allow access to the pages you want VisuaLearn to use.</li>
+                    <li>After Notion redirects back, open any learning session and choose Save to Notion.</li>
+                  </ol>
+                )}
               </div>
 
               {notionStatus.connected ? (
@@ -217,10 +229,10 @@ export default function SettingsPage() {
               ) : (
                 <button
                   onClick={handleConnectNotion}
-                  disabled={isNotionLoading || !notionStatus.configured}
+                  disabled={isNotionLoading}
                   className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {isNotionLoading ? 'Connecting...' : 'Connect Notion'}
+                  {isNotionLoading ? 'Connecting...' : notionStatus.configured === false ? 'Retry Notion Setup' : 'Connect Notion'}
                 </button>
               )}
             </div>
