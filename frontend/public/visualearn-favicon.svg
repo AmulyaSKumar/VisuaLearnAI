@@ -8,15 +8,9 @@
   <!-- Background circle -->
   <circle cx="50" cy="50" r="50" fill="url(#gradient)"/>
   
-  <!-- Brain/Visualization symbol -->
-  <g transform="translate(50, 50)">
-    <!-- Left visualization curve -->
-    <path d="M -15 -5 Q -10 -15 0 -10" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <!-- Right visualization curve -->
-    <path d="M 15 -5 Q 10 -15 0 -10" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <!-- Center circle -->
-    <circle cx="0" cy="5" r="3" fill="white"/>
-    <!-- Bottom visualization -->
-    <path d="M -8 8 L 0 15 L 8 8" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Book/Pages icon - matching sidebar branding -->
+  <g transform="translate(50, 50) scale(1.8)">
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
