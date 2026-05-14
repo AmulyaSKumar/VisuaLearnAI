@@ -101,7 +101,6 @@ function LearningPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [readCards, setReadCards] = useState(new Set());
-  const [showDepthDropdown, setShowDepthDropdown] = useState(false);
   // Only Learn tab by default, other tabs appear when user requests them
   const [visibleTabs, setVisibleTabs] = useState(['learn']);
   const [loadingTabs, setLoadingTabs] = useState(new Set()); // Per-tab loading state
@@ -1345,42 +1344,6 @@ function LearningPageContent() {
               >
                 Save to Notion
               </button>
-
-              {/* Depth Level Toggle */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowDepthDropdown(!showDepthDropdown)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-                >
-                  <span className="text-muted-foreground">Depth:</span>
-                  <span className="font-medium text-foreground capitalize">{depthLevel}</span>
-                </button>
-
-                {showDepthDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowDepthDropdown(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-md shadow-lg z-20 py-1">
-                      {DEPTH_LEVELS.map((level) => (
-                        <button
-                          key={level.id}
-                          onClick={() => {
-                            setDepthLevel(level.id);
-                            setShowDepthDropdown(false);
-                          }}
-                          className={`w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors ${
-                            depthLevel === level.id ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          {level.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
 
               {/* Stats Badge */}
               {stats.studyStreak > 0 && (
