@@ -1316,15 +1316,15 @@ function LearningPageContent() {
 
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate tracking-tight">
+              <h1 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight break-words sm:truncate">
                 {conversation?.title || 'Learning Session'}
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {/* Voice Toggle Button */}
               <VoiceToggleButton
                 state={voice.state}
@@ -1332,27 +1332,13 @@ function LearningPageContent() {
                 disabled={!accessToken}
               />
 
-              {/* Adaptive Learning Indicator */}
-              <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground border border-border/50 rounded-md bg-muted/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                Adapting
-              </span>
-
-              <button
-                onClick={openNotionExport}
-                disabled={availableNotionArtifacts.length === 0}
-                className="px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                Save to Notion
-              </button>
-
               {/* Depth Level Toggle */}
               <div className="relative">
                 <button
                   onClick={() => setShowDepthDropdown(!showDepthDropdown)}
                   className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
                 >
-                  <span className="text-muted-foreground">Depth:</span>
+                  <span className="hidden text-muted-foreground sm:inline">Depth:</span>
                   <span className="font-medium text-foreground capitalize">{depthLevel}</span>
                 </button>
 
@@ -1391,9 +1377,17 @@ function LearningPageContent() {
 
               <button
                 onClick={() => navigate('/chat/new')}
-                className="px-3 py-2 text-sm font-medium text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                className="group inline-flex h-10 min-w-10 items-center justify-center overflow-hidden rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                title="New convo"
+                aria-label="New convo"
               >
-                New
+                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                <span className="hidden max-w-0 overflow-hidden whitespace-nowrap transition-all duration-200 group-hover:ml-2 group-hover:max-w-24 sm:inline">
+                  New convo
+                </span>
               </button>
             </div>
           </div>
@@ -1435,7 +1429,7 @@ function LearningPageContent() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
           {/* Fact Check Banner */}
           {factCheck && (
             <div className={`mb-4 p-3 rounded-lg border ${

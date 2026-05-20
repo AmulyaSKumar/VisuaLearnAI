@@ -41,9 +41,9 @@ export default function PersonaCard({
           }
         `}
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium text-foreground">{persona.name}</span>
-          <span className={`text-xs px-2 py-0.5 rounded ${toneColorClass}`}>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <span className="min-w-0 break-words font-medium text-foreground">{persona.name}</span>
+          <span className={`shrink-0 text-xs px-2 py-0.5 rounded ${toneColorClass}`}>
             {persona.tone}
           </span>
         </div>
@@ -68,23 +68,21 @@ export default function PersonaCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* System badge */}
-      {persona.is_system && (
-        <div className="absolute top-2 right-2">
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            System
-          </span>
-        </div>
-      )}
-
       {/* Main content - clickable */}
       <button
         onClick={() => onSelect?.(persona)}
         className="w-full text-left p-4 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-inset rounded-xl"
       >
         {/* Header */}
-        <div className="mb-2">
-          <h3 className="font-semibold text-foreground text-lg">{persona.name}</h3>
+        <div className="mb-2 pr-0 sm:pr-14">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="min-w-0 break-words text-lg font-semibold text-foreground">{persona.name}</h3>
+            {persona.is_system && (
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                System
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
             {persona.description || 'No description'}
           </p>

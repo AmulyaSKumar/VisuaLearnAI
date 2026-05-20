@@ -496,8 +496,6 @@ function MCQQuestion({ question, onSubmit, showResult, isCorrect }) {
 // ============================================
 
 function ExplanationPanel({ question, isCorrect }) {
-  const [showDetails, setShowDetails] = useState(false);
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -509,19 +507,9 @@ function ExplanationPanel({ question, isCorrect }) {
         {isCorrect ? 'Correct' : 'Incorrect'}
       </p>
 
-      {/* Show/Hide Explanation */}
-      {(question.explanation || question.why_it_matters || question.code_example) && (
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {showDetails ? 'Hide explanation' : 'Show explanation'}
-        </button>
-      )}
-
       {/* Detailed Explanation */}
       <AnimatePresence>
-        {showDetails && (
+        {(question.explanation || question.why_it_matters || question.code_example) && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}

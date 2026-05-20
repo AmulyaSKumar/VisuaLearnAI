@@ -196,9 +196,9 @@ export default function SettingsPage() {
         {/* Notion Section */}
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Notion Export</h2>
-          <div className="p-4 rounded-xl border border-border bg-card">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
+          <div className="overflow-hidden rounded-xl border border-border bg-card p-4">
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <h3 className="font-semibold text-foreground">
                   {notionStatus.connected ? 'Connected to Notion' : 'Connect your Notion workspace'}
                 </h3>
@@ -213,7 +213,7 @@ export default function SettingsPage() {
                   <ol className="mt-3 list-decimal list-inside space-y-1 text-xs text-muted-foreground">
                     <li>Click Connect Notion.</li>
                     <li>Select your workspace and allow access to the pages you want VisuaLearn to use.</li>
-                    <li>After Notion redirects back, open any learning session and choose Save to Notion.</li>
+                    <li>After Notion redirects back, open a learning session and export it from the session actions.</li>
                   </ol>
                 )}
               </div>
@@ -222,7 +222,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handleDisconnectNotion}
                   disabled={isNotionLoading}
-                  className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  className="w-full shrink-0 rounded-lg border border-border px-4 py-2 text-foreground transition-colors hover:bg-muted disabled:opacity-50 sm:w-auto"
                 >
                   Disconnect
                 </button>
@@ -230,7 +230,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handleConnectNotion}
                   disabled={isNotionLoading}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="w-full shrink-0 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 sm:w-auto"
                 >
                   {isNotionLoading ? 'Connecting...' : notionStatus.configured === false ? 'Retry Notion Setup' : 'Connect Notion'}
                 </button>
@@ -243,33 +243,33 @@ export default function SettingsPage() {
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Active Persona</h2>
           {defaultPersona ? (
-            <div className="p-4 rounded-xl border border-primary bg-primary/5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-foreground">{defaultPersona.name}</h3>
+            <div className="overflow-hidden rounded-xl border border-primary bg-primary/5 p-4">
+              <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <h3 className="min-w-0 break-words font-semibold text-foreground">{defaultPersona.name}</h3>
                     {defaultPersona.is_system && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                         System
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="mt-1 break-words text-sm text-muted-foreground">
                     {defaultPersona.description}
                   </p>
-                  <div className="flex gap-2 mt-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                       {defaultPersona.tone}
                     </span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                       {defaultPersona.verbosity}
                     </span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                       {defaultPersona.strength}% adherence
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs text-primary font-medium px-2 py-1 rounded bg-primary/10">
                     Active
                   </span>
@@ -303,8 +303,8 @@ export default function SettingsPage() {
 
         {/* Custom Personas Section */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-foreground">Custom Personas</h2>
               <p className="text-sm text-muted-foreground">
                 Create your own personas with custom rules and styles.
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                 setEditingPersona(null);
                 setShowEditor(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -9,13 +9,10 @@ import {
 
 export default function Sidebar({
   conversations,
-  theme,
-  toggleTheme,
   loading = false,
   onRenameConversation = null,
   onDeleteConversation = null,
   onClose = null,
-  isMobileOpen = false,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -164,12 +161,13 @@ export default function Sidebar({
             navigate("/chat/new");
             onClose?.();
           }}
-          className="w-full flex items-center justify-center gap-2 neu-btn-primary px-3 min-h-[44px] text-sm font-medium"
+          className="group/new w-full flex items-center justify-center gap-2 neu-btn-primary px-3 min-h-[44px] text-sm font-medium"
+          title="New convo"
         >
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
           </svg>
-          New Learning Session
+          <span>New convo</span>
         </button>
       </div>
 
@@ -362,30 +360,6 @@ export default function Sidebar({
         )}
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center neu-btn rounded-xl"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2" />
-                <path d="M12 20v2" />
-                <path d="M4.93 4.93l1.41 1.41" />
-                <path d="M17.66 17.66l1.41 1.41" />
-                <path d="M2 12h2" />
-                <path d="M20 12h2" />
-                <path d="M4.93 19.07l1.41-1.41" />
-                <path d="M17.66 6.34l1.41-1.41" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20.9 13.4A8 8 0 1 1 10.6 3.1 6.5 6.5 0 1 0 20.9 13.4Z" />
-              </svg>
-            )}
-          </button>
-
           <button
             onClick={() => {
               navigate("/settings");

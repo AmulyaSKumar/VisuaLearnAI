@@ -272,7 +272,7 @@ export default function ChatWindow({
           )}
 
           {(plan || isPlanLoading) && (
-            <div className="max-w-2xl mx-auto">
+            <div className="mx-auto max-w-5xl">
               <LearningPlanCard
                 plan={plan}
                 isLoading={isPlanLoading}
@@ -301,7 +301,6 @@ export default function ChatWindow({
         isLoadingWidget={isLoadingWidget}
         factCheck={assets.factCheck}
         images={assets.images}
-        personalizationMeta={personalizationMeta}
         userId={userId}
         onWidgetInteraction={handleWidgetInteraction}
         learningContent={learningContent}
@@ -311,7 +310,7 @@ export default function ChatWindow({
       />
 
       {/* Input Area */}
-      <div className="p-3 sm:p-4 md:p-6 bg-background pt-2 w-full max-w-3xl mx-auto flex-shrink-0">
+      <div className="mx-auto w-full max-w-5xl flex-shrink-0 bg-background p-3 pt-2 sm:p-4 md:p-6">
         {/* Plan Toggle Button */}
         {!showPlanInput && !plan && messages.length === 0 && (
           <div className="mb-3 sm:mb-4 flex justify-center">
@@ -338,7 +337,7 @@ export default function ChatWindow({
         />
         <div className="text-center mt-2 sm:mt-3">
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            VisuaLearn adapts based on your progress and recent performance.
+            Ask anything and continue learning at your own pace.
           </p>
         </div>
       </div>

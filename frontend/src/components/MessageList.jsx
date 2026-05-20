@@ -7,11 +7,9 @@ import FeedbackButtons from "./FeedbackButtons";
 import LearningFeedbackButtons from "./LearningFeedbackButtons";
 import FactCheckBadge from "./FactCheckBadge";
 import ImageWidget from "./ImageWidget";
-import AdaptiveExplanation from "./AdaptiveExplanation";
-import AdaptiveFeedbackBanner from "./AdaptiveFeedbackBanner";
 import LearningWorkspace from "./LearningWorkspace";
 
-export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], personalizationMeta = null, userId = null, onWidgetInteraction, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, is3DLoading = false }) {
+export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], userId = null, onWidgetInteraction, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, is3DLoading = false }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -29,7 +27,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
-      <div className="max-w-3xl mx-auto flex flex-col gap-6 pb-4">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 pb-4">
         {allMessages.map((msg, idx) => (
           <div key={msg.id || idx} className={`flex flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"}`}>
             
@@ -51,7 +49,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
 
             {/* Assistant Widgets */}
             {msg.role === "assistant" && msg.widgets?.map(widget => (
-              <div key={widget.id} className="w-full max-w-2xl my-2">
+              <div key={widget.id} className="my-2 w-full max-w-4xl">
                 <WidgetFrame widget={widget} onInteraction={onWidgetInteraction} />
               </div>
             ))}
@@ -63,27 +61,16 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
 
             {/* Assistant Images */}
             {msg.role === "assistant" && msg.images?.length > 0 && (
-              <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 my-2">
+              <div className="my-2 grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2">
                 {msg.images.map((image, imgIdx) => (
                   <ImageWidget key={image.id || imgIdx} image={image} />
                 ))}
               </div>
             )}
 
-            {/* Adaptive Feedback Banner - shown for streaming message */}
-            {msg.role === "assistant" && msg.id === "streaming-now" && personalizationMeta && (
-              <div className="w-full max-w-2xl mb-2">
-                <AdaptiveFeedbackBanner
-                  personalizationMeta={personalizationMeta}
-                  isVisible={true}
-                  compact={true}
-                />
-              </div>
-            )}
-
             {/* Assistant Text */}
             {msg.role === "assistant" && msg.text && (
-              <div className="flex gap-4 w-full max-w-2xl group">
+              <div className="group flex w-full max-w-4xl gap-3 sm:gap-4">
                 <div className="relative w-8 h-8 rounded-full bg-primary/15 flex-shrink-0 flex items-center justify-center text-primary shadow-sm mt-1">
                   {msg.metadata?.source === 'voice' ? (
                     // Voice response icon
@@ -104,15 +91,6 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  {/* Adaptive Explanation Toggle - shown for current streaming message */}
-                  {msg.id === "streaming-now" && personalizationMeta && (
-                    <AdaptiveExplanation
-                      explanation={personalizationMeta.explanation}
-                      cognitiveState={personalizationMeta.cognitiveState}
-                      topic={personalizationMeta.topic}
-                      strategy={personalizationMeta.strategy}
-                    />
-                  )}
                   <MessageBubble content={msg.text} showTTS={msg.id !== "streaming-now"} />
 
                   {/* Fact Check Badge */}
@@ -144,7 +122,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
 
         {/* Global Images (from asset stream) */}
         {images.length > 0 && (
-          <div className="w-full max-w-2xl mx-auto">
+          <div className="mx-auto w-full max-w-4xl">
             <h4 className="text-sm font-medium text-muted-foreground mb-2">Generated Images</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {images.map((image, idx) => (
@@ -156,21 +134,21 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
 
         {/* Global Fact Check (from asset stream) */}
         {factCheck && (
-          <div className="w-full max-w-2xl mx-auto mt-4">
+          <div className="mx-auto mt-4 w-full max-w-4xl">
             <FactCheckBadge factCheck={factCheck} />
           </div>
         )}
 
         {/* 3D Widget Loading Skeleton - shown while 3D is generating */}
         {is3DLoading && (
-          <div className="w-full max-w-2xl mx-auto mt-4">
+          <div className="mx-auto mt-4 w-full max-w-4xl">
             <Widget3DSkeleton />
           </div>
         )}
 
         {/* Learning Workspace - shown after response completes */}
         {(learningContent || isLearningContentLoading) && messages.length > 0 && !currentStreamedMessage && (
-          <div className="w-full max-w-3xl mx-auto mt-6">
+          <div className="mx-auto mt-6 w-full max-w-5xl">
             <LearningWorkspace
               content={learningContent}
               isLoading={isLearningContentLoading}
