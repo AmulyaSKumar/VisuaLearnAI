@@ -18,7 +18,7 @@ export default function LearningFeedbackButtons({
     {
       id: "understand",
       label: "I understand",
-      icon: "✓",
+      icon: "OK",
       color: "bg-green-50 text-green-700 border-green-200 hover:bg-green-100",
       activeColor: "bg-green-500 text-white border-green-500",
       signal: "positive",
@@ -34,17 +34,17 @@ export default function LearningFeedbackButtons({
     {
       id: "different",
       label: "Show differently",
-      icon: "↻",
-      color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
-      activeColor: "bg-blue-500 text-white border-blue-500",
+      icon: "ALT",
+      color: "bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100",
+      activeColor: "bg-neutral-500 text-white border-neutral-500",
       signal: "change_modality",
     },
     {
       id: "challenge",
       label: "Give challenge",
       icon: "⚡",
-      color: "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100",
-      activeColor: "bg-purple-500 text-white border-purple-500",
+      color: "bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100",
+      activeColor: "bg-neutral-500 text-white border-neutral-500",
       signal: "increase_difficulty",
     },
   ];

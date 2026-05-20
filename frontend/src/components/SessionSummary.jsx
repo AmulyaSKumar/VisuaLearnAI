@@ -40,11 +40,11 @@ export default function SessionSummary({
   }, {});
 
   const stateConfig = {
-    struggling: { icon: "🔴", label: "Struggling", color: "bg-red-100 text-red-700" },
-    confused: { icon: "🟠", label: "Confused", color: "bg-orange-100 text-orange-700" },
-    flow: { icon: "🟢", label: "In Flow", color: "bg-green-100 text-green-700" },
-    bored: { icon: "🟡", label: "Bored", color: "bg-yellow-100 text-yellow-700" },
-    mastering: { icon: "🔵", label: "Mastering", color: "bg-blue-100 text-blue-700" },
+    struggling: { label: "Struggling", color: "bg-red-100 text-red-700" },
+    confused: { label: "Confused", color: "bg-orange-100 text-orange-700" },
+    flow: { label: "In Flow", color: "bg-green-100 text-green-700" },
+    bored: { label: "Bored", color: "bg-yellow-100 text-yellow-700" },
+    mastering: { label: "Mastering", color: "bg-neutral-100 text-neutral-700" },
   };
 
   // Determine dominant state
@@ -55,27 +55,23 @@ export default function SessionSummary({
   const getRecommendation = () => {
     if (dominantState === "struggling" || dominantState === "confused") {
       return {
-        icon: "💡",
         text: "Consider reviewing foundational concepts before moving forward.",
         action: "Practice basics",
       };
     }
     if (dominantState === "bored") {
       return {
-        icon: "🚀",
         text: "You're ready for more challenging content!",
         action: "Try advanced topics",
       };
     }
     if (dominantState === "mastering") {
       return {
-        icon: "🏆",
         text: "Excellent progress! Consider teaching others or exploring related topics.",
         action: "Explore new areas",
       };
     }
     return {
-      icon: "✨",
       text: "Great learning session! Keep up the momentum.",
       action: "Continue learning",
     };
@@ -91,7 +87,7 @@ export default function SessionSummary({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-xl">📊</span>
+                <span className="text-xl"></span>
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Session Summary</h2>
@@ -132,17 +128,16 @@ export default function SessionSummary({
           {/* Cognitive States */}
           <div>
             <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-              <span>🧠</span> Learning States
+              <span></span> Learning States
             </h3>
             <div className="space-y-2">
               {Object.entries(stateDistribution).map(([state, count]) => {
-                const config = stateConfig[state] || { icon: "⚪", label: state, color: "bg-gray-100 text-gray-700" };
+                const config = stateConfig[state] || { label: state, color: "bg-gray-100 text-gray-700" };
                 const percent = Math.round((count / cognitiveStates.length) * 100);
 
                 return (
                   <div key={state} className="flex items-center gap-3">
                     <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-medium ${config.color}`}>
-                      <span>{config.icon}</span>
                       <span>{config.label}</span>
                     </div>
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -162,7 +157,7 @@ export default function SessionSummary({
           {topics.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                <span>📚</span> Topics Covered
+                <span></span> Topics Covered
               </h3>
               <div className="flex flex-wrap gap-2">
                 {topics.map((topic, i) => (
@@ -205,7 +200,6 @@ export default function SessionSummary({
           {/* Recommendation */}
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
             <div className="flex items-start gap-3">
-              <span className="text-2xl">{recommendation.icon}</span>
               <div>
                 <h4 className="text-sm font-medium text-foreground mb-1">Recommended Next Step</h4>
                 <p className="text-sm text-muted-foreground">{recommendation.text}</p>

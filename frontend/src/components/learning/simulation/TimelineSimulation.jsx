@@ -32,7 +32,7 @@ export default function TimelineSimulation({ step }) {
   // Process colors
   const processColors = useMemo(() => {
     const colors = [
-      'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-purple-500',
+      'bg-neutral-500', 'bg-emerald-500', 'bg-amber-500', 'bg-neutral-500',
       'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-pink-500'
     ];
     const colorMap = {};
@@ -141,7 +141,7 @@ export default function TimelineSimulation({ step }) {
                 border-b border-border/50 transition-colors
                 ${p.id === running ? 'bg-amber-500/20' : ''}
                 ${p.id === completedId ? 'bg-emerald-500/20' : ''}
-                ${p.id === preempted ? 'bg-purple-500/20' : ''}
+                ${p.id === preempted ? 'bg-neutral-500/20' : ''}
               `}
             >
               <td className="py-1 px-2">
@@ -162,7 +162,7 @@ export default function TimelineSimulation({ step }) {
                   px-1.5 py-0.5 rounded text-[10px] font-medium
                   ${p.status === 'running' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
                     p.status === 'completed' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
-                    p.status === 'ready' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+                    p.status === 'ready' ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400' :
                     'bg-muted text-muted-foreground'}
                 `}>
                   {p.status || 'waiting'}

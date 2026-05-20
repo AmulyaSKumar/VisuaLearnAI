@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasSupabaseConfig, signInWithEmail, signUpWithEmail, signInWithGoogle } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import LogoMark from '../components/LogoMark';
 
 export default function LoginPage() {
   const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
@@ -131,15 +132,12 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo and Title */}
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center neu-circle">
-            <svg className="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-            </svg>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-[0_18px_50px_rgba(17,17,17,0.06)]">
+            <LogoMark className="h-9 w-9 text-foreground" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">VisuaLearn</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            AI-powered interactive learning
+            Personal study workspace
           </p>
         </div>
 

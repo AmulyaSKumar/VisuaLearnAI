@@ -6,8 +6,15 @@
 import { CONTEXT_VERSION, CONTEXT_DIM, normalizeContextVector } from './context.js';
 import { logger } from '../utils/logger.js';
 
-// Available actions
-export const ACTIONS = ['visual_widget', 'guided_steps', 'quiz_check', 'text_explanation'];
+// Core response-level pedagogical actions.
+export const ACTIONS = [
+  'visual_widget',
+  'guided_steps',
+  'quiz_check',
+  'text_explanation',
+  'socratic_questioning',
+  'remediation',
+];
 
 // Failsafe action when bandit fails
 export const FAILSAFE_ACTION = 'guided_steps';
@@ -256,6 +263,10 @@ export class LinUCBBandit {
       throw new Error('LinUCB not initialized - call initialize() first');
     }
 
+    if (!Array.isArray(contextVector) || contextVector.length !== this.d) {
+      throw new Error(`Context dimension mismatch: expected ${this.d}, got ${Array.isArray(contextVector) ? contextVector.length : 'non-array'}`);
+    }
+
     // Normalize context for better numerical stability
     const x = normalizeContextVector(contextVector);
 
@@ -316,6 +327,15 @@ export class LinUCBBandit {
 
     if (!this.parameters[action]) {
       logger.warn({ action }, 'Unknown action, skipping update');
+      return;
+    }
+
+    if (!Array.isArray(contextVector) || contextVector.length !== this.d) {
+      logger.warn({
+        action,
+        expectedDim: this.d,
+        actualDim: Array.isArray(contextVector) ? contextVector.length : null,
+      }, 'Skipping LinUCB update due to context dimension mismatch');
       return;
     }
 
@@ -399,6 +419,8 @@ export const COLD_START_CONFIG = {
     guided_steps: 0.5,
     quiz_check: 0.5,
     text_explanation: 0.5,
+    socratic_questioning: 0.5,
+    remediation: 0.5,
   },
 };
 

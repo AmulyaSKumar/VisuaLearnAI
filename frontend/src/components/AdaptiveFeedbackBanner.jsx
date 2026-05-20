@@ -18,33 +18,28 @@ export default function AdaptiveFeedbackBanner({
   // State configuration
   const stateConfig = {
     struggling: {
-      icon: "🔴",
       label: "Supporting",
       color: "border-red-200 bg-red-50 text-red-700",
       description: "Extra support mode activated"
     },
     confused: {
-      icon: "🟠",
       label: "Clarifying",
       color: "border-orange-200 bg-orange-50 text-orange-700",
       description: "Simplifying explanations"
     },
     flow: {
-      icon: "🟢",
       label: "Optimal",
       color: "border-green-200 bg-green-50 text-green-700",
       description: "Learning at your best pace"
     },
     bored: {
-      icon: "🟡",
       label: "Challenging",
       color: "border-yellow-200 bg-yellow-50 text-yellow-700",
       description: "Increasing difficulty"
     },
     mastering: {
-      icon: "🔵",
       label: "Advancing",
-      color: "border-blue-200 bg-blue-50 text-blue-700",
+      color: "border-neutral-200 bg-neutral-50 text-neutral-700",
       description: "Moving to deeper concepts"
     },
   };
@@ -70,16 +65,16 @@ export default function AdaptiveFeedbackBanner({
   // Strategy changes
   const strategyChanges = [];
   if (strategy?.force_visual) {
-    strategyChanges.push({ icon: "👁️", label: "Visual mode" });
+    strategyChanges.push({ label: "Visual mode" });
   }
   if (strategy?.interaction_mode === "interactive") {
-    strategyChanges.push({ icon: "🎮", label: "Interactive" });
+    strategyChanges.push({ label: "Interactive" });
   }
   if (strategy?.explanation_style === "simple") {
-    strategyChanges.push({ icon: "📝", label: "Simplified" });
+    strategyChanges.push({ label: "Simplified" });
   }
   if (strategy?.explanation_style === "technical") {
-    strategyChanges.push({ icon: "🔬", label: "Technical" });
+    strategyChanges.push({ label: "Technical" });
   }
 
   // Compact view (default)
@@ -89,7 +84,6 @@ export default function AdaptiveFeedbackBanner({
         onClick={() => setIsExpanded(true)}
         className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-xs font-medium transition-all hover:shadow-sm ${currentState.color}`}
       >
-        <span>{currentState.icon}</span>
         <span>{currentState.label}</span>
         {topic && (
           <>
@@ -110,7 +104,6 @@ export default function AdaptiveFeedbackBanner({
       {/* Header */}
       <div className={`flex items-center justify-between px-3 py-2 border-b ${currentState.color}`}>
         <div className="flex items-center gap-2">
-          <span className="text-lg">{currentState.icon}</span>
           <div>
             <p className="text-xs font-semibold">{currentState.label} Mode</p>
             <p className="text-[10px] opacity-80">{currentState.description}</p>
@@ -160,7 +153,6 @@ export default function AdaptiveFeedbackBanner({
                   key={idx}
                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted rounded-full text-[10px] font-medium text-foreground"
                 >
-                  <span>{change.icon}</span>
                   <span>{change.label}</span>
                 </span>
               ))}
@@ -213,7 +205,6 @@ export default function AdaptiveFeedbackBanner({
             <ul className="space-y-1">
               {explanation.reasons.slice(0, 3).map((reason, idx) => (
                 <li key={idx} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
-                  <span className="text-primary">•</span>
                   <span>{reason}</span>
                 </li>
               ))}
@@ -230,18 +221,17 @@ export default function AdaptiveFeedbackBanner({
  */
 export function AdaptiveFeedbackInline({ cognitiveState, topic }) {
   const stateConfig = {
-    struggling: { icon: "🔴", color: "text-red-600" },
-    confused: { icon: "🟠", color: "text-orange-600" },
-    flow: { icon: "🟢", color: "text-green-600" },
-    bored: { icon: "🟡", color: "text-yellow-600" },
-    mastering: { icon: "🔵", color: "text-blue-600" },
+    struggling: { color: "text-red-600" },
+    confused: { color: "text-orange-600" },
+    flow: { color: "text-green-600" },
+    bored: { color: "text-yellow-600" },
+    mastering: { color: "text-neutral-600" },
   };
 
   const state = stateConfig[cognitiveState] || stateConfig.flow;
 
   return (
     <span className={`inline-flex items-center gap-1 text-xs ${state.color}`}>
-      <span>{state.icon}</span>
       {topic && <span className="opacity-70">{topic}</span>}
     </span>
   );

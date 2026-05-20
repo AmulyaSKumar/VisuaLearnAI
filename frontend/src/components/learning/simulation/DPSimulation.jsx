@@ -51,10 +51,10 @@ export default function DPSimulation({ step }) {
       return 'bg-amber-500 text-white ring-2 ring-amber-400 scale-105';
     }
     if (index === current) {
-      return 'bg-blue-500 text-white ring-2 ring-blue-400';
+      return 'bg-neutral-500 text-white ring-2 ring-neutral-400';
     }
     if (dependencies.includes(index)) {
-      return 'bg-purple-500 text-white';
+      return 'bg-neutral-500 text-white';
     }
     if (filled.includes(index)) {
       return 'bg-indigo-500/80 text-white';
@@ -74,10 +74,10 @@ export default function DPSimulation({ step }) {
       return 'bg-amber-500 text-white ring-2 ring-amber-400';
     }
     if (compareCell?.row === row && compareCell?.col === col) {
-      return 'bg-purple-500 text-white';
+      return 'bg-neutral-500 text-white';
     }
     if (prevCell?.row === row && prevCell?.col === col) {
-      return 'bg-blue-400 text-white';
+      return 'bg-neutral-400 text-white';
     }
     if (value > 0) {
       return 'bg-indigo-500/70 text-white';
@@ -205,8 +205,8 @@ export default function DPSimulation({ step }) {
   const legendItems = useMemo(() => {
     const items = [];
     if (current !== undefined || currentCell) items.push({ color: 'bg-amber-500', label: 'Current' });
-    if (dependencies.length > 0 || compareCell) items.push({ color: 'bg-purple-500', label: 'Dependencies' });
-    if (prevCell) items.push({ color: 'bg-blue-400', label: 'Previous' });
+    if (dependencies.length > 0 || compareCell) items.push({ color: 'bg-neutral-500', label: 'Dependencies' });
+    if (prevCell) items.push({ color: 'bg-neutral-400', label: 'Previous' });
     if (filled.length > 0) items.push({ color: 'bg-indigo-500', label: 'Filled' });
     if (complete || resultCell) items.push({ color: 'bg-emerald-500', label: 'Result' });
     return items;

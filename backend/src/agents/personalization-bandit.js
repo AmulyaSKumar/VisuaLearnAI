@@ -1,8 +1,21 @@
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
 import { supabase } from '../database/client.js';
+import {
+  deriveConfidence,
+  derivePreviousFailures,
+  deriveResponseTime,
+  deriveTopicDifficulty,
+} from '../bandit/context.js';
 
-const ACTIONS = ['visual_widget', 'guided_steps', 'quiz_check', 'text_explanation'];
+const ACTIONS = [
+  'visual_widget',
+  'guided_steps',
+  'quiz_check',
+  'text_explanation',
+  'socratic_questioning',
+  'remediation',
+];
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_COMPONENT_SCORE = 0.5;
 
@@ -188,13 +201,30 @@ export function deriveBanditContext({
   const engagementLevel = deriveEngagementLevel(metrics, behavior);
   const topicStatus = deriveTopicStatus(profile, topicLabel);
   const performanceTrend = derivePerformanceTrend(topicHistory);
-  const contextKey = `${cognitiveState}|${engagementLevel}|${topicStatus}|${performanceTrend}`;
+  const confidence = deriveConfidence(metrics, adaptiveContext, topicHistory);
+  const topicDifficulty = deriveTopicDifficulty(metrics, adaptiveContext, topicHistory);
+  const previousFailures = derivePreviousFailures(metrics, adaptiveContext, topicHistory);
+  const responseTime = deriveResponseTime(metrics, behavior);
+  const contextKey = [
+    cognitiveState,
+    engagementLevel,
+    topicStatus,
+    performanceTrend,
+    confidence.toFixed(2),
+    topicDifficulty.toFixed(2),
+    previousFailures.toFixed(2),
+    responseTime.toFixed(2),
+  ].join('|');
 
   return {
     cognitiveState,
     engagementLevel,
     topicStatus,
     performanceTrend,
+    confidence,
+    topicDifficulty,
+    previousFailures,
+    responseTime,
     contextKey,
   };
 }
@@ -202,9 +232,12 @@ export function deriveBanditContext({
 function getPriorValue(context, action) {
   let prior = 0;
   if ((context.cognitiveState === 'struggling' || context.cognitiveState === 'confused') && action === 'guided_steps') prior += 0.1;
+  if ((context.cognitiveState === 'struggling' || context.cognitiveState === 'confused') && action === 'remediation') prior += 0.08;
   if (context.cognitiveState === 'mastering' && action === 'quiz_check') prior += 0.1;
+  if (context.cognitiveState === 'mastering' && action === 'socratic_questioning') prior += 0.05;
   if (context.cognitiveState === 'flow' && (action === 'visual_widget' || action === 'text_explanation')) prior += 0.05;
   if (context.topicStatus === 'weak' && action === 'guided_steps') prior += 0.1;
+  if (context.topicStatus === 'weak' && action === 'remediation') prior += 0.08;
   if (context.topicStatus === 'strong' && action === 'quiz_check') prior += 0.05;
   return prior;
 }
@@ -632,6 +665,16 @@ export function getBanditActionPrompt(decision) {
       'BANDIT ACTION: text_explanation',
       'Prefer a clear text explanation without forcing a widget.',
       'Focus on concise clarity and examples in prose.',
+    ],
+    socratic_questioning: [
+      'BANDIT ACTION: socratic_questioning',
+      'Guide with at least two meaningful questions before direct explanation.',
+      'Avoid starting with direct-answer phrases such as "the answer is".',
+    ],
+    remediation: [
+      'BANDIT ACTION: remediation',
+      'Identify the likely mistake or misconception explicitly.',
+      'Give a corrected explanation and restate the idea in simpler terms.',
     ],
   };
 

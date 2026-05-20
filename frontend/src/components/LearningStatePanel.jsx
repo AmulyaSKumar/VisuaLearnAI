@@ -18,11 +18,11 @@ export default function LearningStatePanel({
 
   // Cognitive state config
   const stateConfig = {
-    struggling: { icon: "🔴", label: "Struggling", color: "bg-red-500", textColor: "text-red-600", description: "Need more support" },
-    confused: { icon: "🟠", label: "Confused", color: "bg-orange-500", textColor: "text-orange-600", description: "Clarifying concepts" },
-    flow: { icon: "🟢", label: "In Flow", color: "bg-green-500", textColor: "text-green-600", description: "Learning optimally" },
-    bored: { icon: "🟡", label: "Bored", color: "bg-yellow-500", textColor: "text-yellow-600", description: "Ready for challenge" },
-    mastering: { icon: "🔵", label: "Mastering", color: "bg-blue-500", textColor: "text-blue-600", description: "Strong understanding" },
+    struggling: { label: "Struggling", color: "bg-red-500", textColor: "text-red-600", description: "Need more support" },
+    confused: { label: "Confused", color: "bg-orange-500", textColor: "text-orange-600", description: "Clarifying concepts" },
+    flow: { label: "In Flow", color: "bg-green-500", textColor: "text-green-600", description: "Learning optimally" },
+    bored: { label: "Bored", color: "bg-yellow-500", textColor: "text-yellow-600", description: "Ready for challenge" },
+    mastering: { label: "Mastering", color: "bg-neutral-500", textColor: "text-neutral-600", description: "Strong understanding" },
   };
 
   const currentStateConfig = stateConfig[cognitiveState] || stateConfig.flow;
@@ -35,10 +35,10 @@ export default function LearningStatePanel({
 
   // Style icons
   const styleIcons = {
-    visual: "👁️",
-    auditory: "🎧",
-    reading: "📖",
-    kinesthetic: "🖐️",
+    visual: "",
+    auditory: "",
+    reading: "",
+    kinesthetic: "",
   };
 
   // Check if current topic is weak/strong
@@ -53,10 +53,9 @@ export default function LearningStatePanel({
         onClick={() => setIsExpanded(true)}
         className="flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-full text-xs font-medium hover:bg-muted transition-colors"
       >
-        <span>{currentStateConfig.icon}</span>
         <span className={currentStateConfig.textColor}>{currentStateConfig.label}</span>
         <span className="text-muted-foreground">|</span>
-        <span>{styleIcons[dominantStyle[0]] || "📊"}</span>
+        <span>{styleIcons[dominantStyle[0]] || ""}</span>
         <span>{dominantPercent}%</span>
         <svg className="w-3 h-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M19 9l-7 7-7-7" />
@@ -93,7 +92,6 @@ export default function LearningStatePanel({
         {/* Cognitive State */}
         <div className="p-3 bg-muted/30 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{currentStateConfig.icon}</span>
             <span className="text-xs font-medium text-muted-foreground">Cognitive State</span>
           </div>
           <p className={`text-sm font-semibold ${currentStateConfig.textColor}`}>
@@ -107,7 +105,7 @@ export default function LearningStatePanel({
         {/* Learning Style */}
         <div className="p-3 bg-muted/30 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{styleIcons[dominantStyle[0]] || "📊"}</span>
+            <span className="text-lg">{styleIcons[dominantStyle[0]] || ""}</span>
             <span className="text-xs font-medium text-muted-foreground">Learning Style</span>
           </div>
           <p className="text-sm font-semibold text-foreground capitalize">
@@ -133,7 +131,7 @@ export default function LearningStatePanel({
         {/* Confidence Score */}
         <div className="p-3 bg-muted/30 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">📊</span>
+            <span className="text-lg"></span>
             <span className="text-xs font-medium text-muted-foreground">Profile Confidence</span>
           </div>
           <div className="flex items-center gap-2">
@@ -159,7 +157,7 @@ export default function LearningStatePanel({
         {/* Current Topic */}
         <div className="p-3 bg-muted/30 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">📚</span>
+            <span className="text-lg"></span>
             <span className="text-xs font-medium text-muted-foreground">Current Topic</span>
           </div>
           {currentTopic ? (
@@ -197,7 +195,7 @@ export default function LearningStatePanel({
           <p className="text-[10px] font-medium text-muted-foreground mb-2">ACTIVE STRATEGY</p>
           <div className="flex flex-wrap gap-1.5">
             {strategy.force_visual && (
-              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">
+              <span className="px-2 py-0.5 bg-neutral-50 text-neutral-700 rounded-full text-[10px] font-medium">
                 Visual Priority
               </span>
             )}
@@ -208,7 +206,7 @@ export default function LearningStatePanel({
               {strategy.response_length || "medium"}
             </span>
             {strategy.interaction_mode === "interactive" && (
-              <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-[10px] font-medium">
+              <span className="px-2 py-0.5 bg-neutral-50 text-neutral-700 rounded-full text-[10px] font-medium">
                 Interactive
               </span>
             )}

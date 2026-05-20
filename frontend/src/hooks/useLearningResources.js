@@ -21,43 +21,36 @@ export const RESOURCE_TYPES = {
 export const TAB_CONFIG = {
   [RESOURCE_TYPES.LEARN]: {
     label: 'Learn',
-    icon: '📚',
     order: 0,
     alwaysShow: true, // Learn tab is always visible
   },
   [RESOURCE_TYPES.SIMULATION]: {
     label: 'Simulation',
-    icon: '🎮',
     order: 1,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.VISUALIZATION]: {
     label: '3D View',
-    icon: '🧊',
     order: 2,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.EXAMPLES]: {
     label: 'Examples',
-    icon: '💡',
     order: 3,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.FLASHCARDS]: {
     label: 'Flashcards',
-    icon: '🃏',
     order: 4,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.MINDMAP]: {
     label: 'Mind Map',
-    icon: '🗺️',
     order: 5,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.QUIZ]: {
     label: 'Quiz',
-    icon: '❓',
     order: 6,
     alwaysShow: false,
   },

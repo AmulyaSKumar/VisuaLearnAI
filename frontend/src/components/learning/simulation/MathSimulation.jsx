@@ -242,7 +242,7 @@ export default function MathSimulation({ step }) {
         <path
           d={functionPath}
           fill="none"
-          className="stroke-blue-500"
+          className="stroke-neutral-500"
           strokeWidth="2"
         />
 
@@ -251,7 +251,7 @@ export default function MathSimulation({ step }) {
           <path
             d={tangentPath}
             fill="none"
-            className="stroke-purple-500"
+            className="stroke-neutral-500"
             strokeWidth="1.5"
             strokeDasharray="4,4"
           />
@@ -320,7 +320,7 @@ export default function MathSimulation({ step }) {
             cx={scales.toSvgX(previousPoint.x)}
             cy={scales.toSvgY(previousPoint.y)}
             r="6"
-            className="fill-blue-400"
+            className="fill-neutral-400"
           />
         )}
 
@@ -357,14 +357,14 @@ export default function MathSimulation({ step }) {
               cx={scales.toSvgX(xIntercept)}
               cy={zeroY}
               r="5"
-              className="fill-purple-500"
+              className="fill-neutral-500"
             />
             <line
               x1={scales.toSvgX(xIntercept)}
               y1={zeroY - 10}
               x2={scales.toSvgX(xIntercept)}
               y2={zeroY + 10}
-              className="stroke-purple-500"
+              className="stroke-neutral-500"
               strokeWidth="2"
             />
           </g>
@@ -446,14 +446,14 @@ export default function MathSimulation({ step }) {
             error ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
             'bg-amber-500/20 text-amber-600 dark:text-amber-400'}
         `}>
-          {converged ? '✓ Converged' : error ? '✗ Error' : '⚠ Max iterations reached'}
+          {converged ? 'Converged' : error ? 'Error' : 'Max iterations reached'}
         </div>
       )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 bg-blue-500"></div>
+          <div className="w-4 h-0.5 bg-neutral-500"></div>
           <span>f(x)</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -474,7 +474,7 @@ export default function MathSimulation({ step }) {
         )}
         {tangentPath && (
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 bg-purple-500" style={{ borderStyle: 'dashed' }}></div>
+            <div className="w-4 h-0.5 bg-neutral-500" style={{ borderStyle: 'dashed' }}></div>
             <span>Tangent</span>
           </div>
         )}

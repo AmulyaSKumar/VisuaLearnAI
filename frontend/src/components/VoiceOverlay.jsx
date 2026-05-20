@@ -132,7 +132,7 @@ export default function VoiceOverlay({ voice }) {
       {/* Error */}
       {error && (
         <p className="text-red-400 text-sm mt-4 bg-red-500/10 rounded-lg px-4 py-2">
-          ⚠️ {error}
+          Warning: {error}
         </p>
       )}
 

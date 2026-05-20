@@ -130,7 +130,7 @@ export default function LearningPlanCard({ plan, onStepClick, isLoading = false 
                         >
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                             resource.type === 'visualization'
-                              ? 'bg-blue-500/20 text-blue-600'
+                              ? 'bg-neutral-500/20 text-neutral-600'
                               : resource.type === 'explanation'
                               ? 'bg-green-500/20 text-green-600'
                               : 'bg-gray-500/20 text-gray-600'

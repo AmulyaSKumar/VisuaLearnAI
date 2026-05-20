@@ -14,10 +14,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
  */
 export const CognitiveStateLabels = {
   mastering: { label: 'Mastering', color: 'text-green-600', bg: 'bg-green-100' },
-  flow: { label: 'In Flow', color: 'text-blue-600', bg: 'bg-blue-100' },
+  flow: { label: 'In Flow', color: 'text-neutral-600', bg: 'bg-neutral-100' },
   confused: { label: 'Needs Review', color: 'text-yellow-600', bg: 'bg-yellow-100' },
   struggling: { label: 'Struggling', color: 'text-red-600', bg: 'bg-red-100' },
-  bored: { label: 'Ready for More', color: 'text-purple-600', bg: 'bg-purple-100' },
+  bored: { label: 'Ready for More', color: 'text-neutral-600', bg: 'bg-neutral-100' },
 };
 
 /**

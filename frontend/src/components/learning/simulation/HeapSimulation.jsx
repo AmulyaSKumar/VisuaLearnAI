@@ -61,7 +61,7 @@ export default function HeapSimulation({ step }) {
         <span className={`
           px-3 py-1 rounded-full text-sm font-medium
           ${isMaxHeap ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' :
-            'bg-blue-500/20 text-blue-600 dark:text-blue-400'}
+            'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400'}
         `}>
           {isMaxHeap ? 'Max Heap' : 'Min Heap'}
         </span>
@@ -121,14 +121,14 @@ export default function HeapSimulation({ step }) {
                 fill = '#f59e0b';
                 stroke = '#d97706';
               } else if (comparing_) {
-                fill = '#3b82f6';
-                stroke = '#2563eb';
+                fill = '#111111';
+                stroke = '#000000';
               } else if (settled_) {
-                fill = '#8b5cf6';
-                stroke = '#7c3aed';
+                fill = '#111111';
+                stroke = '#111111';
               } else if (index === 0) {
-                fill = isMaxHeap ? '#f43f5e' : '#3b82f6';
-                stroke = isMaxHeap ? '#e11d48' : '#2563eb';
+                fill = isMaxHeap ? '#f43f5e' : '#111111';
+                stroke = isMaxHeap ? '#e11d48' : '#000000';
               }
 
               return (
@@ -196,9 +196,9 @@ export default function HeapSimulation({ step }) {
                     ${extracting_ ? 'bg-rose-500 text-white' :
                       inserted_ ? 'bg-emerald-500 text-white' :
                       swapped_ ? 'bg-amber-500 text-white' :
-                      comparing_ ? 'bg-blue-500 text-white' :
-                      settled_ ? 'bg-purple-500 text-white' :
-                      index === 0 ? (isMaxHeap ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-blue-500/20 text-blue-600 dark:text-blue-400') :
+                      comparing_ ? 'bg-neutral-500 text-white' :
+                      settled_ ? 'bg-neutral-500 text-white' :
+                      index === 0 ? (isMaxHeap ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400') :
                       'bg-muted text-foreground'}
                   `}
                 >
@@ -218,9 +218,9 @@ export default function HeapSimulation({ step }) {
           <span className="font-mono font-bold">{heap.length}</span>
         </div>
         {heap.length > 0 && (
-          <div className={`rounded px-3 py-1 ${isMaxHeap ? 'bg-rose-500/10' : 'bg-blue-500/10'}`}>
+          <div className={`rounded px-3 py-1 ${isMaxHeap ? 'bg-rose-500/10' : 'bg-neutral-500/10'}`}>
             <span className="text-muted-foreground">{isMaxHeap ? 'Max' : 'Min'}: </span>
-            <span className={`font-mono font-bold ${isMaxHeap ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
+            <span className={`font-mono font-bold ${isMaxHeap ? 'text-rose-600 dark:text-rose-400' : 'text-neutral-600 dark:text-neutral-400'}`}>
               {heap[0]}
             </span>
           </div>
@@ -236,11 +236,11 @@ export default function HeapSimulation({ step }) {
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-xs justify-center">
         <div className="flex items-center gap-1.5">
-          <div className={`w-3 h-3 ${isMaxHeap ? 'bg-rose-500' : 'bg-blue-500'} rounded-full`}></div>
+          <div className={`w-3 h-3 ${isMaxHeap ? 'bg-rose-500' : 'bg-neutral-500'} rounded-full`}></div>
           <span className="text-muted-foreground">Root ({isMaxHeap ? 'Max' : 'Min'})</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-neutral-500 rounded-full"></div>
           <span className="text-muted-foreground">Comparing</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -252,7 +252,7 @@ export default function HeapSimulation({ step }) {
           <span className="text-muted-foreground">Inserted</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-neutral-500 rounded-full"></div>
           <span className="text-muted-foreground">Settled</span>
         </div>
       </div>

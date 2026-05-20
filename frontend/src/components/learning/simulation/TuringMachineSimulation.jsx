@@ -47,7 +47,7 @@ export default function TuringMachineSimulation({ step }) {
               timeout ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
               'bg-rose-500/20 text-rose-600 dark:text-rose-400'}
           `}>
-            {accepted ? '✓ ACCEPTED' : timeout ? '⏱ TIMEOUT' : '✗ HALTED'}
+            {accepted ? 'ACCEPTED' : timeout ? 'TIMEOUT' : 'HALTED'}
           </span>
         )}
       </div>
@@ -80,7 +80,7 @@ export default function TuringMachineSimulation({ step }) {
                 ${cell.isHead ? 'bg-primary text-primary-foreground scale-110 shadow-lg z-10' :
                   cell.value === '_' ? 'bg-muted/30 text-muted-foreground' :
                   'bg-card text-foreground'}
-                ${reading && cell.isHead ? 'animate-pulse ring-2 ring-blue-500' : ''}
+                ${reading && cell.isHead ? 'animate-pulse ring-2 ring-neutral-500' : ''}
                 ${wrote && cell.isHead ? 'ring-2 ring-emerald-500' : ''}
               `}
             >
@@ -115,9 +115,9 @@ export default function TuringMachineSimulation({ step }) {
       {/* Current action display */}
       <div className="flex flex-wrap gap-4 justify-center">
         {reading && (
-          <div className="bg-blue-500/10 rounded-lg px-4 py-2 text-center">
-            <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Reading</div>
-            <div className="font-mono font-bold text-blue-600 dark:text-blue-400">'{tape[head] || '_'}'</div>
+          <div className="bg-neutral-500/10 rounded-lg px-4 py-2 text-center">
+            <div className="text-xs text-neutral-600 dark:text-neutral-400 mb-1">Reading</div>
+            <div className="font-mono font-bold text-neutral-600 dark:text-neutral-400">'{tape[head] || '_'}'</div>
           </div>
         )}
         {wrote && (
@@ -135,9 +135,9 @@ export default function TuringMachineSimulation({ step }) {
           </div>
         )}
         {stateChanged && (
-          <div className="bg-purple-500/10 rounded-lg px-4 py-2 text-center">
-            <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">State Change</div>
-            <div className="font-mono font-bold text-purple-600 dark:text-purple-400">
+          <div className="bg-neutral-500/10 rounded-lg px-4 py-2 text-center">
+            <div className="text-xs text-neutral-600 dark:text-neutral-400 mb-1">State Change</div>
+            <div className="font-mono font-bold text-neutral-600 dark:text-neutral-400">
               {stateChanged.from} → {stateChanged.to}
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function TuringMachineSimulation({ step }) {
       </div>
 
       {/* Variables panel */}
-      <div className="bg-muted/30 rounded-lg p-4 min-w-[300px]">
+      <div className="bg-muted/30 rounded-lg p-4 min-w-0 w-full">
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Head Position:</span>

@@ -35,7 +35,7 @@ export default function ConceptsView({ concepts, keyTakeaways }) {
     switch (importance) {
       case 'high': return 'bg-red-500';
       case 'medium': return 'bg-yellow-500';
-      default: return 'bg-blue-500';
+      default: return 'bg-neutral-500';
     }
   };
 
@@ -127,7 +127,7 @@ export default function ConceptsView({ concepts, keyTakeaways }) {
           Medium
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+          <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
           Foundational
         </span>
       </div>

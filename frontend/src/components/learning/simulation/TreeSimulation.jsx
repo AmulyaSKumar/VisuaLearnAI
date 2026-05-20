@@ -109,8 +109,8 @@ export default function TreeSimulation({ step, nodes = [] }) {
     }
     if (isInserted) {
       return {
-        fill: '#8b5cf6', // violet-500
-        stroke: '#7c3aed',
+        fill: '#111111',
+        stroke: '#111111',
         textColor: 'white',
         scale: 1.2
       };
@@ -125,8 +125,8 @@ export default function TreeSimulation({ step, nodes = [] }) {
     }
     if (isVisited) {
       return {
-        fill: '#3b82f6', // blue-500
-        stroke: '#2563eb',
+        fill: '#111111', // blue-500
+        stroke: '#000000',
         textColor: 'white',
         scale: 1
       };
@@ -158,7 +158,7 @@ export default function TreeSimulation({ step, nodes = [] }) {
       return { stroke: '#f59e0b', strokeWidth: 3 };
     }
     if (fromVisited && toVisited) {
-      return { stroke: '#3b82f6', strokeWidth: 2.5 };
+      return { stroke: '#111111', strokeWidth: 2.5 };
     }
     return { stroke: 'var(--color-border)', strokeWidth: 2 };
   };
@@ -168,8 +168,8 @@ export default function TreeSimulation({ step, nodes = [] }) {
     const items = [];
     if (current) items.push({ color: 'bg-emerald-500', label: 'Current' });
     if (found) items.push({ color: 'bg-green-500', label: 'Found' });
-    if (inserted) items.push({ color: 'bg-violet-500', label: 'Inserted' });
-    if (visitedArray.length > 0 || traversalOrder.length > 0) items.push({ color: 'bg-blue-500', label: 'Visited' });
+    if (inserted) items.push({ color: 'bg-neutral-500', label: 'Inserted' });
+    if (visitedArray.length > 0 || traversalOrder.length > 0) items.push({ color: 'bg-neutral-500', label: 'Visited' });
     if (stack.length > 0 || path.length > 0) items.push({ color: 'bg-amber-500', label: stack.length > 0 ? 'In Stack' : 'Path' });
     return items;
   }, [current, found, inserted, visitedArray, traversalOrder, stack, path]);
@@ -275,7 +275,7 @@ export default function TreeSimulation({ step, nodes = [] }) {
           <div className="flex gap-1 flex-wrap justify-center">
             {traversalOrder.map((value, index) => (
               <span key={`order-${index}`} className="flex items-center">
-                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-sm font-mono">
+                <span className="px-2 py-0.5 bg-neutral-500/20 text-neutral-700 dark:text-neutral-300 rounded text-sm font-mono">
                   {value}
                 </span>
                 {index < traversalOrder.length - 1 && (
@@ -324,7 +324,7 @@ export default function TreeSimulation({ step, nodes = [] }) {
                     nodeId === found
                       ? 'bg-green-500/20 text-green-700 dark:text-green-300'
                       : nodeId === inserted
-                        ? 'bg-violet-500/20 text-violet-700 dark:text-violet-300'
+                        ? 'bg-neutral-500/20 text-neutral-700 dark:text-neutral-300'
                         : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
                   }`}>
                     {node?.value || nodeId}

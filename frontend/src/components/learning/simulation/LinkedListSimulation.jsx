@@ -24,8 +24,8 @@ export default function LinkedListSimulation({ step }) {
             inline-block px-3 py-1 rounded-full text-sm font-medium
             ${operation.includes('insert') ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
               operation.includes('delete') ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' :
-              operation.includes('reverse') ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' :
-              operation.includes('search') ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+              operation.includes('reverse') ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400' :
+              operation.includes('search') ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400' :
               'bg-muted text-muted-foreground'}
           `}>
             {operation}
@@ -78,7 +78,7 @@ export default function LinkedListSimulation({ step }) {
                       isFound ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 scale-110 shadow-lg' :
                       isCurrent ? 'border-primary bg-primary/10 scale-105 shadow-md' :
                       isPrevious ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30' :
-                      isTemp ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30' :
+                      isTemp ? 'border-neutral-500 bg-neutral-50 dark:bg-neutral-900/30' :
                       'border-border bg-card'}
                   `}
                 >
@@ -88,7 +88,7 @@ export default function LinkedListSimulation({ step }) {
                       isFound ? 'text-emerald-600 dark:text-emerald-400' :
                       isCurrent ? 'text-primary' :
                       isPrevious ? 'text-amber-600 dark:text-amber-400' :
-                      isTemp ? 'text-purple-600 dark:text-purple-400' :
+                      isTemp ? 'text-neutral-600 dark:text-neutral-400' :
                       'text-foreground'}
                   `}>
                     {typeof node === 'object' ? node.value : node}
@@ -99,7 +99,7 @@ export default function LinkedListSimulation({ step }) {
                       isFound ? 'border-emerald-500' :
                       isCurrent ? 'border-primary' :
                       isPrevious ? 'border-amber-500' :
-                      isTemp ? 'border-purple-500' :
+                      isTemp ? 'border-neutral-500' :
                       'border-border'}
                   `}>
                     <span className="text-muted-foreground">•</span>
@@ -159,9 +159,9 @@ export default function LinkedListSimulation({ step }) {
           </div>
         )}
         {variables.searchValue !== undefined && (
-          <div className="bg-blue-500/10 rounded px-3 py-1.5 text-sm">
+          <div className="bg-neutral-500/10 rounded px-3 py-1.5 text-sm">
             <span className="text-muted-foreground">Searching: </span>
-            <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{variables.searchValue}</span>
+            <span className="font-mono font-bold text-neutral-600 dark:text-neutral-400">{variables.searchValue}</span>
           </div>
         )}
         {variables.traversed !== undefined && (

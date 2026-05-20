@@ -33,32 +33,26 @@ export default function WelcomeScreen() {
 
         <div className="flex flex-wrap justify-center gap-2.5 mt-8">
           <ActionTag 
-            icon="📊" 
             label="Visualize Compound Interest" 
             onClick={() => handleSend("Explain and visualize compound interest over 20 years")} 
           />
           <ActionTag 
-            icon="🧬" 
             label="DNA Structure" 
             onClick={() => handleSend("Show me an interactive visualization of DNA double helix structure")} 
           />
           <ActionTag 
-            icon="⚡" 
             label="Sorting Algorithms" 
             onClick={() => handleSend("Visualize how bubble sort vs quicksort algorithms work with a comparison")} 
           />
           <ActionTag 
-            icon="🌍" 
             label="Solar System" 
             onClick={() => handleSend("Create an interactive visualization of our solar system with planet sizes and distances")} 
           />
           <ActionTag 
-            icon="📈" 
             label="Supply & Demand" 
             onClick={() => handleSend("Visualize supply and demand curves with interactive price and quantity sliders")} 
           />
           <ActionTag 
-            icon="🎵" 
             label="Sound Waves" 
             onClick={() => handleSend("Create an interactive visualization of sound waves showing frequency and amplitude")} 
           />

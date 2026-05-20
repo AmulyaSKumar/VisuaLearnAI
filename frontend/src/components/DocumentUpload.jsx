@@ -82,7 +82,7 @@ export default function DocumentUpload({
   // Status badge component
   const StatusBadge = ({ status }) => {
     const statusConfig = {
-      uploading: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Uploading...' },
+      uploading: { bg: 'bg-neutral-100', text: 'text-neutral-700', label: 'Uploading...' },
       processing: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Processing...' },
       ready: { bg: 'bg-green-100', text: 'text-green-700', label: 'Ready' },
       error: { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' },

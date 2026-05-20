@@ -1,411 +1,412 @@
-/**
- * HomePage - Dynamic Landing Page
- * Showcases simulations, RAG, and adaptive learning
- */
-
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import LogoMark from '../components/LogoMark';
 
-// Typing animation component
-function TypeWriter({ texts, speed = 50, deleteSpeed = 30, pauseTime = 2000 }) {
-  const [displayText, setDisplayText] = useState('');
-  const [textIndex, setTextIndex] = useState(0);
-  const [isDeleting, setIsDeleting] = useState(false);
+const MotionDiv = motion.div;
+const MotionArticle = motion.article;
+const MotionSection = motion.section;
+const MotionHeader = motion.header;
+const MotionP = motion.p;
 
-  useEffect(() => {
-    const currentText = texts[textIndex];
+const accents = {
+  primary: '#111111',
+  secondary: '#0F766E',
+  amber: '#F59E0B',
+};
 
-    const timeout = setTimeout(() => {
-      if (!isDeleting) {
-        if (displayText.length < currentText.length) {
-          setDisplayText(currentText.slice(0, displayText.length + 1));
-        } else {
-          setTimeout(() => setIsDeleting(true), pauseTime);
-        }
-      } else {
-        if (displayText.length > 0) {
-          setDisplayText(displayText.slice(0, -1));
-        } else {
-          setIsDeleting(false);
-          setTextIndex((prev) => (prev + 1) % texts.length);
-        }
-      }
-    }, isDeleting ? deleteSpeed : speed);
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0 },
+};
 
-    return () => clearTimeout(timeout);
-  }, [displayText, isDeleting, textIndex, texts, speed, deleteSpeed, pauseTime]);
+const stagger = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+      delayChildren: 0.08,
+    },
+  },
+};
 
-  return (
-    <span>
-      {displayText}
-      <span className="animate-pulse text-primary">|</span>
-    </span>
-  );
-}
-
-// Live sorting animation component
-function SortingAnimation() {
-  const [bars, setBars] = useState([35, 65, 25, 80, 45, 55, 20, 70, 40, 60]);
-  const [activeIndices, setActiveIndices] = useState([]);
-  const [sortedIndices, setSortedIndices] = useState([]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const bubbleSort = async () => {
-      const arr = [...bars];
-      const n = arr.length;
-
-      for (let i = 0; i < n - 1; i++) {
-        for (let j = 0; j < n - i - 1; j++) {
-          if (!isMounted) return;
-
-          setActiveIndices([j, j + 1]);
-          await new Promise(r => setTimeout(r, 150));
-
-          if (arr[j] > arr[j + 1]) {
-            [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
-            setBars([...arr]);
-            await new Promise(r => setTimeout(r, 150));
-          }
-        }
-        setSortedIndices(prev => [...prev, n - 1 - i]);
-      }
-
-      setSortedIndices(prev => [...prev, 0]);
-      setActiveIndices([]);
-
-      // Reset after pause
-      await new Promise(r => setTimeout(r, 2000));
-      if (isMounted) {
-        setBars([35, 65, 25, 80, 45, 55, 20, 70, 40, 60]);
-        setSortedIndices([]);
-      }
-    };
-
-    const interval = setInterval(() => {
-      if (isMounted) {
-        setSortedIndices([]);
-        bubbleSort();
-      }
-    }, 8000);
-
-    bubbleSort();
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+function AmbientBackground() {
+  const { scrollYProgress } = useScroll();
+  const inkY = useTransform(scrollYProgress, [0, 1], ['0%', '8%']);
+  const tealY = useTransform(scrollYProgress, [0, 1], ['0%', '-7%']);
 
   return (
-    <div className="flex items-end justify-center gap-1 h-24">
-      {bars.map((height, idx) => (
-        <motion.div
-          key={idx}
-          className={`w-4 rounded-t transition-colors duration-150 ${
-            sortedIndices.includes(idx)
-              ? 'bg-green-500'
-              : activeIndices.includes(idx)
-              ? 'bg-primary'
-              : 'bg-muted-foreground/30'
-          }`}
-          animate={{ height: `${height}%` }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        />
-      ))}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FAF7F2]">
+      <div
+        className="absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(17,17,17,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(17,17,17,0.055) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          maskImage: 'radial-gradient(circle at 42% 18%, black, transparent 72%)',
+        }}
+      />
+      <div
+        className="absolute inset-0 opacity-[0.055]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.8'/%3E%3C/svg%3E\")",
+        }}
+      />
+      <MotionDiv
+        style={{ y: inkY }}
+        className="absolute -left-28 top-20 h-80 w-80 rounded-full bg-[#111111]/8 blur-3xl"
+      />
+      <MotionDiv
+        style={{ y: tealY }}
+        className="absolute right-[-8rem] top-[34rem] h-96 w-96 rounded-full bg-[#0F766E]/14 blur-3xl"
+      />
+      <MotionDiv
+        animate={{ x: [0, 14, 0], y: [0, -8, 0], opacity: [0.12, 0.18, 0.12] }}
+        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+        className="absolute left-[58%] top-28 h-72 w-72 rounded-full bg-[#0F766E]/16 blur-3xl"
+      />
     </div>
   );
 }
 
-// Graph traversal animation
-function GraphAnimation() {
-  const [activeNode, setActiveNode] = useState(0);
-  const [visitedNodes, setVisitedNodes] = useState([]);
-  const [activeEdge, setActiveEdge] = useState(null);
+function FlowNode({ label, detail, accent, active }) {
+  return (
+    <MotionDiv
+      animate={{
+        borderColor: active ? accent : 'rgba(17,17,17,0.12)',
+        backgroundColor: active ? 'rgba(17,17,17,0.04)' : 'rgba(255,255,255,0.9)',
+      }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className="relative rounded-2xl border p-4"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-[0.28em] text-[#6B7280]">step</span>
+        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
+      </div>
+      <p className="text-base font-medium text-[#111111]">{label}</p>
+      <p className="mt-1 text-sm leading-6 text-[#4B5563]">{detail}</p>
+    </MotionDiv>
+  );
+}
 
+const learningModeCycle = [
+  'Show me visually',
+  'Ask guiding questions',
+  'Check my understanding',
+  'Review the basics',
+  'Walk me through it',
+  'Keep it short',
+];
+
+function AdaptiveVisualization() {
+  const [active, setActive] = useState(0);
+  const [modeIndex, setModeIndex] = useState(0);
   const nodes = [
-    { id: 0, x: 50, y: 20 },
-    { id: 1, x: 20, y: 50 },
-    { id: 2, x: 80, y: 50 },
-    { id: 3, x: 10, y: 85 },
-    { id: 4, x: 40, y: 85 },
-    { id: 5, x: 60, y: 85 },
-    { id: 6, x: 90, y: 85 },
-  ];
-
-  const edges = [
-    [0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]
+    { label: 'You ask', detail: 'Start with any topic or question', accent: accents.primary },
+    { label: 'We understand', detail: 'VisuaLearn notices what you need next', accent: accents.secondary },
+    { label: 'Lesson adjusts', detail: 'The format changes to match your progress', accent: accents.amber },
+    { label: 'Best format', detail: learningModeCycle[modeIndex], accent: accents.primary },
+    { label: 'You practice', detail: 'Notes, visuals, cards, or a quick quiz', accent: accents.secondary },
   ];
 
   useEffect(() => {
-    const traversal = [0, 1, 3, 4, 2, 5, 6];
-    const edgeOrder = [null, [0, 1], [1, 3], [1, 4], [0, 2], [2, 5], [2, 6]];
-    let step = 0;
-
-    const interval = setInterval(() => {
-      if (step < traversal.length) {
-        setActiveEdge(edgeOrder[step]);
-        setActiveNode(traversal[step]);
-        setVisitedNodes(prev => [...prev, traversal[step]]);
-        step++;
-      } else {
-        // Reset
-        step = 0;
-        setVisitedNodes([]);
-        setActiveNode(0);
-        setActiveEdge(null);
-      }
-    }, 600);
-
-    return () => clearInterval(interval);
+    const id = window.setInterval(() => {
+      setActive((current) => {
+        const next = (current + 1) % 5;
+        if (next === 3) {
+          setModeIndex((mode) => (mode + 1) % learningModeCycle.length);
+        }
+        return next;
+      });
+    }, 2500);
+    return () => window.clearInterval(id);
   }, []);
 
   return (
-    <svg viewBox="0 0 100 100" className="w-full h-24">
-      {/* Edges */}
-      {edges.map(([from, to], idx) => {
-        const fromNode = nodes[from];
-        const toNode = nodes[to];
-        const isActive = activeEdge && activeEdge[0] === from && activeEdge[1] === to;
-        const isVisited = visitedNodes.includes(from) && visitedNodes.includes(to);
-
-        return (
-          <motion.line
-            key={idx}
-            x1={fromNode.x}
-            y1={fromNode.y}
-            x2={toNode.x}
-            y2={toNode.y}
-            stroke={isActive ? '#c94f1e' : isVisited ? '#22c55e' : '#9ca3af'}
-            strokeWidth={isActive ? 2 : 1.5}
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-          />
-        );
-      })}
-
-      {/* Nodes */}
-      {nodes.map((node) => (
-        <motion.circle
-          key={node.id}
-          cx={node.x}
-          cy={node.y}
-          r={activeNode === node.id ? 6 : 5}
-          fill={
-            activeNode === node.id
-              ? '#c94f1e'
-              : visitedNodes.includes(node.id)
-              ? '#22c55e'
-              : '#d1d5db'
-          }
-          animate={{
-            scale: activeNode === node.id ? [1, 1.3, 1] : 1,
-          }}
-          transition={{ duration: 0.3 }}
-        />
-      ))}
-    </svg>
-  );
-}
-
-// Document processing animation
-function DocumentAnimation() {
-  const [stage, setStage] = useState(0);
-  const stages = ['upload', 'processing', 'chunks', 'ready'];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStage((prev) => (prev + 1) % stages.length);
-    }, 1500);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="relative h-32 flex items-center justify-center">
-      <AnimatePresence mode="wait">
-        {stage === 0 && (
-          <motion.div
-            key="upload"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="flex flex-col items-center gap-2"
+    <div className="relative">
+      <div className="absolute -inset-4 rounded-[2rem] border border-[#E7E1D7]" />
+      <div className="rounded-[1.75rem] border border-[#E7E1D7] bg-[#FFFFFF] p-4 sm:p-5 shadow-[0_24px_80px_rgba(17,17,17,0.06)]">
+        <div className="mb-5 flex items-center justify-between border-b border-[#E7E1D7] pb-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-[#6B7280]">your lesson, shaped in real time</p>
+            <p className="mt-2 text-sm text-[#4B5563]">Ask - Understand - Choose - Practice - Remember</p>
+          </div>
+          <MotionDiv
+            animate={{ opacity: active === 2 ? 1 : 0.5, scale: active === 2 ? 1.08 : 1 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="grid h-10 w-10 place-items-center rounded-full border border-[#E7E1D7] shadow-[0_0_24px_rgba(17,17,17,0.10)]"
           >
-            <div className="w-12 h-14 border-2 border-dashed border-primary/50 rounded flex items-center justify-center">
-              <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
+            <span className="h-2 w-2 rounded-full bg-[#111111]" />
+          </MotionDiv>
+        </div>
+        <div className="relative grid gap-3">
+          {nodes.map((node, index) => (
+            <div key={node.label} className="relative">
+              <FlowNode {...node} active={active === index} />
+              {index < nodes.length - 1 && (
+                <div className="mx-6 h-5 w-px overflow-hidden bg-[#F3EEE7]">
+                  <MotionDiv
+                    className="h-full w-px"
+                    style={{ backgroundColor: nodes[index + 1].accent }}
+                    animate={{ y: active > index ? ['-100%', '0%'] : '-100%' }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
+                  />
+                </div>
+              )}
             </div>
-            <span className="text-xs text-muted-foreground">Upload PDF</span>
-          </motion.div>
-        )}
-
-        {stage === 1 && (
-          <motion.div
-            key="processing"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="flex flex-col items-center gap-2"
-          >
-            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            <span className="text-xs text-muted-foreground">Processing...</span>
-          </motion.div>
-        )}
-
-        {stage === 2 && (
-          <motion.div
-            key="chunks"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center gap-2"
-          >
-            <div className="flex gap-1">
-              {[...Array(4)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="w-8 h-10 bg-primary/20 border border-primary/30 rounded text-[8px] p-1 text-primary"
-                >
-                  ≡≡≡
-                </motion.div>
-              ))}
-            </div>
-            <span className="text-xs text-muted-foreground">Creating chunks</span>
-          </motion.div>
-        )}
-
-        {stage === 3 && (
-          <motion.div
-            key="ready"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="flex flex-col items-center gap-2"
-          >
-            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <span className="text-xs text-green-600">Ready to learn!</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-// Adaptive learning visualization
-function AdaptiveAnimation() {
-  const [level, setLevel] = useState(0);
-  const levels = [
-    { label: 'Struggling', hint: 'Step-by-step guidance', color: 'text-orange-500', bg: 'bg-orange-500/20' },
-    { label: 'Learning', hint: 'Balanced hints', color: 'text-yellow-500', bg: 'bg-yellow-500/20' },
-    { label: 'Improving', hint: 'Fewer hints', color: 'text-blue-500', bg: 'bg-blue-500/20' },
-    { label: 'Mastering', hint: 'Challenge mode', color: 'text-green-500', bg: 'bg-green-500/20' },
-  ];
+function EditorialCard({ eyebrow, title, children, accent = accents.primary, className = '' }) {
+  return (
+    <MotionArticle
+      variants={fadeUp}
+      whileHover={{
+        y: -6,
+        scale: 1.015,
+        borderColor: accent,
+      }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+      className={`group relative overflow-hidden rounded-3xl border border-[#E7E1D7] bg-[#FFFFFF] p-7 shadow-[0_20px_70px_rgba(17,17,17,0.045)] sm:p-8 ${className}`}
+    >
+      <MotionDiv
+        className="absolute inset-x-0 top-0 h-px"
+        style={{ backgroundColor: accent }}
+        initial={{ scaleX: 0, transformOrigin: 'left' }}
+        whileInView={{ scaleX: 1 }}
+        viewport={{ once: true, margin: '-120px' }}
+        transition={{ duration: 0.9, ease: 'easeOut' }}
+      />
+      <p className="text-xs uppercase tracking-[0.3em] text-[#6B7280]">{eyebrow}</p>
+      <h3 className="mt-5 max-w-xl text-2xl font-semibold leading-tight text-[#111111] sm:text-3xl">{title}</h3>
+      <div className="mt-7 text-[#4B5563]">{children}</div>
+    </MotionArticle>
+  );
+}
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLevel((prev) => (prev + 1) % levels.length);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const current = levels[level];
-
+function PathPreview() {
+  const steps = ['Bubble Sort', 'Visualization', 'Flashcards', 'Quiz', 'Mastery'];
   return (
     <div className="space-y-4">
-      {/* Progress bar */}
-      <div className="h-2 bg-muted rounded-full overflow-hidden">
-        <motion.div
-          className="h-full bg-gradient-to-r from-orange-500 via-yellow-500 via-blue-500 to-green-500"
-          animate={{ width: `${((level + 1) / levels.length) * 100}%` }}
-          transition={{ duration: 0.5 }}
-        />
-      </div>
-
-      {/* Current state */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={level}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          className={`flex items-center gap-3 p-3 rounded-lg ${current.bg}`}
+      {steps.map((step, index) => (
+        <MotionDiv
+          key={step}
+          variants={fadeUp}
+          className="flex items-center gap-4"
         >
-          <div className={`w-10 h-10 rounded-full ${current.bg} flex items-center justify-center`}>
-            <span className={`text-lg font-bold ${current.color}`}>
-              {level === 0 ? '?' : level === 1 ? '~' : level === 2 ? '!' : '★'}
-            </span>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#E7E1D7] text-sm text-[#111111]">
+            {index + 1}
           </div>
-          <div>
-            <p className={`font-semibold ${current.color}`}>{current.label}</p>
-            <p className="text-xs text-muted-foreground">{current.hint}</p>
+          <div className="flex-1 rounded-2xl border border-[#E7E1D7] bg-[#FFFFFF] px-4 py-3">
+            <p className="text-sm font-medium text-[#111111]">{step}</p>
+            <MotionDiv
+              initial={{ width: 0 }}
+              whileInView={{ width: `${32 + index * 15}%` }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, delay: index * 0.08, ease: 'easeOut' }}
+              className="mt-3 h-1 rounded-full"
+              style={{ backgroundColor: index % 2 === 0 ? accents.primary : accents.secondary }}
+            />
           </div>
-        </motion.div>
-      </AnimatePresence>
+        </MotionDiv>
+      ))}
     </div>
   );
 }
 
-// Live response animation
-function LiveResponseAnimation() {
-  const [step, setStep] = useState(0);
-  const responses = [
-    "Let me create a visual explanation for you...",
-    "Here's an interactive simulation →"
+function AdaptationStack() {
+  const items = [
+    ['Understand', 'The lesson starts from your question and current comfort level.'],
+    ['Choose format', 'VisuaLearn picks a visual, question, example, card, or quiz.'],
+    ['Teach', 'You get the explanation style that fits the moment.'],
+    ['Notice friction', 'If something feels unclear, the lesson slows down and adds support.'],
+    ['Build confidence', 'Each step moves you toward recall, practice, and mastery.'],
   ];
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStep((prev) => (prev + 1) % 4);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
+    const id = window.setInterval(() => {
+      setActive((current) => (current + 1) % items.length);
+    }, 1400);
+    return () => window.clearInterval(id);
+  }, [items.length]);
 
   return (
-    <div className="space-y-3">
-      {/* User message */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: step >= 0 ? 1 : 0 }}
-        className="flex justify-end"
-      >
-        <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-br-sm text-sm max-w-[80%]">
-          How does selection sort   work?
-        </div>
-      </motion.div>
-
-      {/* AI response */}
-      <AnimatePresence>
-        {step >= 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-start"
+    <div className="relative space-y-4">
+      {items.map(([title, detail], index) => (
+        <div key={title}>
+          <MotionDiv
+            variants={fadeUp}
+            animate={{
+              borderColor: active === index ? accents.secondary : 'rgba(17,17,17,0.12)',
+              opacity: active === index ? 1 : 0.68,
+            }}
+            whileHover={{ x: 6, opacity: 1 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="grid gap-3 rounded-2xl border bg-[#FFFFFF] p-4 sm:grid-cols-[12rem_1fr]"
           >
-            <div className="bg-muted px-4 py-2 rounded-2xl rounded-bl-sm text-sm max-w-[85%]">
-              {step === 1 && (
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-              )}
-              {step >= 2 && responses[Math.min(step - 2, responses.length - 1)]}
+            <span className="text-sm font-medium text-[#111111]">{title}</span>
+            <span className="text-sm leading-6 text-[#4B5563]">{detail}</span>
+          </MotionDiv>
+          {index < items.length - 1 && (
+            <div className="ml-6 h-5 w-px overflow-hidden bg-[#F3EEE7]">
+              <MotionDiv
+                className="h-full w-px bg-[#0F766E]"
+                animate={{ y: active > index ? ['-100%', '0%'] : '-100%' }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      ))}
     </div>
+  );
+}
+
+function InteractiveDemo() {
+  const stages = [
+    ['Question', '"What is recursion?"', 'A learner asks for a concept that benefits from structure.'],
+    ['First approach', 'Visual explanation', 'Start with a simple picture and a concrete example.'],
+    ['Learner moment', 'Still unclear', 'The lesson notices you may need a different angle.'],
+    ['New approach', 'Guiding questions', 'The lesson turns into smaller prompts you can answer.'],
+    ['Artifact appears', 'Flashcards generated', 'Key definitions and examples become a quick review set.'],
+    ['Outcome', 'Confidence improves', 'You leave with a clearer mental model and practice set.'],
+  ];
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setActive((current) => (current + 1) % stages.length);
+    }, 1200);
+    return () => window.clearInterval(id);
+  }, [stages.length]);
+
+  return (
+    <MotionSection
+      id="demo"
+      variants={stagger}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-120px' }}
+      className="grid gap-10 border-y border-[#E7E1D7] py-24 lg:grid-cols-[0.82fr_1.18fr]"
+    >
+      <MotionDiv variants={fadeUp} className="max-w-xl">
+        <p className="text-xs uppercase tracking-[0.35em] text-[#6B7280]">product demo</p>
+        <h2 className="mt-6 text-4xl font-semibold tracking-[-0.04em] text-[#111111] sm:text-[42px]">
+          See adaptation in action
+        </h2>
+        <p className="mt-6 text-base leading-7 text-[#4B5563]">
+          A single question can become an explanation, a new angle, flashcards,
+          and a confidence-building review loop.
+        </p>
+      </MotionDiv>
+      <MotionDiv variants={fadeUp} className="rounded-[2rem] border border-[#E7E1D7] bg-[#FFFFFF] p-4 sm:p-6">
+        <div className="mb-6 grid grid-cols-6 gap-2">
+          {stages.map(([label], index) => (
+            <div key={label} className="h-1 overflow-hidden rounded-full bg-[#F3EEE7]">
+              <MotionDiv
+                className="h-full rounded-full"
+                style={{ backgroundColor: [accents.primary, accents.secondary, accents.secondary][index % 3] }}
+                animate={{ width: active >= index ? '100%' : '0%' }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-3">
+          {stages.map(([label, value, detail], index) => (
+            <MotionDiv
+              key={label}
+              animate={{
+                opacity: active === index ? 1 : 0.42,
+                scale: active === index ? 1.015 : 1,
+                borderColor: active === index ? [accents.primary, accents.secondary, accents.secondary][index % 3] : 'rgba(17,17,17,0.10)',
+              }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="rounded-2xl border bg-[#FAF7F2] p-4"
+            >
+              <p className="text-[11px] uppercase tracking-[0.26em] text-[#6B7280]">{label}</p>
+              <p className="mt-2 text-base font-medium text-[#111111]">{value}</p>
+              <p className="mt-1 text-sm leading-6 text-[#4B5563]">{detail}</p>
+            </MotionDiv>
+          ))}
+        </div>
+      </MotionDiv>
+    </MotionSection>
+  );
+}
+
+function ExampleRail() {
+  const examples = [
+    ['What is recursion?', 'simple visual example', accents.primary],
+    ['Teach binary trees', 'Ask guiding questions', accents.secondary],
+    ['Explain merge sort', 'step-by-step practice', accents.secondary],
+  ];
+
+  return (
+    <div className="grid gap-4">
+      {examples.map(([question, output, accent], index) => (
+        <MotionDiv
+          key={question}
+          variants={fadeUp}
+          whileHover={{ x: index % 2 === 0 ? 10 : -10 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="rounded-3xl border border-[#E7E1D7] bg-[#FFFFFF] p-5"
+        >
+          <p className="font-medium text-[#111111]">"{question}"</p>
+          <div className="mt-4 flex items-center gap-3 text-sm text-[#4B5563]">
+            <span className="h-px flex-1" style={{ backgroundColor: accent }} />
+            <span>{output}</span>
+          </div>
+        </MotionDiv>
+      ))}
+    </div>
+  );
+}
+
+function Metrics() {
+  const metrics = [
+    ['6', 'Ways to Learn', accents.primary],
+    ['8', 'Learning Cues', accents.secondary],
+    ['Live', 'Lesson Adjustment', accents.amber],
+    ['Personal', 'Study Workspace', accents.primary],
+  ];
+
+  return (
+    <MotionSection
+      variants={stagger}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-120px' }}
+      className="grid gap-4 py-24 sm:grid-cols-2 lg:grid-cols-4"
+    >
+      {metrics.map(([value, label, accent]) => (
+        <MotionDiv
+          key={label}
+          variants={fadeUp}
+          whileHover={{ y: -5, borderColor: accent }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="rounded-3xl border border-[#E7E1D7] bg-[#FFFFFF] p-7"
+        >
+          <MotionP
+            initial={{ opacity: 0, y: 8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="text-4xl font-semibold tracking-tight text-[#111111] sm:text-5xl"
+          >
+            {value}
+          </MotionP>
+          <p className="mt-4 text-sm uppercase tracking-[0.25em] text-[#6B7280]">{label}</p>
+        </MotionDiv>
+      ))}
+    </MotionSection>
   );
 }
 
@@ -421,440 +422,163 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-r-transparent" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-[#FAF7F2] text-[#111111]">
+        <div className="h-8 w-8 rounded-full border border-white/20 border-t-white" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Header */}
-      <motion.header
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50"
+    <div className="relative min-h-screen overflow-hidden bg-[#FAF7F2] text-[#111111]">
+      <AmbientBackground />
+
+      <MotionHeader
+        initial={{ opacity: 0, y: -18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="relative z-10"
       >
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.div
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"
-            >
-              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-              </svg>
-            </motion.div>
-            <span className="font-headline text-xl font-semibold text-foreground">VisuaLearn</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/login')}
-              className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Sign In
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/login')}
-              className="neu-btn-primary px-5 py-2.5 text-sm font-semibold"
-            >
-              Get Started
-            </motion.button>
-          </div>
-        </div>
-      </motion.header>
-
-      {/* Hero Section */}
-      <main className="max-w-6xl mx-auto px-6">
-        <section className="py-16 lg:py-24">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left: Text Content */}
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-8"
-            >
-              <div className="space-y-4">
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-primary font-medium text-sm uppercase tracking-wider"
-                >
-                  AI-Powered Visual Learning
-                </motion.p>
-                <h1 className="font-headline text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground leading-tight">
-                  Learn
-                  <br />
-                  <span className="text-primary">
-                    <TypeWriter
-                      texts={[
-                        'algorithms visually',
-                        'from your documents',
-                        'at your own pace',
-                        'with simulations'
-                      ]}
-                      speed={60}
-                      deleteSpeed={40}
-                      pauseTime={2000}
-                    />
-                  </span>
-                </h1>
-                <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
-                  Watch algorithms come alive. Upload your notes and learn from them.
-                  Our AI adapts to your level in real-time.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.03, y: -3 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate('/login')}
-                  className="neu-btn-primary px-8 py-4 text-base font-semibold shadow-lg"
-                >
-                  Start Learning Free
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03, y: -2 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate('/login')}
-                  className="neu-btn px-8 py-4 text-base font-medium text-foreground"
-                >
-                  Watch Demo
-                </motion.button>
-              </div>
-            </motion.div>
-
-            {/* Right: Live Preview */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative"
-            >
-              <div className="corner-brackets p-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                  className="neu-card p-5 space-y-4"
-                >
-                  <LiveResponseAnimation />
-
-                  {/* Mini simulation preview */}
-                  <div className="pt-3 border-t border-border">
-                    <p className="text-xs text-muted-foreground mb-2">Live Simulation</p>
-                    <SortingAnimation />
-                  </div>
-                </motion.div>
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
-
-        {/* Simulation Showcase Section */}
-        <section className="py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-7 lg:px-10">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-3 text-left"
+            aria-label="VisuaLearn home"
           >
-            <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              See algorithms <span className="text-primary">in action</span>
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Don't just read about algorithms—watch them execute step by step.
-              Interactive simulations make complex concepts crystal clear.
+            <span className="grid h-11 w-11 place-items-center rounded-2xl border border-[#E7E1D7] bg-[#FFFFFF] text-[#111111] shadow-[0_12px_30px_rgba(17,17,17,0.06)]">
+              <LogoMark className="h-7 w-7" inverted />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold tracking-[0.22em] text-[#111111]">VISUALEARN</span>
+              <span className="block text-xs text-[#6B7280]">Personal study workspace</span>
+            </span>
+          </button>
+          <nav className="hidden items-center gap-7 text-sm text-[#4B5563] md:flex" aria-label="Primary navigation">
+            <a className="transition-colors hover:text-[#111111]" href="#how-it-works">How it works</a>
+            <a className="transition-colors hover:text-[#111111]" href="#demo">Demo</a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/login')}
+              className="hidden rounded-full px-5 py-2.5 text-sm text-[#4B5563] transition-colors hover:text-[#111111] sm:block"
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              className="rounded-full bg-[#111111] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_38px_rgba(17,17,17,0.16)] transition duration-200 hover:scale-[1.02] hover:bg-[#000000]"
+            >
+              Start learning
+            </button>
+          </div>
+        </div>
+      </MotionHeader>
+
+      <main className="relative z-10 mx-auto max-w-[1280px] px-6 pb-24 lg:px-10">
+        <MotionSection
+          variants={stagger}
+          initial="hidden"
+          animate="visible"
+          className="grid min-h-[78vh] items-center gap-14 py-12 lg:grid-cols-[0.92fr_1.08fr] lg:gap-20 lg:py-20"
+        >
+          <MotionDiv variants={fadeUp} className="max-w-4xl">
+            <h1 className="max-w-4xl text-6xl font-semibold leading-[1.05] tracking-[-0.04em] text-[#111111] sm:text-7xl lg:text-[80px]">
+              Study with lessons that adapt
+            </h1>
+            <p className="mt-8 max-w-2xl text-xl leading-8 text-[#4B5563]">
+              Learn with explanations, visuals, flashcards, and quizzes that shift with your pace
+              so the next step always feels clear.
             </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Sorting Visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="neu-card p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-headline font-semibold text-foreground">Sorting Algorithms</h3>
-                  <p className="text-xs text-muted-foreground">Bubble, Quick, Merge & more</p>
-                </div>
-              </div>
-              <SortingAnimation />
-              <p className="text-sm text-muted-foreground mt-4 text-center">
-                Watch elements swap in real-time
-              </p>
-            </motion.div>
-
-            {/* Graph Visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="neu-card p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-headline font-semibold text-foreground">Graph Traversal</h3>
-                  <p className="text-xs text-muted-foreground">BFS, DFS, Dijkstra</p>
-                </div>
-              </div>
-              <GraphAnimation />
-              <p className="text-sm text-muted-foreground mt-4 text-center">
-                Follow the path as it explores
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Ornamental Line */}
-        <div className="ornamental-line"></div>
-
-        {/* Document Learning Section */}
-        <section className="py-16">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-2 lg:order-1"
-            >
-              <motion.div
-                whileHover={{ y: -5 }}
-                className="neu-card p-6"
-              >
-                <DocumentAnimation />
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Intelligent chunking</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Semantic search</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-muted-foreground">Contextual answers</span>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-1 lg:order-2 space-y-4"
-            >
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Learn from <span className="text-primary">your documents</span>
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Upload your lecture notes, textbooks, or research papers.
-                Ask questions and get answers grounded in your own materials.
-              </p>
-              <ul className="space-y-3 pt-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">PDF, DOCX, and text files supported</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">AI finds relevant sections automatically</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-primary mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-foreground">Generate quizzes from your content</span>
-                </li>
-              </ul>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
-
-        {/* Adaptive Learning Section */}
-        <section className="py-16">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="space-y-4"
-            >
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Learning that <span className="text-primary">adapts to you</span>
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Our AI monitors your progress in real-time. Struggling? Get more guidance.
-                Mastering it? Face new challenges. No two learning paths are the same.
-              </p>
-              <div className="grid grid-cols-2 gap-4 pt-4">
-                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                  <p className="font-semibold text-orange-600 text-sm">Struggling</p>
-                  <p className="text-xs text-muted-foreground mt-1">Step-by-step hints</p>
-                </div>
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <p className="font-semibold text-green-600 text-sm">Mastering</p>
-                  <p className="text-xs text-muted-foreground mt-1">Challenge problems</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <motion.div
-                whileHover={{ y: -5 }}
-                className="neu-card p-6"
-              >
-                <p className="text-sm font-medium text-foreground mb-4">Real-time adaptation</p>
-                <AdaptiveAnimation />
-              </motion.div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Ornamental Line */}
-        <div className="ornamental-line"></div>
-
-        {/* Features Grid */}
-        <section className="py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="font-headline text-3xl font-bold text-foreground mb-4">
-              Everything you need to learn
-            </h2>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: '📖', title: 'Explanations', desc: 'Clear, step-by-step' },
-              { icon: '🗺️', title: 'Mind Maps', desc: 'Visual connections' },
-              { icon: '🃏', title: 'Flashcards', desc: 'Active recall' },
-              { icon: '✅', title: 'Quizzes', desc: 'Test yourself' },
-            ].map((feature, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className="neu-card-sm p-5 text-center cursor-pointer"
-              >
-                <span className="text-3xl mb-3 block">{feature.icon}</span>
-                <h3 className="font-semibold text-foreground">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{feature.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="py-20">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="neu-card p-12 text-center relative overflow-hidden"
-          >
-            {/* Background decoration */}
-            <div className="absolute inset-0 opacity-5">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary rounded-full blur-3xl" />
-            </div>
-
-            <div className="relative z-10 max-w-2xl mx-auto space-y-6">
-              <h2 className="font-headline text-3xl lg:text-4xl font-bold text-foreground">
-                Ready to learn <span className="text-primary">smarter</span>?
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Join thousands of learners who've transformed how they understand the world.
-              </p>
-              <motion.button
-                whileHover={{ scale: 1.05, y: -3 }}
-                whileTap={{ scale: 0.95 }}
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <button
                 onClick={() => navigate('/login')}
-                className="neu-btn-primary px-10 py-4 text-lg font-semibold shadow-lg"
+                className="rounded-full bg-[#111111] px-8 py-4 text-base font-semibold text-white shadow-[0_18px_50px_rgba(17,17,17,0.16)] transition duration-200 hover:scale-[1.02] hover:bg-[#000000] hover:shadow-[0_22px_70px_rgba(17,17,17,0.20)]"
               >
-                Get Started Free
-              </motion.button>
-              <p className="text-sm text-muted-foreground">No credit card required</p>
+                Start learning
+              </button>
+              <a
+                href="#adaptation"
+                className="rounded-full border border-[#111111]/45 px-8 py-4 text-base font-semibold text-[#111111] shadow-[0_0_28px_rgba(17,17,17,0.08)] transition duration-200 hover:border-[#111111] hover:bg-[#111111]/10"
+              >
+                See how it works
+              </a>
             </div>
-          </motion.div>
-        </section>
+          </MotionDiv>
 
-        {/* Diamond Divider */}
-        <div className="diamond-divider">
-          <span></span>
-        </div>
+          <MotionDiv variants={fadeUp} className="lg:pt-16">
+            <AdaptiveVisualization />
+          </MotionDiv>
+        </MotionSection>
+
+        <MotionSection
+          id="how-it-works"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-120px' }}
+          className="grid gap-6 border-t border-[#E7E1D7] py-24 lg:grid-cols-[0.72fr_1fr]"
+        >
+          <MotionDiv variants={fadeUp} className="pt-4">
+            <p className="text-xs uppercase tracking-[0.35em] text-[#6B7280]">interactive learning paths</p>
+            <h2 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.04em] text-[#111111] sm:text-5xl">
+              Turn any topic into a clear study path.
+            </h2>
+          </MotionDiv>
+          <EditorialCard eyebrow="path preview" title="A topic can become notes, visuals, flashcards, and a quiz." accent={accents.primary}>
+            <PathPreview />
+          </EditorialCard>
+        </MotionSection>
+
+        <MotionSection
+          id="adaptation"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-120px' }}
+          className="grid gap-6 py-24 lg:grid-cols-[1.1fr_0.9fr]"
+        >
+          <EditorialCard eyebrow="how adaptation works" title="A calmer way to move from confusion to confidence." accent={accents.secondary}>
+            <AdaptationStack />
+          </EditorialCard>
+          <MotionDiv variants={fadeUp} className="flex items-end">
+            <div className="max-w-lg pb-8 lg:pl-10">
+              <p className="text-xs uppercase tracking-[0.35em] text-[#6B7280]">closed loop teaching</p>
+              <h2 className="mt-6 text-4xl font-semibold tracking-[-0.04em] text-[#111111] sm:text-5xl">
+                The lesson changes when your understanding changes.
+              </h2>
+              <p className="mt-6 text-lg leading-8 text-[#4B5563]">
+                Instead of giving the same answer every time, VisuaLearn can slow down,
+                ask a question, show a visual, or turn the idea into practice.
+              </p>
+            </div>
+          </MotionDiv>
+        </MotionSection>
+
+        <InteractiveDemo />
+
+        <MotionSection
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-120px' }}
+          className="grid gap-6 py-24 lg:grid-cols-[0.85fr_1.15fr]"
+        >
+          <MotionDiv variants={fadeUp} className="lg:order-2">
+            <EditorialCard eyebrow="real examples" title="Different questions deserve different learning formats." accent={accents.secondary}>
+              <ExampleRail />
+            </EditorialCard>
+          </MotionDiv>
+          <MotionDiv variants={fadeUp} className="flex items-center lg:order-1">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-[#6B7280]">dynamic previews</p>
+              <h2 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.04em] text-[#111111] sm:text-5xl">
+                A workspace that feels built for studying, not prompting.
+              </h2>
+            </div>
+          </MotionDiv>
+        </MotionSection>
+
+        <Metrics />
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border bg-card/30 py-8">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-              </svg>
-              <span className="font-headline font-semibold text-foreground">VisuaLearn</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              AI-powered interactive learning
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

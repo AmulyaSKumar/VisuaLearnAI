@@ -26,6 +26,7 @@
  */
 
 import crypto from 'crypto';
+import { performance } from 'node:perf_hooks';
 import { logger } from '../utils/logger.js';
 
 // Context
@@ -116,7 +117,7 @@ export {
 
 // Import for internal use
 import { LinUCBBandit, ACTIONS, FAILSAFE_ACTION, selectActionSafe } from './algorithm.js';
-import { deriveNumericContext, CONTEXT_VERSION } from './context.js';
+import { deriveNumericContext, CONTEXT_VERSION, CONTEXT_DIM } from './context.js';
 import {
   computeRewardWithMonitoring,
   deriveEngagementScore,
@@ -232,6 +233,8 @@ export async function getBanditDecision({
   behavior = null,
   topicHistory = null,
 }) {
+  const selectionStart = performance.now();
+
   // Ensure initialized
   if (!bandit.isReady()) {
     await bandit.initialize();
@@ -242,6 +245,7 @@ export async function getBanditDecision({
   // Check for A/B testing baseline assignment
   if (shouldUseBaseline(userId)) {
     const baselineDecision = getBaselineDecision({ userId, topic });
+    const latencyMs = performance.now() - selectionStart;
 
     const decision = {
       id: decisionId,
@@ -256,12 +260,28 @@ export async function getBanditDecision({
       isBaseline: true,
       shadow: false,
       context: null,
+      metadata: {
+        bandit_decision_latency_ms: latencyMs,
+        actionCount: ACTIONS.length,
+        contextDim: CONTEXT_DIM,
+        contextVersion: CONTEXT_VERSION,
+      },
+      latencyMs,
       createdAt: new Date().toISOString(),
     };
 
     // Persist decision
     await bandit.store.saveDecision(decision);
     logDecisionCreated(decision);
+    logger.info({
+      event: 'bandit_decision_latency_ms',
+      latencyMs,
+      selectedAction: decision.selectedAction,
+      contextVersion: CONTEXT_VERSION,
+      actionCount: ACTIONS.length,
+      contextDim: CONTEXT_DIM,
+      decisionSource: decision.decisionSource,
+    }, 'Bandit decision latency recorded');
 
     // Record for baseline metrics
     evaluationMetrics.recordBaselineResult({
@@ -285,6 +305,7 @@ export async function getBanditDecision({
 
   // Select action using LinUCB with cold start handling
   const linucbDecision = selectActionSafe(bandit.linucb, context.vector);
+  const latencyMs = performance.now() - selectionStart;
 
   // Log cold start if applicable
   if (linucbDecision.coldStart) {
@@ -305,6 +326,13 @@ export async function getBanditDecision({
     isBaseline: false,
     shadow: false,
     context,
+    metadata: {
+      bandit_decision_latency_ms: latencyMs,
+      actionCount: ACTIONS.length,
+      contextDim: CONTEXT_DIM,
+      contextVersion: CONTEXT_VERSION,
+    },
+    latencyMs,
     createdAt: new Date().toISOString(),
   };
 
@@ -314,6 +342,15 @@ export async function getBanditDecision({
   // Log for traceability
   logDecisionCreated(decision);
   logDecisionTrace(decision);
+  logger.info({
+    event: 'bandit_decision_latency_ms',
+    latencyMs,
+    selectedAction: decision.selectedAction,
+    contextVersion: CONTEXT_VERSION,
+    actionCount: ACTIONS.length,
+    contextDim: CONTEXT_DIM,
+    decisionSource: decision.decisionSource,
+  }, 'Bandit decision latency recorded');
 
   // Record for bandit metrics
   evaluationMetrics.recordBanditResult({
@@ -514,6 +551,17 @@ CRITICAL: Keep explanations concise and text-focused.
 DO NOT add unnecessary visualizations or widgets.
 Focus on clarity and examples in prose.
 Keep response under 2000 characters where possible.`,
+
+    socratic_questioning: `
+CRITICAL: Guide the learner with questions before giving the final explanation.
+Ask at least two meaningful questions.
+Do not start with direct-answer phrases such as "the answer is".
+Use the learner's response to reveal the next step.`,
+
+    remediation: `
+CRITICAL: Identify the likely mistake or misconception explicitly.
+Give the corrected idea and then restate it in simpler terms.
+Use a slower, repair-focused explanation before advancing.`,
   };
 
   return instructions[action] || '';

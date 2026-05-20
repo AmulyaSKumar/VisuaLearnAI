@@ -68,8 +68,8 @@ export default function ArraySimulation({ step, initialArray }) {
       scale: 'scale-105'
     },
     current: {
-      bar: 'bg-blue-500',
-      ring: 'ring-2 ring-blue-400 ring-offset-1',
+      bar: 'bg-neutral-500',
+      ring: 'ring-2 ring-neutral-400 ring-offset-1',
       text: 'text-white',
       scale: 'scale-110'
     },
@@ -92,8 +92,8 @@ export default function ArraySimulation({ step, initialArray }) {
       scale: ''
     },
     primary: {
-      bar: 'bg-purple-500',
-      ring: 'ring-2 ring-purple-400',
+      bar: 'bg-neutral-500',
+      ring: 'ring-2 ring-neutral-400',
       text: 'text-white',
       scale: 'scale-105'
     },
@@ -110,7 +110,7 @@ export default function ArraySimulation({ step, initialArray }) {
     const items = [];
     if (highlights.compared.length > 0) items.push({ key: 'compared', label: 'Comparing', color: 'bg-amber-500' });
     if (highlights.swapped.length > 0) items.push({ key: 'swapped', label: 'Swapped', color: 'bg-emerald-500' });
-    if (highlights.current !== undefined) items.push({ key: 'current', label: 'Current', color: 'bg-blue-500' });
+    if (highlights.current !== undefined) items.push({ key: 'current', label: 'Current', color: 'bg-neutral-500' });
     if (highlights.sorted.length > 0) items.push({ key: 'sorted', label: 'Sorted', color: 'bg-emerald-600/80' });
     if (highlights.visited.length > 0) items.push({ key: 'visited', label: 'Checked', color: 'bg-slate-400' });
 

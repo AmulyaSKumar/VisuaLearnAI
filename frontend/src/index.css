@@ -1,10 +1,4 @@
-/* ============================================
-   GOOGLE FONTS - Editorial Typography
-   Lora (serif) for headlines - editorial/book feel
-   Nunito for body - friendly and readable
-   MUST be before @import "tailwindcss" to satisfy CSS @import ordering rules
-   ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @import "tailwindcss";
 
@@ -39,28 +33,24 @@
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
 }
 
-/* ============================================
-   EDITORIAL LIGHT THEME
-   Cream background, paper-white surfaces, terracotta accent
-   ============================================ */
 :root {
   /* Typography */
-  --font-headline: 'Lora', Georgia, 'Times New Roman', serif;
-  --font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-headline: 'Space Grotesk', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Editorial Color Palette */
-  --cream: #fdf6ee;
-  --paper-white: #fffcf7;
-  --paper-warm: #f8f1e8;
-  --terracotta: #c94f1e;
-  --terracotta-light: #e06830;
-  --terracotta-dark: #a13d15;
+  /* Premium editorial palette */
+  --cream: #FAF7F2;
+  --paper-white: #FFFFFF;
+  --paper-warm: #F3EEE7;
+  --terracotta: #111111;
+  --terracotta-light: #111111;
+  --terracotta-dark: #0F766E;
 
   /* Ink colors */
-  --ink-dark: #2c1810;
-  --ink-medium: #4a3728;
-  --ink-light: #6b5546;
-  --ink-faded: #8c7a6b;
+  --ink-dark: #111111;
+  --ink-medium: #4B5563;
+  --ink-light: #4B5563;
+  --ink-faded: #6B7280;
 
   /* Semantic mapping */
   --primary: var(--terracotta);
@@ -71,19 +61,19 @@
   --card: var(--paper-white);
   --ring: var(--terracotta);
   --input: var(--paper-warm);
-  --muted: #ebe3d8;
-  --accent: #e8dfd3;
-  --border: rgba(107, 85, 70, 0.15);
+  --muted: #F3EEE7;
+  --accent: #F3EEE7;
+  --border: #E7E1D7;
   --radius: 10px;
   --popover: var(--paper-white);
-  --sidebar: var(--paper-warm);
-  --secondary: #f5ede3;
+  --sidebar: #F3EEE7;
+  --secondary: #F3EEE7;
   --background: var(--cream);
   --foreground: var(--ink-dark);
-  --destructive: #c94f1e;
+  --destructive: #ef4444;
   --sidebar-ring: var(--terracotta);
-  --sidebar-accent: #e8dfd3;
-  --sidebar-border: rgba(107, 85, 70, 0.12);
+  --sidebar-accent: #F3EEE7;
+  --sidebar-border: #E7E1D7;
   --card-foreground: var(--ink-dark);
   --sidebar-primary: var(--terracotta);
   --muted-foreground: var(--ink-light);
@@ -96,49 +86,49 @@
   --sidebar-primary-foreground: #ffffff;
 
   /* Chart colors */
-  --chart-1: #c94f1e;
-  --chart-2: #d97706;
-  --chart-3: #059669;
-  --chart-4: #7c3aed;
-  --chart-5: #db2777;
+  --chart-1: #111111;
+  --chart-2: #0F766E;
+  --chart-3: #F59E0B;
+  --chart-4: #111111;
+  --chart-5: #6B7280;
 }
 
 /* ============================================
-   EDITORIAL DARK THEME
+   WARM THEME MIRROR FOR EXISTING DARK TOGGLE
    ============================================ */
 .dark {
-  --cream: #1a1614;
-  --paper-white: #242019;
-  --paper-warm: #1e1a17;
-  --terracotta: #e06830;
-  --terracotta-light: #f07a42;
-  --terracotta-dark: #c94f1e;
+  --cream: #FAF7F2;
+  --paper-white: #FFFFFF;
+  --paper-warm: #F3EEE7;
+  --terracotta: #111111;
+  --terracotta-light: #111111;
+  --terracotta-dark: #0F766E;
 
-  --ink-dark: #f5ede3;
-  --ink-medium: #d4c8b8;
-  --ink-light: #a89888;
-  --ink-faded: #7a6a5a;
+  --ink-dark: #111111;
+  --ink-medium: #4B5563;
+  --ink-light: #4B5563;
+  --ink-faded: #6B7280;
 
   --primary: var(--terracotta);
   --primary-light: var(--terracotta-light);
   --primary-dark: var(--terracotta-dark);
-  --primary-foreground: #0f0d0c;
+  --primary-foreground: #ffffff;
 
   --card: var(--paper-white);
   --ring: var(--terracotta);
   --input: var(--paper-warm);
-  --muted: #2a2420;
-  --accent: #322a24;
-  --border: rgba(168, 152, 136, 0.18);
+  --muted: #F3EEE7;
+  --accent: #F3EEE7;
+  --border: #E7E1D7;
   --popover: var(--paper-white);
-  --sidebar: #161311;
-  --secondary: #282220;
+  --sidebar: #F3EEE7;
+  --secondary: #F3EEE7;
   --background: var(--cream);
   --foreground: var(--ink-dark);
-  --destructive: #f07a42;
+  --destructive: #ef4444;
   --sidebar-ring: var(--terracotta);
-  --sidebar-accent: #322a24;
-  --sidebar-border: rgba(168, 152, 136, 0.12);
+  --sidebar-accent: #F3EEE7;
+  --sidebar-border: #E7E1D7;
   --card-foreground: var(--ink-dark);
   --sidebar-primary: var(--terracotta);
   --muted-foreground: var(--ink-light);
@@ -146,15 +136,15 @@
   --popover-foreground: var(--ink-dark);
   --sidebar-foreground: var(--ink-medium);
   --secondary-foreground: var(--ink-dark);
-  --destructive-foreground: #0f0d0c;
+  --destructive-foreground: #ffffff;
   --sidebar-accent-foreground: var(--ink-dark);
-  --sidebar-primary-foreground: #0f0d0c;
+  --sidebar-primary-foreground: #ffffff;
 
-  --chart-1: #e06830;
-  --chart-2: #f59e0b;
-  --chart-3: #10b981;
-  --chart-4: #a78bfa;
-  --chart-5: #f472b6;
+  --chart-1: #111111;
+  --chart-2: #0F766E;
+  --chart-3: #F59E0B;
+  --chart-4: #111111;
+  --chart-5: #6B7280;
 }
 
 /* ============================================
@@ -162,9 +152,21 @@
    ============================================ */
 html {
   scroll-behavior: smooth;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-body);
@@ -211,7 +213,21 @@ h1, h2, h3, h4, h5, h6,
 }
 
 body > #root {
+  min-width: 0;
+  max-width: 100%;
   animation: page-fade-in 0.4s ease-out;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+pre,
+code {
+  overflow-wrap: anywhere;
 }
 
 /* ============================================

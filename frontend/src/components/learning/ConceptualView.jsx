@@ -152,8 +152,8 @@ export default function ConceptualView({
 
               {/* Visual Description */}
               {activeConcept?.visual_description && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-xs font-medium text-blue-700 dark:text-blue-400 uppercase tracking-wide mb-1">
+                <div className="p-4 bg-neutral-50 dark:bg-neutral-950/30 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                  <p className="text-xs font-medium text-neutral-700 dark:text-neutral-400 uppercase tracking-wide mb-1">
                     Visualize It
                   </p>
                   <p className="text-sm text-foreground italic">

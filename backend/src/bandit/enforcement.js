@@ -36,7 +36,36 @@ export const ACTION_REQUIREMENTS = {
     mustNotHave: ['tool_use'],
     maxLength: 3000,
   },
+  socratic_questioning: {
+    description: 'Must guide with questions and avoid giving a direct answer first',
+    minQuestions: 2,
+    directAnswerMarkers: ['the answer is', 'answer:', 'solution:', 'final answer', 'therefore the answer'],
+  },
+  remediation: {
+    description: 'Must identify an error or misconception and restate the idea more simply',
+    misconceptionIndicators: ['misconception', 'mistake', 'error', 'incorrect', 'confusion', 'common trap', 'not quite'],
+    correctionIndicators: ['correct', 'instead', 'fix', 'should be', 'try this', 'better way'],
+    simplificationIndicators: ['simpler', 'in simple terms', 'basic idea', 'step back', 'plainly'],
+  },
 };
+
+function countQuestionMarks(text = '') {
+  return (text.match(/\?/g) || []).length;
+}
+
+function includesAny(text = '', terms = []) {
+  const lower = text.toLowerCase();
+  return terms.some((term) => lower.includes(term));
+}
+
+function hasDirectAnswerBeforeQuestion(text = '', markers = []) {
+  const lower = text.toLowerCase();
+  const firstQuestionIndex = lower.indexOf('?');
+  return markers.some((marker) => {
+    const markerIndex = lower.indexOf(marker);
+    return markerIndex !== -1 && (firstQuestionIndex === -1 || markerIndex < firstQuestionIndex);
+  });
+}
 
 /**
  * Validate response against action requirements (chat)
@@ -87,6 +116,27 @@ export function validateChatResponse(action, responseText = '', toolCalls = []) 
       }
       if (responseText.length > rules.maxLength) {
         violations.push(`Response exceeds max length of ${rules.maxLength} characters`);
+      }
+      break;
+
+    case 'socratic_questioning':
+      if (countQuestionMarks(responseText) < rules.minQuestions) {
+        violations.push(`Response should include at least ${rules.minQuestions} guiding questions`);
+      }
+      if (hasDirectAnswerBeforeQuestion(responseText, rules.directAnswerMarkers)) {
+        violations.push('Response gives a direct answer before asking guiding questions');
+      }
+      break;
+
+    case 'remediation':
+      if (!includesAny(responseText, rules.misconceptionIndicators)) {
+        violations.push('Response should explicitly identify a misconception, mistake, or error');
+      }
+      if (!includesAny(responseText, rules.correctionIndicators)) {
+        violations.push('Response should include a corrected explanation');
+      }
+      if (!includesAny(responseText, rules.simplificationIndicators)) {
+        violations.push('Response should include a simpler restatement');
       }
       break;
   }
@@ -178,6 +228,33 @@ export function validateLearningContent(action, contentType, content) {
         }
       }
       break;
+
+    case 'socratic_questioning': {
+      const serialized = JSON.stringify(content);
+      const rules = ACTION_REQUIREMENTS.socratic_questioning;
+      if (countQuestionMarks(serialized) < rules.minQuestions) {
+        violations.push(`Learning content should include at least ${rules.minQuestions} guiding questions`);
+      }
+      if (hasDirectAnswerBeforeQuestion(serialized, rules.directAnswerMarkers)) {
+        violations.push('Learning content gives a direct answer before guiding questions');
+      }
+      break;
+    }
+
+    case 'remediation': {
+      const serialized = JSON.stringify(content);
+      const rules = ACTION_REQUIREMENTS.remediation;
+      if (!includesAny(serialized, rules.misconceptionIndicators)) {
+        violations.push('Learning content should identify a misconception, mistake, or error');
+      }
+      if (!includesAny(serialized, rules.correctionIndicators)) {
+        violations.push('Learning content should include a corrected explanation');
+      }
+      if (!includesAny(serialized, rules.simplificationIndicators)) {
+        violations.push('Learning content should include a simpler restatement');
+      }
+      break;
+    }
   }
 
   return {

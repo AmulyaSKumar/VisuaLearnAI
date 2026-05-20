@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import ListenButton from './ListenButton';
 
+const MotionDiv = motion.div;
+
 /**
  * CodingHelpView
  * Renders debugging and code fixing assistance
@@ -66,7 +68,7 @@ export default function CodingHelpView({
   ].filter(Boolean).join('. ');
 
   return (
-    <motion.div
+    <MotionDiv
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-6"
@@ -175,15 +177,15 @@ export default function CodingHelpView({
       {query_type === 'explain' && code_analysis && (
         <>
           {/* Purpose */}
-          <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-400 uppercase tracking-wide mb-1">
+          <div className="p-4 bg-neutral-50 dark:bg-neutral-950/30 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+            <p className="text-xs font-medium text-neutral-700 dark:text-neutral-400 uppercase tracking-wide mb-1">
               What This Code Does
             </p>
             <p className="text-foreground">{code_analysis.purpose}</p>
             {code_analysis.key_concepts && code_analysis.key_concepts.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {code_analysis.key_concepts.map((concept, idx) => (
-                  <span key={idx} className="px-2 py-0.5 text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded">
+                  <span key={idx} className="px-2 py-0.5 text-xs bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded">
                     {concept}
                   </span>
                 ))}
@@ -227,7 +229,7 @@ export default function CodingHelpView({
               <ul className="space-y-1">
                 {potential_issues.map((issue, idx) => (
                   <li key={idx} className="text-sm text-amber-800 dark:text-amber-300 flex gap-2">
-                    <span>⚠️</span> {issue}
+                    <span aria-hidden="true">!</span> {issue}
                   </li>
                 ))}
               </ul>
@@ -330,7 +332,7 @@ export default function CodingHelpView({
           <ul className="space-y-1">
             {best_practices.map((practice, idx) => (
               <li key={idx} className="text-sm text-foreground flex gap-2">
-                <span className="text-green-500">✓</span> {practice}
+                <span className="text-green-500">OK</span> {practice}
               </li>
             ))}
           </ul>
@@ -346,10 +348,10 @@ export default function CodingHelpView({
           {common_mistakes.map((item, idx) => (
             <div key={idx} className="text-sm space-y-0.5">
               <p className="text-red-700 dark:text-red-400">
-                <span className="font-medium">✗</span> {item.mistake}
+                <span className="font-medium">Mistake:</span> {item.mistake}
               </p>
               <p className="text-green-700 dark:text-green-400 pl-4">
-                <span className="font-medium">✓</span> {item.correct}
+                <span className="font-medium">Correct:</span> {item.correct}
               </p>
             </div>
           ))}
@@ -378,6 +380,6 @@ export default function CodingHelpView({
           <span className="font-medium">Related topics:</span> {learn_more.join(', ')}
         </p>
       )}
-    </motion.div>
+    </MotionDiv>
   );
 }

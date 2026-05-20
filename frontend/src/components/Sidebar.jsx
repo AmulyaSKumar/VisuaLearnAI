@@ -129,7 +129,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-[280px] h-full bg-sidebar flex flex-col pt-4 pb-4 neu-raised-lg">
+    <div className="h-full w-[min(280px,calc(100vw-24px))] bg-sidebar flex flex-col pt-4 pb-4 neu-raised-lg">
       <div className="px-4 mb-6 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 group min-h-[44px]">
           <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
@@ -367,7 +367,23 @@ export default function Sidebar({
             className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center neu-btn rounded-xl"
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
-            <span className="text-xl">{theme === "dark" ? "🌙" : "☀️"}</span>
+            {theme === "dark" ? (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="M4.93 4.93l1.41 1.41" />
+                <path d="M17.66 17.66l1.41 1.41" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="M4.93 19.07l1.41-1.41" />
+                <path d="M17.66 6.34l1.41-1.41" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20.9 13.4A8 8 0 1 1 10.6 3.1 6.5 6.5 0 1 0 20.9 13.4Z" />
+              </svg>
+            )}
           </button>
 
           <button

@@ -63,9 +63,9 @@ export default function GridSimulation({ step, grid }) {
     // Checking neighbor
     if (posMatches(checking, row, col)) {
       return {
-        bg: 'bg-purple-500',
-        border: 'border-purple-600',
-        ring: 'ring-2 ring-purple-400',
+        bg: 'bg-neutral-500',
+        border: 'border-neutral-600',
+        ring: 'ring-2 ring-neutral-400',
         text: 'text-white',
         scale: ''
       };
@@ -85,9 +85,9 @@ export default function GridSimulation({ step, grid }) {
     // Start cell
     if (posMatches(start, row, col)) {
       return {
-        bg: 'bg-blue-500',
-        border: 'border-blue-600',
-        ring: 'ring-2 ring-blue-400',
+        bg: 'bg-neutral-500',
+        border: 'border-neutral-600',
+        ring: 'ring-2 ring-neutral-400',
         text: 'text-white',
         scale: ''
       };
@@ -173,7 +173,7 @@ export default function GridSimulation({ step, grid }) {
   const legendItems = useMemo(() => {
     const items = [];
 
-    if (start) items.push({ color: 'bg-blue-500', label: 'Start' });
+    if (start) items.push({ color: 'bg-neutral-500', label: 'Start' });
     if (end) items.push({ color: 'bg-rose-500', label: 'End' });
     if (current) items.push({ color: 'bg-amber-500', label: 'Current' });
     if (path.length > 0) items.push({ color: 'bg-emerald-500', label: 'Path' });

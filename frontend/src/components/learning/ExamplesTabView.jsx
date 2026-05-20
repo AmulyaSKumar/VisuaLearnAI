@@ -471,7 +471,7 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
           >
             <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 ${
               score === gameExamples.length ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-              score >= gameExamples.length / 2 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+              score >= gameExamples.length / 2 ? 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-400' :
               'bg-orange-500/10 text-orange-600 dark:text-orange-400'
             }`}>
               {score === gameExamples.length ? (
@@ -529,12 +529,12 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4"
+          className="bg-gradient-to-r from-neutral-500/10 to-neutral-500/10 border border-neutral-500/20 rounded-xl p-4"
         >
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 rounded-xl bg-neutral-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-neutral-600 dark:text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -608,7 +608,7 @@ export default function ExamplesTabView({ examples = [], onInteraction, updateCo
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-medium text-foreground">{example.title}</h4>
                       {example.involves_ai && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-500/10 text-neutral-600 dark:text-neutral-400 border border-neutral-500/30">
                           AI
                         </span>
                       )}

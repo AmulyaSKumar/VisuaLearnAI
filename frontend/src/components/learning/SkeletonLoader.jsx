@@ -229,7 +229,7 @@ export function ExamplesSkeleton() {
   return (
     <div className="space-y-6">
       {/* Game CTA Skeleton */}
-      <div className="bg-gradient-to-r from-purple-500/5 to-blue-500/5 border border-purple-500/10 rounded-xl p-4">
+      <div className="bg-gradient-to-r from-neutral-500/5 to-neutral-500/5 border border-neutral-500/10 rounded-xl p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <SkeletonPulse className="w-8 h-8 rounded" />

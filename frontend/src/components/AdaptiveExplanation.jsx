@@ -13,11 +13,11 @@ export default function AdaptiveExplanation({ explanation, cognitiveState, topic
 
   // State colors and icons
   const stateConfig = {
-    struggling: { color: "text-red-600", bgColor: "bg-red-50", icon: "🔴" },
-    confused: { color: "text-orange-600", bgColor: "bg-orange-50", icon: "🟠" },
-    flow: { color: "text-green-600", bgColor: "bg-green-50", icon: "🟢" },
-    bored: { color: "text-yellow-600", bgColor: "bg-yellow-50", icon: "🟡" },
-    mastering: { color: "text-blue-600", bgColor: "bg-blue-50", icon: "🔵" },
+    struggling: { color: "text-red-600", bgColor: "bg-red-50", icon: "" },
+    confused: { color: "text-orange-600", bgColor: "bg-orange-50", icon: "" },
+    flow: { color: "text-green-600", bgColor: "bg-green-50", icon: "" },
+    bored: { color: "text-yellow-600", bgColor: "bg-yellow-50", icon: "" },
+    mastering: { color: "text-neutral-600", bgColor: "bg-neutral-50", icon: "" },
   };
 
   const stateStyle = stateConfig[cognitiveState] || stateConfig.flow;
@@ -49,7 +49,6 @@ export default function AdaptiveExplanation({ explanation, cognitiveState, topic
         >
           <path d="M12 3v18M3 12l9 9 9-9" />
         </svg>
-        <span>{stateStyle.icon}</span>
         <span>Why this response?</span>
         {cognitiveState && (
           <span className={`px-1.5 py-0.5 rounded text-[10px] ${stateStyle.bgColor} ${stateStyle.color}`}>
@@ -64,8 +63,7 @@ export default function AdaptiveExplanation({ explanation, cognitiveState, topic
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
             <div className={`w-8 h-8 rounded-full ${stateStyle.bgColor} flex items-center justify-center`}>
-              <span className="text-lg">{stateStyle.icon}</span>
-            </div>
+              </div>
             <div>
               <h4 className="text-sm font-semibold text-foreground">Adaptive Response</h4>
               <p className="text-xs text-muted-foreground">Personalized for your learning style</p>
@@ -99,7 +97,7 @@ export default function AdaptiveExplanation({ explanation, cognitiveState, topic
           {strategy && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
               {strategy.force_visual && (
-                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">
+                <span className="px-2 py-1 bg-neutral-50 text-neutral-700 rounded text-[10px] font-medium">
                   Visual Priority
                 </span>
               )}
@@ -110,7 +108,7 @@ export default function AdaptiveExplanation({ explanation, cognitiveState, topic
                 Style: {strategy.explanation_style}
               </span>
               {strategy.interaction_mode === "interactive" && (
-                <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-medium">
+                <span className="px-2 py-1 bg-neutral-50 text-neutral-700 rounded text-[10px] font-medium">
                   Interactive
                 </span>
               )}

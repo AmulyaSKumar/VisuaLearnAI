@@ -14,28 +14,28 @@ import {
 import { toPng } from 'html-to-image';
 import '@xyflow/react/dist/style.css';
 
-// Enhanced color scheme with gradients
+// Warm neutral learning map colors
 const nodeColors = {
   root: {
-    bg: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', // Indigo to purple gradient
-    bgSolid: '#6366F1',
+    bg: 'linear-gradient(135deg, #111111 0%, #2A2A2A 100%)',
+    bgSolid: '#111111',
     text: '#FFFFFF',
-    border: '#4F46E5',
-    shadow: 'rgba(99, 102, 241, 0.3)',
+    border: '#000000',
+    shadow: 'rgba(17, 17, 17, 0.22)',
   },
   keyIdea: {
-    bg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', // Emerald gradient
-    bgSolid: '#10B981',
+    bg: 'linear-gradient(135deg, #0F766E 0%, #115E59 100%)',
+    bgSolid: '#0F766E',
     text: '#FFFFFF',
-    border: '#047857',
-    shadow: 'rgba(16, 185, 129, 0.25)',
+    border: '#115E59',
+    shadow: 'rgba(15, 118, 110, 0.22)',
   },
   subConcept: {
-    bg: '#F8FAFC',
-    bgSolid: '#F8FAFC',
-    text: '#334155',
-    border: '#CBD5E1',
-    shadow: 'rgba(51, 65, 85, 0.1)',
+    bg: '#FFFFFF',
+    bgSolid: '#FFFFFF',
+    text: '#111111',
+    border: '#E7E1D7',
+    shadow: 'rgba(17, 17, 17, 0.08)',
   },
 };
 
@@ -160,7 +160,7 @@ function KeyIdeaNode({ data, id }) {
       )}
 
       <div
-        className={`rounded-2xl px-5 py-4 min-w-[160px] max-w-[200px] transition-all duration-200 hover:scale-105 ${isWeak ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}
+        className={`rounded-2xl px-5 py-4 min-w-[min(160px,calc(100vw-48px))] max-w-[min(200px,calc(100vw-48px))] transition-all duration-200 hover:scale-105 ${isWeak ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}
         style={{
           background: nodeColors.keyIdea.bg,
           color: nodeColors.keyIdea.text,
@@ -265,7 +265,7 @@ function SubConceptNode({ data, id }) {
       />
 
       <div
-        className="rounded-xl px-4 py-3 min-w-[120px] max-w-[160px] transition-all duration-200 hover:scale-105"
+        className="rounded-xl px-4 py-3 min-w-[min(120px,calc(100vw-48px))] max-w-[min(160px,calc(100vw-48px))] transition-all duration-200 hover:scale-105"
         style={{
           background: nodeColors.subConcept.bg,
           color: nodeColors.subConcept.text,
@@ -534,7 +534,7 @@ function SidePanel({ isOpen, onClose, nodeData, onTestConcept }) {
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(title)}+explained`;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-80 bg-card border-l border-border shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-hidden flex flex-col">
+    <div className="fixed inset-y-0 right-0 w-[min(20rem,100vw)] bg-card border-l border-border shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2 min-w-0 flex-1">

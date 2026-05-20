@@ -27,7 +27,7 @@ export default function StackSimulation({ step }) {
             inline-block px-3 py-1 rounded-full text-sm font-medium
             ${operation.includes('push') ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
               operation.includes('pop') ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' :
-              operation.includes('peek') ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+              operation.includes('peek') ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-400' :
               'bg-muted text-muted-foreground'}
           `}>
             {operation}
@@ -108,12 +108,12 @@ export default function StackSimulation({ step }) {
             </div>
             {variables.overflow && (
               <div className="text-rose-500 text-xs font-medium">
-                ⚠ Stack Overflow!
+                Stack overflow
               </div>
             )}
             {variables.underflow && (
               <div className="text-amber-500 text-xs font-medium">
-                ⚠ Stack Underflow!
+                Stack underflow
               </div>
             )}
           </div>

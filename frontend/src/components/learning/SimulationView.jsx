@@ -499,7 +499,7 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className={`
             px-1.5 py-0.5 rounded text-[10px] font-medium
-            ${source === 'cache' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+            ${source === 'cache' ? 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-400' :
               source === 'template' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
               source === 'fallback' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
               'bg-muted text-muted-foreground'}
@@ -521,7 +521,7 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
           )}
 
           {detectionSource === 'backend' && detectionConfidence && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-500/10 text-neutral-600 dark:text-neutral-400">
               Auto-detected ({Math.round(detectionConfidence * 100)}% confidence)
             </span>
           )}

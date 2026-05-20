@@ -78,16 +78,16 @@ export default function GraphSimulation({ step, nodes = [], edges = [] }) {
     }
     if (node === exploringNode) {
       return {
-        fill: '#8b5cf6', // violet-500
-        stroke: '#7c3aed', // violet-600
+        fill: '#111111',
+        stroke: '#111111',
         textColor: 'white',
         scale: 1.1
       };
     }
     if (visited.includes(node)) {
       return {
-        fill: '#3b82f6', // blue-500
-        stroke: '#2563eb', // blue-600
+        fill: '#111111', // blue-500
+        stroke: '#000000', // blue-600
         textColor: 'white',
         scale: 1
       };
@@ -112,7 +112,7 @@ export default function GraphSimulation({ step, nodes = [], edges = [] }) {
   const getEdgeStyle = (from, to) => {
     if (isEdgeHighlighted(from, to)) {
       return {
-        stroke: '#8b5cf6', // violet-500
+        stroke: '#111111',
         strokeWidth: 3,
         opacity: 1
       };
@@ -126,7 +126,7 @@ export default function GraphSimulation({ step, nodes = [], edges = [] }) {
     }
     if (visited.includes(from) && visited.includes(to)) {
       return {
-        stroke: '#3b82f6', // blue-500
+        stroke: '#111111', // blue-500
         strokeWidth: 2,
         opacity: 0.8
       };
@@ -146,8 +146,8 @@ export default function GraphSimulation({ step, nodes = [], edges = [] }) {
   const legendItems = useMemo(() => {
     const items = [];
     if (current) items.push({ color: 'bg-emerald-500', label: 'Current' });
-    if (exploringNode) items.push({ color: 'bg-violet-500', label: 'Exploring' });
-    if (visited.length > 0) items.push({ color: 'bg-blue-500', label: 'Visited' });
+    if (exploringNode) items.push({ color: 'bg-neutral-500', label: 'Exploring' });
+    if (visited.length > 0) items.push({ color: 'bg-neutral-500', label: 'Visited' });
     if (pendingItems.length > 0) items.push({ color: 'bg-amber-500', label: pendingLabel });
     return items;
   }, [current, exploringNode, visited, pendingItems, pendingLabel]);
@@ -314,7 +314,7 @@ export default function GraphSimulation({ step, nodes = [], edges = [] }) {
                   node === current
                     ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                     : visited.includes(node)
-                      ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                      ? 'bg-neutral-500/20 text-neutral-700 dark:text-neutral-300'
                       : 'bg-muted text-muted-foreground'
                 }`}
               >

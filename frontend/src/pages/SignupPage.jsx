@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signUpWithEmail } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import LogoMark from '../components/LogoMark';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -63,9 +64,12 @@ export default function SignupPage() {
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-[0_18px_50px_rgba(17,17,17,0.06)]">
+            <LogoMark className="h-9 w-9 text-foreground" />
+          </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">VisuaLearn</h1>
           <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-            Create an account to get started
+            Create your personal study workspace
           </p>
         </div>
 
@@ -153,9 +157,9 @@ export default function SignupPage() {
         <div className="rounded-lg border border-border/50 bg-card/50 p-3 sm:p-4 text-xs text-muted-foreground">
           <p className="mb-2 font-semibold">What happens next?</p>
           <ul className="space-y-1">
-            <li>✓ Confirm your email address</li>
-            <li>✓ Create your learning profile</li>
-            <li>✓ Start personalized lessons</li>
+            <li>Confirm your email address</li>
+            <li>Create your learning profile</li>
+            <li>Start personalized lessons</li>
           </ul>
         </div>
       </div>

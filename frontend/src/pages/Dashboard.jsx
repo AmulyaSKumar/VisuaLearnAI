@@ -154,7 +154,7 @@ export default function Dashboard() {
               {/* Progress bar */}
               <div className="mt-4 h-3 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-primary to-blue-400 rounded-full transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-primary to-neutral-400 rounded-full transition-all duration-500"
                   style={{ width: `${metrics?.overall?.score || 0}%` }}
                 />
               </div>
@@ -278,8 +278,8 @@ function LearningStyleChart({ styles = {} }) {
   };
 
   const styleConfig = {
-    visual: { label: "Visual", color: "bg-blue-500" },
-    auditory: { label: "Auditory", color: "bg-purple-500" },
+    visual: { label: "Visual", color: "bg-neutral-500" },
+    auditory: { label: "Auditory", color: "bg-neutral-500" },
     reading: { label: "Reading", color: "bg-green-500" },
     kinesthetic: { label: "Hands-on", color: "bg-orange-500" },
   };
@@ -289,7 +289,7 @@ function LearningStyleChart({ styles = {} }) {
   return (
     <div className="space-y-3">
       {sorted.map(([style, score]) => {
-        const config = styleConfig[style] || { label: style, icon: "📊", color: "bg-gray-500" };
+        const config = styleConfig[style] || { label: style, color: "bg-gray-500" };
         const percent = Math.round(score * 100);
 
         return (

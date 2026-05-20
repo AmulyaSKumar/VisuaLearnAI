@@ -77,7 +77,7 @@ export default function StateMachineSimulation({ step }) {
       return 'fill-amber-500 stroke-amber-600';
     }
     if (isPrevious) {
-      return 'fill-blue-400 stroke-blue-500';
+      return 'fill-neutral-400 stroke-neutral-500';
     }
     if (isAcceptState) {
       return 'fill-emerald-200 dark:fill-emerald-800 stroke-emerald-500';
@@ -349,7 +349,7 @@ export default function StateMachineSimulation({ step }) {
         ${accepted ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
           'bg-red-500/20 text-red-600 dark:text-red-400'}
       `}>
-        {accepted ? '✓ ACCEPTED' : '✗ REJECTED'}
+        {accepted ? 'ACCEPTED' : 'REJECTED'}
       </div>
     );
   };

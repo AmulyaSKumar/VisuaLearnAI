@@ -1,15 +1,15 @@
 /**
  * Context Standardization Module
- * Generates numeric context vectors for LinUCB algorithm
+ * Generates numeric context vectors for the LinUCB policy.
  */
 
-// Context version - increment when adding features
-export const CONTEXT_VERSION = 1;
+// Context version - increment when adding or reordering features.
+export const CONTEXT_VERSION = 2;
 
-// Context dimension (must match LinUCB initialization)
-export const CONTEXT_DIM = 4;
+// Context dimension (must match LinUCB initialization).
+export const CONTEXT_DIM = 8;
 
-// Public enums used across modules
+// Public enums used across modules.
 export const COGNITIVE_STATES = {
   STRUGGLING: 'struggling',
   CONFUSED: 'confused',
@@ -24,7 +24,6 @@ export const ENGAGEMENT_LEVELS = {
   HIGH: 'high',
 };
 
-// Cognitive state encodings
 const COGNITIVE_STATE_MAP = {
   struggling: 0,
   confused: 1,
@@ -33,65 +32,82 @@ const COGNITIVE_STATE_MAP = {
   mastering: 4,
 };
 
-// Engagement level encodings
 const ENGAGEMENT_LEVEL_MAP = {
   low: 0,
   medium: 1,
   high: 2,
 };
 
-// Topic status encodings
 const TOPIC_STATUS_MAP = {
   weak: -1,
   neutral: 0,
   strong: 1,
 };
 
-// Performance trend encodings
 const PERFORMANCE_TREND_MAP = {
   declining: -1,
   stable: 0,
   improving: 1,
 };
 
-/**
- * Encode cognitive state to numeric value
- */
-export function encodeCognitiveState(state) {
-  return COGNITIVE_STATE_MAP[state] ?? COGNITIVE_STATE_MAP.flow;
-}
+const TOPIC_DIFFICULTY_MAP = {
+  foundational: 0.25,
+  beginner: 0.25,
+  basic: 0.25,
+  easy: 0.25,
+  intermediate: 0.5,
+  medium: 0.5,
+  moderate: 0.5,
+  advanced: 0.75,
+  high: 0.75,
+  hard: 0.75,
+  expert: 1.0,
+};
 
-/**
- * Encode engagement level to numeric value
- */
-export function encodeEngagementLevel(level) {
-  return ENGAGEMENT_LEVEL_MAP[level] ?? ENGAGEMENT_LEVEL_MAP.medium;
-}
-
-/**
- * Encode topic status to numeric value
- */
-export function encodeTopicStatus(status) {
-  return TOPIC_STATUS_MAP[status] ?? TOPIC_STATUS_MAP.neutral;
-}
-
-/**
- * Encode performance trend to numeric value
- */
-export function encodePerformanceTrend(trend) {
-  return PERFORMANCE_TREND_MAP[trend] ?? PERFORMANCE_TREND_MAP.stable;
-}
-
-/**
- * Clamp value between min and max
- */
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-/**
- * Derive engagement level from metrics and behavior
- */
+function finiteNumber(value, fallback = null) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function clamp01(value, fallback = 0.5) {
+  const numeric = finiteNumber(value, fallback);
+  return clamp(numeric, 0, 1);
+}
+
+function pickNumber(sources, fallback = null) {
+  for (const value of sources) {
+    const numeric = finiteNumber(value, null);
+    if (numeric != null) return numeric;
+  }
+  return fallback;
+}
+
+export function encodeCognitiveState(state) {
+  return COGNITIVE_STATE_MAP[state] ?? COGNITIVE_STATE_MAP.flow;
+}
+
+export function encodeEngagementLevel(level) {
+  return ENGAGEMENT_LEVEL_MAP[level] ?? ENGAGEMENT_LEVEL_MAP.medium;
+}
+
+export function encodeTopicStatus(status) {
+  return TOPIC_STATUS_MAP[status] ?? TOPIC_STATUS_MAP.neutral;
+}
+
+export function encodePerformanceTrend(trend) {
+  return PERFORMANCE_TREND_MAP[trend] ?? PERFORMANCE_TREND_MAP.stable;
+}
+
+export function encodeTopicDifficulty(difficulty) {
+  if (typeof difficulty === 'number') return clamp01(difficulty, 0.5);
+  const normalized = String(difficulty || '').trim().toLowerCase();
+  return TOPIC_DIFFICULTY_MAP[normalized] ?? 0.5;
+}
+
 export function deriveEngagementLevel(metrics = null, behavior = null) {
   const engagementScore = metrics?.engagement?.score != null
     ? clamp(metrics.engagement.score / 100, 0, 1)
@@ -115,9 +131,6 @@ export function deriveEngagementLevel(metrics = null, behavior = null) {
   return 'high';
 }
 
-/**
- * Check if topic matches any in a list (fuzzy match)
- */
 function topicMatches(topic, topicList = []) {
   if (!topic || !topicList.length) return false;
   const normalized = topic.toLowerCase();
@@ -126,9 +139,6 @@ function topicMatches(topic, topicList = []) {
   );
 }
 
-/**
- * Derive topic status from profile
- */
 export function deriveTopicStatus(profile = {}, topicLabel = '') {
   const weakTopics = profile?.weak_topics || [];
   const strongTopics = profile?.strong_topics || [];
@@ -138,9 +148,6 @@ export function deriveTopicStatus(profile = {}, topicLabel = '') {
   return 'neutral';
 }
 
-/**
- * Derive performance trend from topic history
- */
 export function derivePerformanceTrend(topicHistory = null) {
   const trend = topicHistory?.trend || 'stable';
   if (trend === 'stagnating') return 'stable';
@@ -148,18 +155,109 @@ export function derivePerformanceTrend(topicHistory = null) {
   return 'stable';
 }
 
+export function deriveConfidence(metrics = null, adaptiveContext = null, topicHistory = null) {
+  const quizAccuracy = pickNumber([
+    metrics?.quizAccuracy,
+    metrics?.quiz_accuracy,
+    metrics?.accuracy,
+    metrics?.correctRate,
+    adaptiveContext?.quizAccuracy,
+    adaptiveContext?.quiz_accuracy,
+  ], null);
+
+  if (quizAccuracy != null) return clamp01(quizAccuracy, 0.5);
+
+  const masteryLevel = clamp01(pickNumber([
+    topicHistory?.masteryLevel,
+    topicHistory?.mastery_level,
+    adaptiveContext?.masteryLevel,
+    adaptiveContext?.mastery_level,
+    metrics?.masteryLevel,
+  ], 0.5), 0.5);
+
+  const attemptCount = pickNumber([
+    topicHistory?.attemptCount,
+    topicHistory?.attempt_count,
+    adaptiveContext?.attemptCount,
+    adaptiveContext?.attempt_count,
+    metrics?.attemptCount,
+  ], null);
+  const successCount = pickNumber([
+    topicHistory?.successCount,
+    topicHistory?.success_count,
+    adaptiveContext?.successCount,
+    adaptiveContext?.success_count,
+    metrics?.successCount,
+  ], null);
+
+  const successRate = attemptCount != null && successCount != null
+    ? clamp01(successCount / Math.max(attemptCount, 1), 0.5)
+    : clamp01(pickNumber([
+      topicHistory?.successRate,
+      topicHistory?.success_rate,
+      adaptiveContext?.successRate,
+      adaptiveContext?.success_rate,
+      metrics?.successRate,
+    ], 0.5), 0.5);
+
+  return clamp01((0.7 * masteryLevel) + (0.3 * successRate), 0.5);
+}
+
+export function deriveTopicDifficulty(metrics = null, adaptiveContext = null, topicHistory = null) {
+  const difficulty = metrics?.topicDifficulty ??
+    metrics?.difficulty ??
+    metrics?.currentDifficulty ??
+    adaptiveContext?.topicDifficulty ??
+    adaptiveContext?.difficulty ??
+    adaptiveContext?.currentDifficulty ??
+    topicHistory?.topicDifficulty ??
+    topicHistory?.difficulty ??
+    topicHistory?.currentDifficulty;
+
+  return encodeTopicDifficulty(difficulty);
+}
+
+export function derivePreviousFailures(metrics = null, adaptiveContext = null, topicHistory = null) {
+  const attemptCount = pickNumber([
+    topicHistory?.attemptCount,
+    topicHistory?.attempt_count,
+    adaptiveContext?.attemptCount,
+    adaptiveContext?.attempt_count,
+    metrics?.attemptCount,
+    metrics?.attempt_count,
+  ], 0);
+
+  const successCount = pickNumber([
+    topicHistory?.successCount,
+    topicHistory?.success_count,
+    adaptiveContext?.successCount,
+    adaptiveContext?.success_count,
+    metrics?.successCount,
+    metrics?.success_count,
+  ], 0);
+
+  return clamp01((attemptCount - successCount) / Math.max(attemptCount, 1), 0);
+}
+
+export function deriveResponseTime(metrics = null, behavior = null) {
+  const avgMessageDuration = pickNumber([
+    behavior?.avgMessageDuration,
+    behavior?.avg_message_duration,
+    metrics?.avgMessageDuration,
+    metrics?.avg_message_duration,
+    metrics?.responseTimeMs,
+    metrics?.response_time_ms,
+  ], 15000);
+
+  return clamp01(avgMessageDuration / 30000, 0.5);
+}
+
 /**
- * Derive full numeric context from user state
- * Returns both human-readable labels and numeric vector for LinUCB
+ * Derive full numeric context from user state.
  *
- * @param {Object} userState - User state object
- * @param {Object} userState.profile - User profile with weak/strong topics
- * @param {Object} userState.metrics - User metrics including engagement
- * @param {Object} userState.adaptiveContext - Adaptive context with cognitive state
- * @param {Object} userState.topicHistory - Topic history with trend
- * @param {string} userState.topicLabel - Current topic label
- * @param {Object} userState.behavior - User behavior data
- * @returns {Object} Context object with vector and labels
+ * Vector order:
+ * [cognitiveState, engagementLevel, topicStatus, performanceTrend,
+ *  confidence, topicDifficulty, previousFailures, responseTime]
  */
 export function deriveNumericContext({
   profile = {},
@@ -169,7 +267,6 @@ export function deriveNumericContext({
   topicLabel = '',
   behavior = null,
 } = {}) {
-  // Derive string labels first
   const cognitiveStateLabel =
     adaptiveContext?.cognitive_state ||
     adaptiveContext?.cognitiveState ||
@@ -185,86 +282,82 @@ export function deriveNumericContext({
     metrics?.performanceTrend ||
     derivePerformanceTrend(topicHistory);
 
-  // Convert to numeric values
   const cognitiveState = encodeCognitiveState(cognitiveStateLabel);
   const engagementLevel = encodeEngagementLevel(engagementLevelLabel);
   const topicStatus = encodeTopicStatus(topicStatusLabel);
   const performanceTrend = encodePerformanceTrend(performanceTrendLabel);
+  const confidence = deriveConfidence(metrics, adaptiveContext, topicHistory);
+  const topicDifficulty = deriveTopicDifficulty(metrics, adaptiveContext, topicHistory);
+  const previousFailures = derivePreviousFailures(metrics, adaptiveContext, topicHistory);
+  const responseTime = deriveResponseTime(metrics, behavior);
 
-  // Build context vector for LinUCB (order matters!)
-  const vector = [cognitiveState, engagementLevel, topicStatus, performanceTrend];
-
-  // Build context key for logging and caching
-  const contextKey = `${cognitiveState}|${engagementLevel}|${topicStatus}|${performanceTrend}`;
-
-  return {
-    // Numeric values
+  const vector = [
     cognitiveState,
     engagementLevel,
     topicStatus,
     performanceTrend,
-    // Vector for LinUCB
+    confidence,
+    topicDifficulty,
+    previousFailures,
+    responseTime,
+  ];
+
+  const contextKey = [
+    cognitiveState,
+    engagementLevel,
+    topicStatus,
+    performanceTrend,
+    confidence.toFixed(2),
+    topicDifficulty.toFixed(2),
+    previousFailures.toFixed(2),
+    responseTime.toFixed(2),
+  ].join('|');
+
+  return {
+    cognitiveState,
+    engagementLevel,
+    topicStatus,
+    performanceTrend,
+    confidence,
+    topicDifficulty,
+    previousFailures,
+    responseTime,
     vector,
-    // String labels for readability
     labels: {
       cognitiveState: cognitiveStateLabel,
       engagementLevel: engagementLevelLabel,
       topicStatus: topicStatusLabel,
       performanceTrend: performanceTrendLabel,
+      confidence,
+      topicDifficulty,
+      previousFailures,
+      responseTime,
     },
-    // Keys for logging/caching
     contextKey,
     version: CONTEXT_VERSION,
   };
 }
 
-/**
- * Normalize context vector for LinUCB
- * Ensures values are in reasonable ranges for matrix operations
- */
 export function normalizeContextVector(vector) {
-  // Normalize each dimension to [-1, 1] range
+  const safe = Array.isArray(vector) ? vector : [];
   const normalized = [
-    (vector[0] - 2) / 2,      // cognitiveState: [0,4] -> [-1, 1]
-    (vector[1] - 1) / 1,      // engagementLevel: [0,2] -> [-1, 1]
-    vector[2],                 // topicStatus: already [-1, 1]
-    vector[3],                 // performanceTrend: already [-1, 1]
+    (finiteNumber(safe[0], 2) - 2) / 2,
+    finiteNumber(safe[1], 1) - 1,
+    finiteNumber(safe[2], 0),
+    finiteNumber(safe[3], 0),
+    (clamp01(safe[4], 0.5) * 2) - 1,
+    (clamp01(safe[5], 0.5) * 2) - 1,
+    (clamp01(safe[6], 0) * 2) - 1,
+    (clamp01(safe[7], 0.5) * 2) - 1,
   ];
-  return normalized;
+
+  return normalized.map((value) => finiteNumber(value, 0));
 }
 
 /**
- * Extended context features for future expansion
- * Not used in v1, but designed for easy addition
+ * Compatibility wrapper for older callers. Version 2 already includes the
+ * previously planned extended features, so this returns the core context.
  */
-export function deriveExtendedContext(userState, options = {}) {
-  const core = deriveNumericContext(userState);
-
-  if (!options.includeExtended) {
-    return core;
-  }
-
-  // Future features (v2):
-  const sessionLength = normalizeSessionLength(userState.sessionDurationMs);
-  const difficultyLevel = userState.currentDifficulty ?? 1;
-
-  return {
-    ...core,
-    sessionLength,
-    difficultyLevel,
-    vector: [...core.vector, sessionLength, difficultyLevel],
-    version: CONTEXT_VERSION,
-  };
-}
-
-/**
- * Normalize session length to [0, 1]
- */
-function normalizeSessionLength(durationMs) {
-  if (!durationMs) return 0.5;
-  // Short: < 5 min, Medium: 5-15 min, Long: > 15 min
-  const minutes = durationMs / 60000;
-  if (minutes < 5) return 0.2;
-  if (minutes < 15) return 0.5;
-  return 0.8;
+export function deriveExtendedContext(userState) {
+  return deriveNumericContext(userState);
 }

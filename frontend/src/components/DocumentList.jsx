@@ -61,7 +61,7 @@ export default function DocumentList({
         );
       case 'uploading':
         return (
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Uploading" />
+          <div className="w-2 h-2 rounded-full bg-neutral-500 animate-pulse" title="Uploading" />
         );
       case 'error':
         return (
