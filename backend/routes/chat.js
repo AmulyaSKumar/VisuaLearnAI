@@ -32,6 +32,12 @@ import {
   toOpenAIMessages,
   toOpenAITools,
 } from "../src/services/openai/azure-client.js";
+import {
+  getDocument,
+  retrieveChunks,
+  formatChunksAsContext,
+} from "../src/services/rag/index.js";
+import { processPdfFromStorage } from "../src/services/rag/pdfProcessor.js";
 
 const router = Router();
 
@@ -214,6 +220,47 @@ function parseToolArguments(rawArgs = '') {
   }
 }
 
+async function buildDocumentGrounding({ documentId, userId, query }) {
+  if (!documentId) {
+    return { context: null, chunks: [], document: null };
+  }
+
+  let document = await getDocument(documentId);
+  if (!document) {
+    const error = new Error('Document not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (document.user_id !== userId) {
+    const error = new Error('Access denied to document');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (document.status === 'ready' && (document.chunk_count || 0) === 0 && document.storage_path) {
+    logger.warn({ documentId }, 'Chat RAG document has no chunks, attempting repair');
+    await processPdfFromStorage(documentId, document.storage_path);
+    document = await getDocument(documentId);
+  }
+
+  if (document.status !== 'ready' || (document.chunk_count || 0) === 0) {
+    const error = new Error(
+      document.status === 'processing'
+        ? 'Document is still being processed. Please wait.'
+        : 'Document has not been indexed successfully yet.'
+    );
+    error.statusCode = 400;
+    error.documentStatus = document.status;
+    throw error;
+  }
+
+  const chunks = await retrieveChunks(documentId, query, 6);
+  const context = formatChunksAsContext(chunks);
+
+  return { context, chunks, document };
+}
+
 async function streamOpenAIChat({
   messages,
   system,
@@ -292,8 +339,9 @@ router.post("/chat", async (req, res) => {
     skip3D = false,
     personaId = null,
     temporaryStyle = null,
+    documentId = null,
   } = req.body;
-  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), skip3D, personaId: personaId?.slice(0,8) }, "POST /api/chat");
+  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), skip3D, personaId: personaId?.slice(0,8), documentId: documentId?.slice(0,8) }, "POST /api/chat");
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "messages array is required" });
@@ -314,6 +362,7 @@ router.post("/chat", async (req, res) => {
     const lastUserMessage = messages.filter(m => m.role === 'user').pop();
     const userQuery = typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : '';
     const currentTopic = extractCurrentTopic(userQuery);
+    const documentGrounding = await buildDocumentGrounding({ documentId, userId, query: userQuery });
 
     // Fetch user profile and metrics (used as CONTEXT for bandit, not for prompt shaping)
     const profile = await getCachedProfile(userId);
@@ -358,7 +407,13 @@ router.post("/chat", async (req, res) => {
     const basePrompt = createSystemPrompt(profile, queryPrefs, effectivePersona);
 
     // Append bandit action instructions
-    const systemPrompt = `${basePrompt}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
+    const ragInstructions = documentGrounding.context
+      ? `\n\n## Uploaded Document Context (RAG)\nThe learner selected the document "${documentGrounding.document.original_name}". Answer using the excerpts below as the primary source. If the excerpts do not contain enough information, say what is missing instead of inventing details.\n\n${documentGrounding.context}`
+      : documentId
+        ? '\n\n## Uploaded Document Context (RAG)\nA document was selected, but no relevant excerpts were retrieved. Tell the learner that the document did not contain enough matching information for this question.'
+        : '';
+
+    const systemPrompt = `${basePrompt}${ragInstructions}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
 
     // Send persona info to client if temporary style was applied
     if (temporaryStyle) {

@@ -410,9 +410,12 @@ export class LearnAgent extends BaseAgent {
       'comprehensive': 6,
     }[suggestedDepth] || 6;
 
-    // Determine which blocks to include
-    const includeCodeBlocks = needsCode && domain === 'cs';
-    const includeMistakeBlocks = suggestedDepth !== 'minimal';
+    // Determine which blocks to include. Normal conceptual topics should read
+    // like notes, not a forced programming worksheet with wrong/right examples.
+    const proceduralPattern = /\b(sort|search|algorithm|code|implement|program|function|loop|array|tree|graph|stack|queue|debug|error|bug|complexity|recursion|dynamic programming|dp)\b/i;
+    const isProceduralTopic = proceduralPattern.test(query);
+    const includeCodeBlocks = needsCode && domain === 'cs' && isProceduralTopic;
+    const includeMistakeBlocks = suggestedDepth !== 'minimal' && isProceduralTopic;
     const includeInsightBlocks = suggestedDepth !== 'minimal';
 
     const learningLevel = profile.comprehension_level || profile.knowledge_level || 'intermediate';
@@ -467,10 +470,11 @@ ${personalization}
 
 ADAPTIVE REQUIREMENTS (based on query complexity):
 1. Generate ${keyIdeasCount} key_ideas (this is the TARGET count for this query)
-2. ${includeCodeBlocks ? 'For programming/CS topics: EVERY key_idea MUST have a "code" block with REAL, RUNNABLE code' : 'Code blocks are OPTIONAL for this query - include only if genuinely helpful'}
-3. ${includeMistakeBlocks ? 'Include "mistake" blocks showing common errors' : 'Skip "mistake" blocks for this query'}
+2. ${includeCodeBlocks ? 'For procedural programming/algorithm topics: include code blocks where implementation is central. They must be real, runnable code.' : 'Do NOT force code blocks. Include code only if the user specifically asks for implementation.'}
+3. ${includeMistakeBlocks ? 'Include "mistake" blocks only for procedural steps where wrong/right comparison genuinely helps.' : 'Do NOT include forced wrong/right or mistake blocks for conceptual/factual topics.'}
 4. ${includeInsightBlocks ? 'Include "insight" blocks with pro tips' : 'Skip "insight" blocks for this query'}
 5. Titles must be SPECIFIC to the topic (BANNED: "Core Concept", "How to study it", "Practical applications", "Getting started")
+6. For conceptual topics, format key_ideas as clean keynote-style notes: definition, why it matters, components, examples/applications, limitations, and next steps as appropriate.
 
 EXAMPLES OF BAD VS GOOD TITLES:
 - BAD: "Core concept" → GOOD: "The Comparison and Swap Mechanism"
@@ -565,7 +569,7 @@ MANDATORY CHECKLIST - VERIFY BEFORE RESPONDING:
 [ ] Every title is SPECIFIC to ${query} (no generic titles)
 [ ] Every key_idea has a concept block
 ${includeCodeBlocks ? '[ ] Every key_idea has a code block with RUNNABLE code' : '[ ] Code blocks included only where genuinely helpful'}
-${includeMistakeBlocks ? '[ ] Include mistake blocks with BOTH wrong AND right examples' : ''}
+${includeMistakeBlocks ? '[ ] Include mistake blocks with BOTH wrong AND right examples only where useful' : '[ ] No forced wrong/right mistake blocks for this topic'}
 ${includeInsightBlocks ? '[ ] Include insight blocks with pro tips' : ''}
 [ ] Content progresses from foundational to ${keyIdeasCount > 3 ? 'advanced' : 'intermediate'}
 [ ] responseMode field is set to "deep_learn"`

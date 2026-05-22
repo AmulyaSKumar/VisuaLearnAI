@@ -252,7 +252,7 @@ router.post('/:id/query', async (req, res) => {
 
   try {
     // Verify document access
-    const document = await getDocument(documentId);
+    let document = await getDocument(documentId);
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });

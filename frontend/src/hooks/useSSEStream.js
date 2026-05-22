@@ -62,10 +62,10 @@ export function useSSEStream() {
    * @param {Array} contextMessages - Conversation messages
    * @param {Function} onDelta - Called on each text delta
    * @param {Function} onComplete - Called when stream completes
-   * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId, skip3D, personaId }
+   * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId, skip3D, personaId, documentId }
    */
   const startStream = useCallback(async (contextMessages, onDelta, onComplete, options = {}) => {
-    const { userId, behavior, preferences, accessToken, conversationId, skip3D = false, personaId = null } = options;
+    const { userId, behavior, preferences, accessToken, conversationId, skip3D = false, personaId = null, documentId = null } = options;
 
     setCurrentMessage({ role: "assistant", text: "", widgets: [], loadingWidget: false });
     setIsLoadingWidget(false);
@@ -111,6 +111,7 @@ export function useSSEStream() {
           deviceCapabilities,  // Send device capabilities for 3D optimization
           skip3D,  // When true, backend skips widget generation (3D will be generated separately)
           personaId,  // AI persona for personalized responses
+          documentId,  // Uploaded PDF grounding for RAG-backed answers
         }),
       });
 

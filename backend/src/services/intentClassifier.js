@@ -73,6 +73,13 @@ function quickHeuristicClassify(query) {
   // Quick explain patterns
   const quickExplainPatterns = [
     /^what\s+is\s+/i,
+    /^what\s+are\s+/i,
+    /^what\s+does\s+.+\s+stand\s+for\??$/i,
+    /^full\s+form\s+of\s+/i,
+    /^what\s+is\s+the\s+full\s+form\s+of\s+/i,
+    /^who\s+is\s+/i,
+    /^when\s+was\s+/i,
+    /^where\s+is\s+/i,
     /^explain\s+.{0,30}\s*simply/i,
     /^simply\s+explain/i,
     /^quick(ly)?\s+explain/i,
@@ -215,8 +222,8 @@ export async function classifyLearningIntent(query, options = {}) {
       system: `You are an intent classifier for an educational platform. Classify learning queries into intent types.
 
 INTENT TYPES:
-- quick_explain: Simple "what is X", "explain X simply", brief explanations (1-2 paragraphs sufficient)
-- deep_learn: "teach me X", "full course on X", comprehensive learning requests
+- quick_explain: Simple factual or brief-answer questions like "full form of HSBC", "what does X stand for", "what is X", "who is X", or short explanations where 1-2 paragraphs are sufficient. Do not route these to notes, quiz, flashcards, or mind maps.
+- deep_learn: "teach me X", "explain X fully", "full course on X", comprehensive learning requests where structured notes/key ideas are useful
 - coding_help: "fix this code", "why does this error happen", debugging/fixing requests
 - simulation: Algorithms like sorting, searching, graph traversal (visual simulation is ideal)
 - conceptual_noncs: Non-CS topics like "how engine works", biology, physics (no code needed)

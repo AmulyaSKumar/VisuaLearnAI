@@ -399,6 +399,7 @@ export default function useRealtimeAudio({
             break;
 
           case "session.created":
+          case "translation_session.created":
             // Session created - wait for session.updated before starting mic
             // Backend proxy sends session.update with personalization config
             console.log("Session created:", msg.session?.id);
@@ -406,6 +407,7 @@ export default function useRealtimeAudio({
             break;
 
           case "session.updated":
+          case "translation_session.updated":
             // Session fully configured - NOW start mic pipeline
             console.log("Session configured, starting mic");
             if (sessionConfiguredTimeoutRef.current) {
@@ -465,7 +467,18 @@ export default function useRealtimeAudio({
             if (msg.delta) enqueueAudio(msg.delta);
             break;
 
+          case "translation.audio.delta":
+          case "translation.output_audio.delta":
+            if (msg.delta) enqueueAudio(msg.delta);
+            break;
+
+          case "translation.transcript.delta":
+          case "translation.output_text.delta":
+            setTranscript(prev => prev + (msg.delta || ""));
+            break;
+
           case "response.done":
+          case "translation.done":
             // Audio queue will handle state transition when done
             if (!isPlayingRef.current) {
               updateState(VOICE_STATES.LISTENING);
@@ -485,6 +498,16 @@ export default function useRealtimeAudio({
             console.error("Realtime error:", msg.error);
             setError(typeof msg.error === "string" ? msg.error : msg.error?.message || "Unknown error");
             setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
+            break;
+
+          default:
+            if (typeof msg.type === 'string') {
+              if (msg.type.endsWith('.audio.delta') && msg.delta) {
+                enqueueAudio(msg.delta);
+              } else if (msg.type.endsWith('.transcript.delta') && msg.delta) {
+                setTranscript(prev => prev + msg.delta);
+              }
+            }
             break;
         }
       };

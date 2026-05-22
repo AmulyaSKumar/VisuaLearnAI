@@ -109,15 +109,22 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch('http://localhost:3001/api/chat', {
+      const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           messages: [{ role: 'user', content: text }],
           userId: user.id,
           personaId: defaultPersona?.id,
+          conversationId: conversation.id,
+          documentId: selectedDocumentId,
         })
       });
+
+      if (!response.ok || !response.body) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate response');
+      }
 
       // Read SSE response and save assistant message
       const reader = response.body.getReader();
@@ -133,13 +140,18 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            let data;
             try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'text_delta') {
-                fullText += data.text;
-              }
-            } catch {
+              data = JSON.parse(line.slice(6));
+            } catch (parseErr) {
               // Skip non-JSON lines
+              continue;
+            }
+
+            if (data.type === 'text_delta') {
+              fullText += data.text;
+            } else if (data.type === 'error') {
+              throw new Error(data.error || 'Failed to generate response');
             }
           }
         }

@@ -26,6 +26,8 @@ export default function QuickExplainView({
 
   const {
     title,
+    answer,
+    answer_type,
     explanation,
     analogy,
     example,
@@ -33,10 +35,12 @@ export default function QuickExplainView({
     complexity_note,
     next_step,
   } = content;
+  const isFactualAnswer = answer_type === 'factual';
 
   // Build readable text for TTS
   const readableText = [
     title,
+    answer,
     explanation,
     analogy?.explanation || analogy?.comparison,
     key_takeaway,
@@ -64,6 +68,11 @@ export default function QuickExplainView({
 
       {/* Main Explanation */}
       <div className="prose prose-sm max-w-none dark:prose-invert">
+        {answer && (
+          <p className="text-lg font-semibold text-foreground leading-relaxed whitespace-pre-wrap">
+            {answer}
+          </p>
+        )}
         <p className="text-base text-foreground leading-relaxed whitespace-pre-wrap">
           {explanation}
         </p>
@@ -145,6 +154,7 @@ export default function QuickExplainView({
       )}
 
       {/* Progressive Disclosure Actions */}
+      {!isFactualAnswer && (
       <div className="pt-6 border-t border-border space-y-4">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Want to learn more?
@@ -213,6 +223,7 @@ export default function QuickExplainView({
           </p>
         )}
       </div>
+      )}
     </motion.article>
   );
 }

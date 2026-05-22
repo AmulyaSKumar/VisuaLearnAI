@@ -10,6 +10,7 @@ import useRealtimeAudio, { VOICE_STATES } from "../hooks/useRealtimeAudio";
 import { should3DVisualize } from "../utils/detect3D";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
+import InputBar from "../components/InputBar";
 import LearnTabView from "../components/learning/LearnTabView";
 import ExamplesTabView from "../components/learning/ExamplesTabView";
 import FlashcardsView from "../components/learning/FlashcardsView";
@@ -51,6 +52,38 @@ const DEPTH_LEVELS = [
 
 // Map depth levels to API mode values
 const depthToMode = (depth) => depth; // Now using 'deep' directly
+
+const TOPIC_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'can', 'explain', 'for', 'full', 'fully', 'form',
+  'how', 'in', 'is', 'me', 'of', 'the', 'to', 'what', 'with',
+]);
+
+function topicTokens(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(token => token && token.length > 1 && !TOPIC_STOP_WORDS.has(token));
+}
+
+function isResourceForQuery(resource, query) {
+  if (!query) return true;
+
+  const resourceTopic = resource?.topic || resource?.content?.topic || resource?.content?.title;
+  if (!resourceTopic) return true;
+
+  const normalizedTopic = String(resourceTopic).trim().toLowerCase();
+  const normalizedQuery = String(query).trim().toLowerCase();
+  if (!normalizedTopic || !normalizedQuery) return true;
+  if (normalizedQuery.includes(normalizedTopic) || normalizedTopic.includes(normalizedQuery)) return true;
+
+  const queryTokens = new Set(topicTokens(normalizedQuery));
+  const resourceTokens = topicTokens(normalizedTopic);
+  if (resourceTokens.length === 0 || queryTokens.size === 0) return true;
+
+  const matches = resourceTokens.filter(token => queryTokens.has(token)).length;
+  return matches / resourceTokens.length >= 0.5;
+}
 
 // Inner component that uses the Learning Intelligence context
 function LearningPageContent() {
@@ -109,6 +142,7 @@ function LearningPageContent() {
   const [tabErrors, setTabErrors] = useState({}); // { tabId: "error message" }
   const [userQuery, setUserQuery] = useState(null); // Store user query for lazy loading
   const [documentId, setDocumentId] = useState(null); // Persist selected document for RAG-backed lazy tabs
+  const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -375,6 +409,9 @@ function LearningPageContent() {
 
     // Map resource types to tab IDs
     persistedTypes.forEach(type => {
+      const resource = persistedResources?.[type];
+      if (resource && !isResourceForQuery(resource, userQuery)) return;
+
       switch (type) {
         case RESOURCE_TYPES.LEARN:
           newTabs.add('learn');
@@ -416,7 +453,7 @@ function LearningPageContent() {
     console.log('[LearningPage] Setting visible tabs:', [...newTabs]);
     setVisibleTabs([...newTabs]);
     setLoadedTabs(newLoaded);
-  }, [persistedTypes, userQuery]);
+  }, [persistedTypes, persistedResources, userQuery]);
 
   // Build content from persisted resources + stored content + generated content
   // Priority: persisted resources > stored content (from message metadata) > generated content
@@ -437,6 +474,8 @@ function LearningPageContent() {
     // Layer 3: Persisted resources from database (highest priority)
     if (persistedResources) {
       Object.entries(persistedResources).forEach(([type, resource]) => {
+        if (!isResourceForQuery(resource, userQuery)) return;
+
         if (resource?.content) {
           // Map resource types to content fields
           switch (type) {
@@ -483,7 +522,7 @@ function LearningPageContent() {
 
     if (Object.keys(merged).length === 0) return null;
     return merged;
-  }, [storedContent, generatedContent, persistedResources]);
+  }, [storedContent, generatedContent, persistedResources, userQuery]);
 
   const learningContent = useMemo(() => {
     if (!rawContent) {
@@ -1058,6 +1097,204 @@ function LearningPageContent() {
     }
   }, [userQuery, isRegenerating3D, messages, generate3D, visualizationSkipReason, saveResource, conversation?.title]);
 
+  const readChatStream = useCallback(async (response) => {
+    if (!response.ok || !response.body) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || 'Failed to generate response');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        let data;
+        try {
+          data = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+
+        if (data.type === 'text_delta') {
+          fullText += data.text || '';
+        } else if (data.type === 'error') {
+          throw new Error(data.error || 'Failed to generate response');
+        }
+      }
+    }
+
+    if (buffer.startsWith('data: ')) {
+      try {
+        const data = JSON.parse(buffer.slice(6));
+        if (data.type === 'text_delta') {
+          fullText += data.text || '';
+        } else if (data.type === 'error') {
+          throw new Error(data.error || 'Failed to generate response');
+        }
+      } catch (err) {
+        if (!(err instanceof SyntaxError)) {
+          throw err;
+        }
+      }
+    }
+
+    return fullText;
+  }, []);
+
+  const handleFollowUp = useCallback(async (text) => {
+    const query = text?.trim();
+    if (!query || !userId || !conversationId || isFollowUpLoading) return;
+
+    setIsFollowUpLoading(true);
+    setError(null);
+    setTabErrors({});
+    setActiveTab('learn');
+    setVisibleTabs(['learn']);
+    setLoadedTabs(new Set(['learn']));
+    setLoadingTabs(new Set());
+    setLocalSimulationDetection(null);
+    localSimulationDetectionRef.current = null;
+    setSimulationAutoShown(false);
+    setVisualizationHintChecked(false);
+    clearContentRef.current();
+    setStoredContent(null);
+    setFactCheck(null);
+    setUserQuery(query);
+
+    let savedUserMessage = null;
+
+    try {
+      const { data: userMessage, error: userMessageError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'user',
+          content: query,
+          metadata: { documentId },
+        })
+        .select()
+        .single();
+
+      if (userMessageError) throw userMessageError;
+      savedUserMessage = userMessage;
+
+      setMessages(prev => [...prev, userMessage]);
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      const chatMessages = [...messages, userMessage]
+        .filter(message => message.role === 'user' || message.role === 'assistant')
+        .map(message => ({
+          role: message.role,
+          content: message.content || message.text || '',
+        }))
+        .filter(message => message.content);
+
+      const chatResponse = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          messages: chatMessages,
+          userId,
+          conversationId,
+          personaId: defaultPersona?.id,
+          documentId,
+          skip3D: true,
+        }),
+      });
+
+      const assistantText = await readChatStream(chatResponse);
+
+      const learningResponse = await fetch(`${API_BASE}/api/learning-content`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query,
+          userId,
+          contentType: 'learn',
+          preferences: { mode: depthLevel },
+          conversationId,
+          messageId: savedUserMessage.id,
+          documentId,
+        }),
+      });
+
+      const learningData = await learningResponse.json().catch(() => null);
+      if (!learningResponse.ok || !learningData?.success) {
+        throw new Error(learningData?.error || 'Failed to generate learning content');
+      }
+
+      const learningContent = learningData.content || null;
+      const factCheckResult = learningContent?.factCheck || null;
+
+      const { data: assistantMessage, error: assistantMessageError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: assistantText || learningContent?.summary || '',
+          metadata: {
+            documentId,
+            learningContent,
+            factCheck: factCheckResult,
+          },
+        })
+        .select()
+        .single();
+
+      if (assistantMessageError) throw assistantMessageError;
+
+      setMessages(prev => [...prev, assistantMessage]);
+      setStoredContent(learningContent);
+      setFactCheck(factCheckResult);
+
+      if (learningData.simulationDetection) {
+        setLocalSimulationDetection(learningData.simulationDetection);
+        localSimulationDetectionRef.current = learningData.simulationDetection;
+      } else {
+        runSimulationDetection(query);
+      }
+
+      await fetchResources();
+    } catch (err) {
+      console.error('[LearningPage] Follow-up failed:', err);
+      setError(err.message || 'Failed to continue this session');
+    } finally {
+      setIsFollowUpLoading(false);
+    }
+  }, [
+    API_BASE,
+    accessToken,
+    clearContentRef,
+    conversationId,
+    defaultPersona?.id,
+    depthLevel,
+    documentId,
+    fetchResources,
+    isFollowUpLoading,
+    messages,
+    readChatStream,
+    runSimulationDetection,
+    userId,
+  ]);
+
   // Render engaging loader based on active tab
   const renderLoader = () => {
     const topic = learningContent?.topic || conversation?.title || userQuery;
@@ -1467,6 +1704,19 @@ function LearningPageContent() {
           )}
 
           {renderTabContent()}
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 border-t border-border bg-background/95 px-3 py-3 backdrop-blur sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <InputBar
+            onSend={handleFollowUp}
+            inputDisabled={isFollowUpLoading || isLoading || isLearningContentLoading}
+            voiceActive={voice.isActive}
+            voiceState={voice.state}
+            onVoiceStart={voice.start}
+            onVoiceStop={voice.stop}
+          />
         </div>
       </div>
 

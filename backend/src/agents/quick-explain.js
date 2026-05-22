@@ -27,6 +27,10 @@ function parseJsonResponse(text) {
   }
 }
 
+function isAtomicFactualQuery(query) {
+  return /^(what\s+does\s+.+\s+stand\s+for\??|full\s+form\s+of\s+|what\s+is\s+the\s+full\s+form\s+of\s+|who\s+is\s+|when\s+was\s+|where\s+is\s+)/i.test(query.trim());
+}
+
 export class QuickExplainAgent extends BaseAgent {
   constructor() {
     super('quick-explain', 'Generates concise explanations for simple queries', '1.0.0');
@@ -39,10 +43,11 @@ export class QuickExplainAgent extends BaseAgent {
     const learningLevel = profile.comprehension_level || profile.knowledge_level || 'beginner';
     const learningStyle = profile.learning_style || 'visual';
     const domain = intent.domain || 'cs';
-    const needsCode = intent.needsCode !== false && domain === 'cs';
+    const isAtomicFactual = isAtomicFactualQuery(query);
+    const needsCode = !isAtomicFactual && intent.needsCode !== false && domain === 'cs';
 
     const text = await createTextCompletion({
-      maxTokens: 2000,
+      maxTokens: isAtomicFactual ? 900 : 2000,
       system: `You are an expert educator who excels at simple, clear explanations.
 Your goal is to explain concepts in the most accessible way possible.
 
@@ -51,16 +56,27 @@ Style Preference: ${learningStyle}
 Domain: ${domain}
 
 GUIDELINES:
-1. Keep explanations SHORT and SIMPLE (2-3 paragraphs max)
+1. Keep explanations SHORT and SIMPLE (${isAtomicFactual ? '1 short answer plus 1 clarifying sentence max' : '2-3 paragraphs max'})
 2. Use everyday language - avoid jargon
-3. Include ONE memorable analogy
+3. ${isAtomicFactual ? 'Do not add analogies, quizzes, flashcards, mind maps, examples, or practice prompts for atomic factual answers' : 'Include ONE memorable analogy'}
 4. ${needsCode ? 'Include a TINY code example (5-10 lines max) only if it helps understanding' : 'NO code examples needed for this topic'}
 5. Focus on the "what" and "why it matters" - not exhaustive details
 
 CRITICAL: Respond with RAW JSON only. No explanation, no markdown fences. Start with { and end with }.`,
       messages: [{
         role: 'user',
-        content: `Explain simply: "${query}"
+        content: isAtomicFactual ? `Answer this factual question directly: "${query}"
+
+Return JSON with this EXACT structure:
+{
+  "topic": "${query}",
+  "title": "Direct answer title",
+  "answer": "The direct answer in one sentence.",
+  "explanation": "One short clarifying sentence, only if useful.",
+  "key_takeaway": "The direct answer again in compact form.",
+  "answer_type": "factual",
+  "responseMode": "quick_explain"
+}` : `Explain simply: "${query}"
 
 Return JSON with this EXACT structure:
 {
@@ -79,6 +95,7 @@ Return JSON with this EXACT structure:
   "key_takeaway": "The ONE thing to remember about this topic",
   "complexity_note": "Brief note about complexity/difficulty (e.g., 'Simple concept, foundational to X')",
   "next_step": "What to learn next if interested",
+  "answer_type": "explanation",
   "responseMode": "quick_explain"
 }`
       }]

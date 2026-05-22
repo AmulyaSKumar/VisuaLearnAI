@@ -497,6 +497,15 @@ export function normalizeLearningContent(content) {
     quiz: quiz,
     mind_map: mindMap,
     image_search_keywords: ensureArray(imageKeywords).map(kw => extractString(kw, '')).filter(Boolean),
+    responseMode: content.responseMode || content.response_mode || null,
+    answer: extractString(content.answer, ''),
+    answer_type: extractString(content.answer_type || content.answerType, ''),
+    explanation: extractString(content.explanation, ''),
+    analogy: content.analogy || null,
+    example: content.example || null,
+    key_takeaway: extractString(content.key_takeaway || content.keyTakeaway, ''),
+    complexity_note: extractString(content.complexity_note || content.complexityNote, ''),
+    next_step: extractString(content.next_step || content.nextStep, ''),
     // Preserve any other fields
     generatedAt: content.generatedAt,
     profile: content.profile

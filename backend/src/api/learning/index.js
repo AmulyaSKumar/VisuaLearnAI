@@ -435,6 +435,7 @@ router.post('/learning-content', async (req, res) => {
       query,
       profile: mergedProfile,
       contentType,
+      forceMode: documentId && (!contentType || contentType === 'learn') ? 'deep_learn' : undefined,
       documentId,       // Pass ID so agents know a document was selected
       documentContext,  // RAG context (formatted text)
       contextChunks,    // Raw chunks for reference
