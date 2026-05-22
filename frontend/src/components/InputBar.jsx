@@ -156,7 +156,7 @@ export default function InputBar({
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
-        className="w-full relative flex items-center neu-pressed rounded-xl overflow-hidden"
+        className="w-full relative z-20 flex items-center neu-pressed rounded-xl overflow-visible"
       >
         <input
           type="text"
@@ -176,7 +176,7 @@ export default function InputBar({
               <button
                 type="button"
                 onClick={() => setShowTools((open) => !open)}
-                className="w-10 h-10 min-h-[40px] min-w-[40px] neu-btn rounded-xl text-foreground flex items-center justify-center"
+                className="w-10 h-10 min-h-[40px] min-w-[40px] rounded-xl border border-primary/30 bg-primary/10 text-primary shadow-sm flex items-center justify-center hover:bg-primary/20"
                 title="Add tools"
                 aria-label="Add tools"
                 aria-expanded={showTools}
@@ -187,7 +187,7 @@ export default function InputBar({
               </button>
 
               {showTools && (
-                <div className="absolute bottom-full left-0 z-30 mb-2 w-56 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                <div className="absolute bottom-full right-0 z-[100] mb-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-xl">
                   {onToggleWebSearch && (
                     <button
                       type="button"

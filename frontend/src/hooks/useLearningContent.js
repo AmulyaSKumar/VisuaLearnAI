@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -173,7 +173,7 @@ export function useLearningContent() {
    * @param {string} accessToken - Auth token
    * @param {object} preferences - User preferences { mode: 'simple'|'balanced'|'deep', style: 'story'|'visual'|'step-by-step' }
    */
-  const generateContent = useCallback(async (query, userId = null, forceRefresh = false, accessToken = null, preferences = null) => {
+  const generateContent = useCallback(async (query, userId = null, forceRefresh = false, accessToken = null, preferences = null, options = {}) => {
     if (!query?.trim()) return null;
 
     // If force refresh, clear all cached content
@@ -199,7 +199,15 @@ export function useLearningContent() {
         const response = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ query, userId, forceRefresh, preferences })
+          body: JSON.stringify({
+            query,
+            userId,
+            forceRefresh,
+            preferences,
+            conversationId: options.conversationId,
+            documentId: options.documentId,
+            webSearch: options.webSearch,
+          })
         });
 
         const data = await parseJsonResponse(

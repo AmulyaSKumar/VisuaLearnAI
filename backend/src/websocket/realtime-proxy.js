@@ -771,25 +771,20 @@ export function createRealtimeProxy(clientWs, requestUrl, user = null) {
               }
             : realtimeMode === 'ga'
               ? {
+                  voice: process.env.AZURE_REALTIME_VOICE || 'alloy',
                   instructions: instructions,
-                  audio: {
-                    input: {
-                      format: 'pcm16',
-                      transcription: {
-                        model: DEFAULT_TRANSCRIPTION_MODEL,
-                      },
-                      turn_detection: {
-                        type: 'server_vad',
-                        threshold: 0.5,
-                        prefix_padding_ms: 300,
-                        silence_duration_ms: 500,
-                        create_response: true,
-                      },
-                    },
-                    output: {
-                      format: 'pcm16',
-                      voice: process.env.AZURE_REALTIME_VOICE || 'alloy',
-                    },
+                  modalities: ['text', 'audio'],
+                  input_audio_format: 'pcm16',
+                  output_audio_format: 'pcm16',
+                  input_audio_transcription: {
+                    model: DEFAULT_TRANSCRIPTION_MODEL,
+                  },
+                  turn_detection: {
+                    type: 'server_vad',
+                    threshold: 0.5,
+                    prefix_padding_ms: 300,
+                    silence_duration_ms: 500,
+                    create_response: true,
                   },
                 }
               : {

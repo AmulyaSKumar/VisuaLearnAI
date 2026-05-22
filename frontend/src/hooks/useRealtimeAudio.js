@@ -76,7 +76,7 @@ export default function useRealtimeAudio({
   const clearAudioQueue = useCallback(() => {
     playbackQueueRef.current = [];
     if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.stop(); } catch {}
+      try { sourceNodeRef.current.stop(); } catch { /* source may already be stopped */ }
       sourceNodeRef.current = null;
     }
     isPlayingRef.current = false;
@@ -496,7 +496,11 @@ export default function useRealtimeAudio({
 
           case "error":
             console.error("Realtime error:", msg.error);
-            setError(typeof msg.error === "string" ? msg.error : msg.error?.message || "Unknown error");
+            setError(
+              typeof msg.error === "string"
+                ? msg.error
+                : msg.error?.message || msg.error?.code || JSON.stringify(msg.error || msg)
+            );
             setErrorType(VOICE_ERRORS.CONNECTION_FAILED);
             break;
 

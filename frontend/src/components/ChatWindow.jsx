@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
+import { useLocation, Link, useParams } from "react-router-dom";
 import { useChat } from "../hooks/useChat";
 import { useLearningState } from "../hooks/useLearningState";
 import { useBehaviorTracking } from "../hooks/useBehaviorTracking";
@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { usePersona } from "../contexts/PersonaContext";
 import MessageList from "./MessageList";
 import InputBar from "./InputBar";
+import DocumentUpload from "./DocumentUpload";
 import VoiceOverlay from "./VoiceOverlay";
 import VoiceIndicator from "./VoiceIndicator";
 import VoiceToggleButton from "./VoiceToggleButton";
@@ -18,18 +19,35 @@ import LearningStatePanel from "./LearningStatePanel";
 import SessionSummary from "./SessionSummary";
 import Widget3DSkeleton from "./Widget3DSkeleton";
 import PersonaBadge from "./PersonaBadge";
+import { useDocuments } from "../hooks/useDocuments";
+
+const ARTIFACT_TABS = {
+  quiz: 'quiz',
+  flashcards: 'flashcards',
+  mindmap: 'mindmap',
+};
+
+const ARTIFACT_LABELS = {
+  quiz: 'Quiz',
+  flashcards: 'Flashcards',
+  mindmap: 'Mind Map',
+};
 
 export default function ChatWindow({
   onConversationCreated = null,
   onConversationUpdated = null,
 }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { id: conversationId } = useParams();
   const { user, session } = useAuth();
   const { defaultPersona } = usePersona();
   const userId = user?.id;
   const accessToken = session?.access_token;
+  const {
+    documents,
+    uploadProgress,
+    upload: uploadDocument,
+  } = useDocuments();
 
   // Chat state
   const {
@@ -80,8 +98,14 @@ export default function ChatWindow({
   const [showSessionSummary, setShowSessionSummary] = useState(false);
   const [sessionData, setSessionData] = useState({});
   const [showStatePanel, setShowStatePanel] = useState(true);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  const [pendingArtifact, setPendingArtifact] = useState(null);
+  const [learningWorkspaceInitialTab, setLearningWorkspaceInitialTab] = useState('text');
   const cognitiveStatesRef = useRef([]);
   const topicsRef = useRef([]);
+  const selectedDocument = documents.find(doc => doc.id === selectedDocumentId);
 
   // Update learning state from personalization metadata
   useEffect(() => {
@@ -110,10 +134,33 @@ export default function ChatWindow({
   }, [isStreaming, location.state, messages.length, sendMessage]);
 
   // Track follow-ups when sending messages
-  const handleSendMessage = useCallback((text) => {
+  const handleSendMessage = useCallback(async (text) => {
     behaviorTracking.trackFollowUp();
-    sendMessage(text);
-  }, [behaviorTracking, sendMessage]);
+    const requestedArtifact = pendingArtifact;
+    if (requestedArtifact) {
+      setLearningWorkspaceInitialTab(ARTIFACT_TABS[requestedArtifact] || 'text');
+    }
+
+    await sendMessage(text, {
+      documentId: selectedDocumentId,
+      webSearch: webSearchEnabled && !selectedDocumentId,
+      requestedArtifact,
+    });
+
+    setSelectedDocumentId(null);
+    setShowDocumentUpload(false);
+    setPendingArtifact(null);
+  }, [behaviorTracking, pendingArtifact, selectedDocumentId, sendMessage, webSearchEnabled]);
+
+  const handleDocumentUpload = useCallback(async (file) => {
+    const document = await uploadDocument(file);
+    if (document?.id) {
+      setSelectedDocumentId(document.id);
+      setShowDocumentUpload(false);
+      setWebSearchEnabled(false);
+    }
+    return document;
+  }, [uploadDocument]);
 
   // Handle learning plan step click
   const handleStepClick = (step) => {
@@ -308,6 +355,7 @@ export default function ChatWindow({
         isLearningContentLoading={isLearningContentLoading}
         onLearningInteraction={trackInteraction}
         is3DLoading={is3DLoading}
+        learningWorkspaceInitialTab={learningWorkspaceInitialTab}
       />
 
       {/* Input Area */}
@@ -328,6 +376,39 @@ export default function ChatWindow({
           </div>
         )}
 
+        {(webSearchEnabled || selectedDocument || pendingArtifact || showDocumentUpload || uploadProgress) && (
+          <div className="mb-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {webSearchEnabled && !selectedDocumentId && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
+                  Web search on
+                  <button type="button" onClick={() => setWebSearchEnabled(false)} className="text-primary/70 hover:text-primary">x</button>
+                </span>
+              )}
+              {selectedDocument && (
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
+                  <span className="truncate">Document: {selectedDocument.filename}</span>
+                  <button type="button" onClick={() => setSelectedDocumentId(null)} className="text-primary/70 hover:text-primary">x</button>
+                </span>
+              )}
+              {pendingArtifact && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
+                  Generate {ARTIFACT_LABELS[pendingArtifact] || pendingArtifact}
+                  <button type="button" onClick={() => setPendingArtifact(null)} className="text-primary/70 hover:text-primary">x</button>
+                </span>
+              )}
+            </div>
+            {(showDocumentUpload || uploadProgress) && (
+              <DocumentUpload
+                compact
+                onUpload={handleDocumentUpload}
+                uploadProgress={uploadProgress}
+                disabled={isStreaming || isPlanLoading}
+              />
+            )}
+          </div>
+        )}
+
         <InputBar
           onSend={handleSendMessage}
           inputDisabled={isStreaming || isPlanLoading}
@@ -335,8 +416,16 @@ export default function ChatWindow({
           voiceState={voice.state}
           onVoiceStart={voice.start}
           onVoiceStop={voice.stop}
-          onGenerateArtifact={() => navigate(`/learn/${conversationId}`)}
-          onDocumentUpload={() => navigate('/chat/new')}
+          webSearchEnabled={webSearchEnabled}
+          onToggleWebSearch={() => {
+            setWebSearchEnabled(prev => {
+              const next = !prev;
+              if (next) setSelectedDocumentId(null);
+              return next;
+            });
+          }}
+          onGenerateArtifact={(artifact) => setPendingArtifact(artifact)}
+          onDocumentUpload={() => setShowDocumentUpload(prev => !prev)}
         />
         <div className="text-center mt-2 sm:mt-3">
           <p className="text-[10px] sm:text-xs text-muted-foreground">

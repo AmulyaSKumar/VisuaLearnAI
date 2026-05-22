@@ -176,8 +176,14 @@ export function useChat(
         createdConversation = newConv;
       }
 
+      const messageMetadata = {
+        documentId: preferences.documentId || null,
+        webSearch: !!preferences.webSearch,
+        requestedArtifact: preferences.requestedArtifact || null,
+      };
+
       // 2. Save user message to DB
-      savedUserMessage = await saveMessage(activeConversationId, "user", text);
+      savedUserMessage = await saveMessage(activeConversationId, "user", text, messageMetadata);
       if (!savedUserMessage) {
         throw new Error("Failed to save your message.");
       }
@@ -230,6 +236,9 @@ export function useChat(
               widgets: msg.widgets || [],
               images: msg.images || [],
               factCheck: msg.factCheck || null,
+              documentId: preferences.documentId || null,
+              webSearch: !!preferences.webSearch,
+              requestedArtifact: preferences.requestedArtifact || null,
             };
             const savedMsg = await saveMessage(
               activeConversationId,
@@ -249,6 +258,21 @@ export function useChat(
 
           setMessages([...newContext, ...enrichedMsgs]);
           setIsStreaming(false);
+
+          if (preferences.requestedArtifact && userId) {
+            await generateLearningContent(
+              text,
+              userId,
+              true,
+              accessToken,
+              { requestedArtifact: preferences.requestedArtifact },
+              {
+                conversationId: activeConversationId,
+                documentId: preferences.documentId || null,
+                webSearch: !!preferences.webSearch,
+              },
+            );
+          }
 
           // 5. Generate 3D widget separately if needed
           if (needs3D && enrichedMsgs.length > 0) {
@@ -307,7 +331,17 @@ export function useChat(
             }
           }
         },
-        { userId, behavior: behaviorData, preferences, accessToken, conversationId: activeConversationId, skip3D: needs3D, personaId: defaultPersona?.id }
+        {
+          userId,
+          behavior: behaviorData,
+          preferences,
+          accessToken,
+          conversationId: activeConversationId,
+          skip3D: needs3D,
+          personaId: defaultPersona?.id,
+          documentId: preferences.documentId || null,
+          webSearch: !!preferences.webSearch,
+        }
       );
     } catch (error) {
       if (createdConversation && !savedUserMessage && userId && activeConversationId) {
@@ -325,6 +359,7 @@ export function useChat(
     assets,
     defaultPersona,
     generate3D,
+    generateLearningContent,
     messages,
     onConversationCreated,
     saveMessage,

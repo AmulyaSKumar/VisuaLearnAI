@@ -9,7 +9,7 @@ import FactCheckBadge from "./FactCheckBadge";
 import ImageWidget from "./ImageWidget";
 import LearningWorkspace from "./LearningWorkspace";
 
-export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], userId = null, onWidgetInteraction, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, is3DLoading = false }) {
+export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], userId = null, onWidgetInteraction, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, is3DLoading = false, learningWorkspaceInitialTab = 'text' }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -150,10 +150,12 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
         {(learningContent || isLearningContentLoading) && messages.length > 0 && !currentStreamedMessage && (
           <div className="mx-auto mt-6 w-full max-w-5xl">
             <LearningWorkspace
+              key={learningWorkspaceInitialTab}
               content={learningContent}
               isLoading={isLearningContentLoading}
               userId={userId}
               onInteraction={onLearningInteraction}
+              initialTab={learningWorkspaceInitialTab}
             />
           </div>
         )}

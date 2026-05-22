@@ -10,7 +10,7 @@ function getDeviceCapabilities() {
   try {
     const canvas = document.createElement('canvas');
     webgl = !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
-  } catch (e) {
+  } catch {
     webgl = false;
   }
 
@@ -65,7 +65,17 @@ export function useSSEStream() {
    * @param {Object} options - { userId, behavior, preferences, accessToken, conversationId, skip3D, personaId, documentId }
    */
   const startStream = useCallback(async (contextMessages, onDelta, onComplete, options = {}) => {
-    const { userId, behavior, preferences, accessToken, conversationId, skip3D = false, personaId = null, documentId = null } = options;
+    const {
+      userId,
+      behavior,
+      preferences,
+      accessToken,
+      conversationId,
+      skip3D = false,
+      personaId = null,
+      documentId = null,
+      webSearch = false,
+    } = options;
 
     setCurrentMessage({ role: "assistant", text: "", widgets: [], loadingWidget: false });
     setIsLoadingWidget(false);
@@ -93,34 +103,34 @@ export function useSSEStream() {
     const streamUserId = userId;
     const streamToken = accessToken;
 
-    try {
-      const headers = { "Content-Type": "application/json" };
-      if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
-      }
+    const headers = { "Content-Type": "application/json" };
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
 
-      const response = await fetch("http://localhost:3001/api/chat", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          messages: formattedMessages,
-          userId,
-          behavior,
-          preferences,
-          conversationId,
-          deviceCapabilities,  // Send device capabilities for 3D optimization
-          skip3D,  // When true, backend skips widget generation (3D will be generated separately)
-          personaId,  // AI persona for personalized responses
-          documentId,  // Uploaded PDF grounding for RAG-backed answers
-        }),
-      });
+    const response = await fetch("http://localhost:3001/api/chat", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        messages: formattedMessages,
+        userId,
+        behavior,
+        preferences,
+        conversationId,
+        deviceCapabilities,  // Send device capabilities for 3D optimization
+        skip3D,  // When true, backend skips widget generation (3D will be generated separately)
+        personaId,  // AI persona for personalized responses
+        documentId,  // Uploaded PDF grounding for RAG-backed answers
+        webSearch,  // Current web grounding for one-shot web search answers
+      }),
+    });
 
-      if (!response.ok) throw new Error("Failed to start stream");
+    if (!response.ok) throw new Error("Failed to start stream");
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      let finalWidgets = [];
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let finalWidgets = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -227,10 +237,7 @@ export function useSSEStream() {
           }
         }
       }
-    } catch (e) {
-      throw e;
-    }
-  }, []);
+  }, [deviceCapabilities]);
 
   const continueWithToolResult = async (
     originalContext,
@@ -327,7 +334,9 @@ export function useSSEStream() {
               setCurrent(null);
               setLoading(false);
             }
-          } catch(e) {}
+          } catch {
+            // Ignore malformed SSE chunks and keep reading.
+          }
         }
       }
     } catch (e) {
