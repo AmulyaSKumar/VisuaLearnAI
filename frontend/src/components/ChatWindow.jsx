@@ -22,15 +22,21 @@ import PersonaBadge from "./PersonaBadge";
 import { useDocuments } from "../hooks/useDocuments";
 
 const ARTIFACT_TABS = {
+  learn: 'text',
   quiz: 'quiz',
   flashcards: 'flashcards',
   mindmap: 'mindmap',
+  simulation: 'simulation',
+  summarize: 'text',
 };
 
 const ARTIFACT_LABELS = {
+  learn: 'Learn Deeply',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
+  simulation: 'Simulation',
+  summarize: 'Document Summary',
 };
 
 export default function ChatWindow({
@@ -66,6 +72,7 @@ export default function ChatWindow({
     generateLearningPlan,
     learningContent,
     isLearningContentLoading,
+    generateLearningContent,
     trackInteraction,
     // 3D widget generation (separate from chat)
     is3DLoading,
@@ -161,6 +168,56 @@ export default function ChatWindow({
     }
     return document;
   }, [uploadDocument]);
+
+  const getArtifactQueryFromContext = useCallback((artifact) => {
+    if (artifact === 'summarize') return 'Summarize the uploaded document';
+
+    const recent = [...messages]
+      .filter(message => message.role === 'user' || message.role === 'assistant')
+      .slice(-6)
+      .map(message => `${message.role}: ${message.content || message.text || ''}`)
+      .filter(Boolean)
+      .join('\n');
+
+    return recent || '';
+  }, [messages]);
+
+  const handleGenerateArtifact = useCallback(async (artifact) => {
+    const query = getArtifactQueryFromContext(artifact);
+
+    if (!query) {
+      setPendingArtifact(artifact);
+      return;
+    }
+
+    if (artifact === 'summarize' && !selectedDocumentId) {
+      setPendingArtifact(artifact);
+      setShowDocumentUpload(true);
+      return;
+    }
+
+    setLearningWorkspaceInitialTab(ARTIFACT_TABS[artifact] || 'text');
+    await generateLearningContent(
+      query,
+      userId,
+      true,
+      accessToken,
+      { requestedArtifact: artifact },
+      {
+        conversationId,
+        documentId: selectedDocumentId,
+        webSearch: webSearchEnabled && !selectedDocumentId,
+      },
+    );
+  }, [
+    accessToken,
+    conversationId,
+    generateLearningContent,
+    getArtifactQueryFromContext,
+    selectedDocumentId,
+    userId,
+    webSearchEnabled,
+  ]);
 
   // Handle learning plan step click
   const handleStepClick = (step) => {
@@ -424,7 +481,7 @@ export default function ChatWindow({
               return next;
             });
           }}
-          onGenerateArtifact={(artifact) => setPendingArtifact(artifact)}
+          onGenerateArtifact={handleGenerateArtifact}
           onDocumentUpload={() => setShowDocumentUpload(prev => !prev)}
         />
         <div className="text-center mt-2 sm:mt-3">

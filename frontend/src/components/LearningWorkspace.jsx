@@ -20,6 +20,16 @@ const TABS = [
 export default function LearningWorkspace({ content, isLoading, userId, onInteraction, accessToken, initialTab = 'text' }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'text');
   const [mode, setMode] = useState('balanced'); // simple, balanced, technical
+  const visibleTabs = TABS.filter(tab => {
+    if (tab.id === 'simulation') return !!content?.simulationDetection?.supported;
+    if (tab.id === 'mindmap') return !!(content?.mindmap || content?.mind_map);
+    if (tab.id === 'flashcards') return Array.isArray(content?.flashcards) && content.flashcards.length > 0;
+    if (tab.id === 'quiz') return Array.isArray(content?.quiz) && content.quiz.length > 0;
+    if (tab.id === 'concepts') return Array.isArray(content?.concepts) && content.concepts.length > 0;
+    if (tab.id === 'audio') return !!content?.summary;
+    return true;
+  });
+  const selectedTab = visibleTabs.some(tab => tab.id === activeTab) ? activeTab : 'text';
 
   // Track tab changes
   useEffect(() => {
@@ -52,7 +62,7 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
   if (!content) return null;
 
   const renderTabContent = () => {
-    switch (activeTab) {
+    switch (selectedTab) {
       case 'text':
         return (
           <InteractiveText
@@ -77,12 +87,13 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
             userId={userId}
             onInteraction={onInteraction}
             accessToken={accessToken}
+            simulationDetection={content.simulationDetection}
           />
         );
       case 'mindmap':
         return (
           <MindMapView
-            mindmap={content.mindmap}
+            mindmap={content.mindmap || content.mind_map}
             topic={content.topic}
           />
         );
@@ -158,12 +169,12 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
       {/* Tabs */}
       <div className="border-b border-border bg-muted/20 overflow-x-auto">
         <div className="flex px-2 py-1 gap-1 min-w-max">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                activeTab === tab.id
+                selectedTab === tab.id
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
               }`}

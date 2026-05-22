@@ -148,6 +148,7 @@ export function useLearningContent() {
         setContent(prev => ({
           ...prev,
           ...data.content,
+          simulationDetection: tabType === 'learn' ? data.simulationDetection : prev?.simulationDetection,
         }));
 
         return { content: data.content, simulationDetection: data.simulationDetection };
@@ -223,8 +224,13 @@ export function useLearningContent() {
           throw new Error(data?.error || 'Failed to generate content');
         }
 
+        const mergedContent = {
+          ...data.content,
+          simulationDetection: data.simulationDetection || null,
+        };
+
         // Store all content
-        setContent(data.content);
+        setContent(mergedContent);
 
         // Extract simulation detection
         if (data.simulationDetection) {
@@ -254,7 +260,7 @@ export function useLearningContent() {
         // Mark all tabs as fetched
         setFetchedTabs(new Set(['learn', 'flashcards-mindmap', 'quiz']));
 
-        return data.content;
+        return mergedContent;
       } catch (err) {
         console.error('Learning content error:', err);
         setError(err.message);

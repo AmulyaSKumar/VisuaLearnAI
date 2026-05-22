@@ -22,9 +22,19 @@ const SUGGESTIONS = [
 ];
 
 const ARTIFACT_LABELS = {
+  learn: 'Learn Deeply',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
+  simulation: 'Simulation',
+  summarize: 'Document Summary',
+};
+
+const artifactToContentType = (artifact) => {
+  if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === 'summarize') return 'learn';
+  if (artifact === 'quiz') return 'quiz';
+  if (artifact === 'flashcards' || artifact === 'mindmap') return 'flashcards-mindmap';
+  return 'learn';
 };
 
 export default function NewChatPage({ onConversationCreated = null, onConversationUpdated = null }) {
@@ -107,6 +117,9 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           conversationId: conversation.id,
           documentId: activeDocumentId,
           webSearch: useWebSearch,
+          skip3D: !requestedArtifact,
+          learningAction: requestedArtifact || null,
+          preferences: { requestedArtifact },
         })
       });
 
@@ -146,22 +159,26 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
         }
       }
 
-      // 4. Generate learning content
+      // 4. Generate learning content only when the user explicitly selected a learning action.
       let learningContent = null;
       let factCheck = null;
-      try {
+      if (requestedArtifact) try {
         const lcHeaders = { 'Content-Type': 'application/json' };
         if (accessToken) {
           lcHeaders['Authorization'] = `Bearer ${accessToken}`;
         }
 
+        const learningQuery = requestedArtifact === 'summarize'
+          ? 'Summarize the uploaded document'
+          : text;
+
         const lcResponse = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
           headers: lcHeaders,
           body: JSON.stringify({
-            query: text,
+            query: learningQuery,
             userId: user.id,
-            contentType: requestedArtifact ? undefined : 'learn',
+            contentType: artifactToContentType(requestedArtifact),
             conversationId: conversation.id,
             documentId: activeDocumentId,
             webSearch: useWebSearch,
@@ -208,7 +225,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       setSelectedDocumentId(null);
       setPendingArtifact(null);
       setWebSearchEnabled(false);
-      navigate(`/learn/${conversation.id}`);
+      navigate(requestedArtifact ? `/learn/${conversation.id}` : `/chat/${conversation.id}`);
 
     } catch (err) {
       if (user && conversation?.id && !savedFirstMessage) {
@@ -308,7 +325,10 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
                 });
               }}
               onDocumentUpload={() => setShowDocuments(true)}
-              onGenerateArtifact={(artifact) => setPendingArtifact(artifact)}
+              onGenerateArtifact={(artifact) => {
+                setPendingArtifact(artifact);
+                if (artifact === 'summarize') setShowDocuments(true);
+              }}
             />
 
             {/* Suggestions */}

@@ -203,7 +203,8 @@ export function useChat(
       // This prevents duplicate fetches and race conditions between hook instances
 
       // Check if 3D visualization is appropriate for this query
-      const detection3D = should3DVisualize(text);
+      const allowInlineSimulation = preferences.requestedArtifact === 'simulation' || preferences.requestedArtifact === 'learn';
+      const detection3D = allowInlineSimulation ? should3DVisualize(text) : { use3D: false, score: 0, reason: 'normal chat mode' };
       const deviceCaps = getDeviceCapabilities();
       const needs3D = detection3D.use3D && deviceCaps.canRender3D;
 
@@ -337,7 +338,7 @@ export function useChat(
           preferences,
           accessToken,
           conversationId: activeConversationId,
-          skip3D: needs3D,
+          skip3D: !allowInlineSimulation || needs3D,
           personaId: defaultPersona?.id,
           documentId: preferences.documentId || null,
           webSearch: !!preferences.webSearch,

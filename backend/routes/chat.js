@@ -340,6 +340,8 @@ router.post("/chat", async (req, res) => {
     personaId = null,
     temporaryStyle = null,
     documentId = null,
+    learningAction = null,
+    preferences = {},
   } = req.body;
   logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), skip3D, personaId: personaId?.slice(0,8), documentId: documentId?.slice(0,8) }, "POST /api/chat");
 
@@ -363,6 +365,7 @@ router.post("/chat", async (req, res) => {
     const userQuery = typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : '';
     const currentTopic = extractCurrentTopic(userQuery);
     const documentGrounding = await buildDocumentGrounding({ documentId, userId, query: userQuery });
+    const intentionalLearningAction = learningAction || preferences?.requestedArtifact || null;
 
     // Fetch user profile and metrics (used as CONTEXT for bandit, not for prompt shaping)
     const profile = await getCachedProfile(userId);
@@ -406,14 +409,19 @@ router.post("/chat", async (req, res) => {
     const queryPrefs = skip3D ? { style: 'text' } : {};
     const basePrompt = createSystemPrompt(profile, queryPrefs, effectivePersona);
 
-    // Append bandit action instructions
+    // Normal chat must stay conversational. Structured learning behavior is only
+    // enabled when the user explicitly chooses a plus-menu learning action.
     const ragInstructions = documentGrounding.context
       ? `\n\n## Uploaded Document Context (RAG)\nThe learner selected the document "${documentGrounding.document.original_name}". Answer using the excerpts below as the primary source. If the excerpts do not contain enough information, say what is missing instead of inventing details.\n\n${documentGrounding.context}`
       : documentId
         ? '\n\n## Uploaded Document Context (RAG)\nA document was selected, but no relevant excerpts were retrieved. Tell the learner that the document did not contain enough matching information for this question.'
         : '';
 
-    const systemPrompt = `${basePrompt}${ragInstructions}\n\n## Response Format Requirement (CRITICAL)\n${actionInstructions}`;
+    const responseModeInstructions = intentionalLearningAction
+      ? `\n\n## Response Format Requirement\n${actionInstructions}`
+      : '\n\n## Response Mode\nRespond naturally and directly like a normal chat assistant. Do not create learning tabs, quizzes, flashcards, mind maps, or structured lesson output unless the user explicitly asks for them.';
+
+    const systemPrompt = `${basePrompt}${ragInstructions}${responseModeInstructions}`;
 
     // Send persona info to client if temporary style was applied
     if (temporaryStyle) {
@@ -429,10 +437,10 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    logger.info({ selectedAction: banditDecision.selectedAction, topic: currentTopic, source: banditDecision.decisionSource, skip3D }, "Bandit decision");
+    logger.info({ selectedAction: banditDecision.selectedAction, learningAction: intentionalLearningAction, topic: currentTopic, source: banditDecision.decisionSource, skip3D }, "Bandit decision");
 
-    // Don't include widget tool when skip3D (text-only mode)
-    const tools = skip3D ? [] : [SHOW_WIDGET_TOOL];
+    // Normal conversation mode is text-only. Widget/simulation tools are opt-in.
+    const tools = skip3D || !intentionalLearningAction ? [] : [SHOW_WIDGET_TOOL];
 
     const heartbeat = setInterval(() => {
       if (!aborted) {
@@ -483,26 +491,27 @@ router.post("/chat", async (req, res) => {
           id: message.id,
         });
 
-        // ENFORCEMENT: Validate response matches selected action
-        const enforcement = enforceAction(
-          banditDecision.id,
-          banditDecision.selectedAction,
-          responseText,
-          toolCalls
-        );
+        if (intentionalLearningAction) {
+          // ENFORCEMENT: Validate response matches selected action only in Learn Mode.
+          const enforcement = enforceAction(
+            banditDecision.id,
+            banditDecision.selectedAction,
+            responseText,
+            toolCalls
+          );
 
-        // Send enforcement result to client
-        sendSSE(res, {
-          type: "enforcement_result",
-          decisionId: banditDecision.id,
-          originalAction: banditDecision.selectedAction,
-          enforced: enforcement.enforced,
-          violations: enforcement.violations || [],
-          fallback: enforcement.fallback || null,
-        });
+          sendSSE(res, {
+            type: "enforcement_result",
+            decisionId: banditDecision.id,
+            originalAction: banditDecision.selectedAction,
+            enforced: enforcement.enforced,
+            violations: enforcement.violations || [],
+            fallback: enforcement.fallback || null,
+          });
 
-        if (!enforcement.enforced) {
-          logger.warn({ violations: enforcement.violations }, "Enforcement failed");
+          if (!enforcement.enforced) {
+            logger.warn({ violations: enforcement.violations }, "Enforcement failed");
+          }
         }
 
         sendSSE(res, { type: "done" });

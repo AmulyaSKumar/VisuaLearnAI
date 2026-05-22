@@ -122,6 +122,7 @@ export function useSSEStream() {
         personaId,  // AI persona for personalized responses
         documentId,  // Uploaded PDF grounding for RAG-backed answers
         webSearch,  // Current web grounding for one-shot web search answers
+        learningAction: preferences?.requestedArtifact || null,
       }),
     });
 

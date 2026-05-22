@@ -209,6 +209,9 @@ export default function InputBar({
                   )}
                   {onGenerateArtifact && (
                     <>
+                      <button type="button" onClick={() => handleTool("learn")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Learn deeply
+                      </button>
                       <button type="button" onClick={() => handleTool("quiz")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
                         Generate quiz
                       </button>
@@ -217,6 +220,12 @@ export default function InputBar({
                       </button>
                       <button type="button" onClick={() => handleTool("mindmap")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
                         Generate mind map
+                      </button>
+                      <button type="button" onClick={() => handleTool("simulation")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Simulation
+                      </button>
+                      <button type="button" onClick={() => handleTool("summarize")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Summarize uploaded document
                       </button>
                     </>
                   )}
