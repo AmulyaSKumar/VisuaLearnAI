@@ -157,6 +157,8 @@ function LearningPageContent() {
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [expandedTurnIds, setExpandedTurnIds] = useState(new Set());
   const [turnTabs, setTurnTabs] = useState({});
+  const [turnLoadingTabs, setTurnLoadingTabs] = useState({});
+  const [turnSimulationDetections, setTurnSimulationDetections] = useState({});
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -1333,6 +1335,7 @@ function LearningPageContent() {
             documentId,
             learningContent,
             factCheck: factCheckResult,
+            simulationDetection: learningData.simulationDetection || null,
           },
         })
         .eq('id', assistantMessage.id)
@@ -1350,6 +1353,10 @@ function LearningPageContent() {
       if (learningData.simulationDetection) {
         setLocalSimulationDetection(learningData.simulationDetection);
         localSimulationDetectionRef.current = learningData.simulationDetection;
+        setTurnSimulationDetections(prev => ({
+          ...prev,
+          [savedUserMessage.id]: learningData.simulationDetection,
+        }));
       } else {
         runSimulationDetection(query);
       }
@@ -1416,6 +1423,188 @@ function LearningPageContent() {
     </button>
   );
 
+  const getTurnContent = useCallback((turn, isLatest = false) => (
+    turn?.assistant?.metadata?.learningContent ||
+    (isLatest ? learningContent : null)
+  ), [learningContent]);
+
+  const hasTurnTabContent = useCallback((turnContent, tabId) => {
+    if (tabId === 'learn') return !!turnContent;
+    if (tabId === 'quiz') return Array.isArray(turnContent?.quiz) && turnContent.quiz.length > 0;
+    if (tabId === 'flashcards') return Array.isArray(turnContent?.flashcards) && turnContent.flashcards.length > 0;
+    if (tabId === 'mindmap') return !!turnContent?.mind_map;
+    return false;
+  }, []);
+
+  const handleTurnTabSelect = useCallback(async (turn, turnId, tabId, isLatest = false) => {
+    setTurnTabs(prev => ({ ...prev, [turnId]: tabId }));
+
+    const turnContent = getTurnContent(turn, isLatest);
+    const query = getMessageText(turn?.user) || userQuery || conversation?.title;
+    const assistantMessage = turn?.assistant;
+    if (!query || !assistantMessage?.id || assistantMessage.loading) return;
+
+    if (tabId === 'simulation') {
+      const existingDetection =
+        turnSimulationDetections[turnId] ||
+        assistantMessage.metadata?.simulationDetection ||
+        (isLatest ? simulationDetection : null);
+
+      if (existingDetection) return;
+
+      const loadingKey = `${turnId}:${tabId}`;
+      setTurnLoadingTabs(prev => ({ ...prev, [loadingKey]: true }));
+
+      try {
+        const response = await fetch(`${API_BASE}/api/simulation/detect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ query }),
+        });
+
+        const detection = await response.json().catch(() => null);
+        if (!response.ok || !detection) {
+          throw new Error(detection?.error || 'Failed to check simulation support');
+        }
+
+        const updatedMetadata = {
+          ...(assistantMessage.metadata || {}),
+          simulationDetection: detection,
+        };
+
+        const { data: updatedAssistant, error: updateError } = await supabase
+          .from('messages')
+          .update({ metadata: updatedMetadata })
+          .eq('id', assistantMessage.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        setTurnSimulationDetections(prev => ({ ...prev, [turnId]: detection }));
+        setMessages(prev => prev.map(message =>
+          message.id === assistantMessage.id ? updatedAssistant : message
+        ));
+
+        if (isLatest) {
+          setLocalSimulationDetection(detection);
+          localSimulationDetectionRef.current = detection;
+        }
+      } catch (err) {
+        console.error('[LearningPage] Turn simulation detection failed:', err);
+        setTabErrors(prev => ({
+          ...prev,
+          [tabId]: err.message || 'Failed to open simulation',
+        }));
+      } finally {
+        setTurnLoadingTabs(prev => {
+          const next = { ...prev };
+          delete next[loadingKey];
+          return next;
+        });
+      }
+
+      return;
+    }
+
+    if (hasTurnTabContent(turnContent, tabId)) return;
+
+    const loadingKey = `${turnId}:${tabId}`;
+    setTurnLoadingTabs(prev => ({ ...prev, [loadingKey]: true }));
+
+    try {
+      const apiContentType = (tabId === 'flashcards' || tabId === 'mindmap')
+        ? 'flashcards-mindmap'
+        : tabId;
+
+      const response = await fetch(`${API_BASE}/api/learning-content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          query,
+          userId,
+          contentType: apiContentType,
+          preferences: { mode: depthLevel },
+          conversationId,
+          messageId: assistantMessage.id,
+          documentId: assistantMessage.metadata?.documentId || turn?.user?.metadata?.documentId || documentId,
+          webSearch: webSearchEnabled && !documentId,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || `Failed to generate ${TAB_LABELS[tabId] || tabId}`);
+      }
+
+      const previousContent = assistantMessage.metadata?.learningContent || {};
+      const mergedContent = {
+        ...previousContent,
+        ...data.content,
+      };
+
+      const updatedMetadata = {
+        ...(assistantMessage.metadata || {}),
+        learningContent: mergedContent,
+        factCheck: data.content?.factCheck || assistantMessage.metadata?.factCheck || null,
+      };
+
+      const { data: updatedAssistant, error: updateError } = await supabase
+        .from('messages')
+        .update({ metadata: updatedMetadata })
+        .eq('id', assistantMessage.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setMessages(prev => prev.map(message =>
+        message.id === assistantMessage.id ? updatedAssistant : message
+      ));
+
+      if (isLatest) {
+        setStoredContent(mergedContent);
+        if (updatedMetadata.factCheck) setFactCheck(updatedMetadata.factCheck);
+      }
+
+      if (apiContentType === 'flashcards-mindmap') {
+        setTurnTabs(prev => ({ ...prev, [turnId]: tabId }));
+      }
+    } catch (err) {
+      console.error('[LearningPage] Turn tab generation failed:', err);
+      setTabErrors(prev => ({
+        ...prev,
+        [tabId]: err.message || `Failed to generate ${TAB_LABELS[tabId] || tabId}`,
+      }));
+    } finally {
+      setTurnLoadingTabs(prev => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+    }
+  }, [
+    API_BASE,
+    accessToken,
+    conversation?.title,
+    conversationId,
+    depthLevel,
+    documentId,
+    getTurnContent,
+    hasTurnTabContent,
+    simulationDetection,
+    turnSimulationDetections,
+    userId,
+    userQuery,
+    webSearchEnabled,
+  ]);
+
   const renderConversationThread = () => {
     if (conversationTurns.length === 0) return null;
 
@@ -1434,15 +1623,13 @@ function LearningPageContent() {
             const userText = getMessageText(turn.user);
             const assistantText = getMessageText(turn.assistant);
             const isLatest = index === conversationTurns.length - 1;
-            const turnContent =
-              turn.assistant?.metadata?.learningContent ||
-              (isLatest ? learningContent : null);
+            const turnContent = getTurnContent(turn, isLatest);
             const activeTurnTab = turnTabs[turnId] || 'learn';
-            const availableTurnTabs = ['learn'];
-
-            if (turnContent?.quiz?.length) availableTurnTabs.push('quiz');
-            if (turnContent?.flashcards?.length) availableTurnTabs.push('flashcards');
-            if (turnContent?.mind_map) availableTurnTabs.push('mindmap');
+            const turnSimulationDetection =
+              turnSimulationDetections[turnId] ||
+              turn.assistant?.metadata?.simulationDetection ||
+              (isLatest ? simulationDetection : null);
+            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation'];
 
             return (
               <div
@@ -1490,56 +1677,70 @@ function LearningPageContent() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {assistantText && (
-                          <div className={`rounded-lg border px-4 py-3 ${
-                            turn.assistant?.metadata?.error
-                              ? 'border-destructive/20 bg-destructive/10 text-destructive'
-                              : 'border-border bg-background'
-                          }`}>
-                            <MessageBubble content={assistantText} showTTS={!turn.assistant?.metadata?.error} />
-                          </div>
-                        )}
-
-                        {turnContent && (
-                          <div className="space-y-4">
                             <div className="flex gap-1.5 overflow-x-auto rounded-xl bg-muted/40 p-1.5">
-                              {availableTurnTabs.map(tabId => (
-                                <button
-                                  key={tabId}
-                                  type="button"
-                                  onClick={() => setTurnTabs(prev => ({ ...prev, [turnId]: tabId }))}
-                                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                                    activeTurnTab === tabId
-                                      ? 'bg-card text-primary shadow-sm'
-                                      : 'text-muted-foreground hover:text-foreground'
-                                  }`}
-                                >
-                                  {TAB_LABELS[tabId]}
-                                </button>
-                              ))}
+                              {availableTurnTabs.map(tabId => {
+                                const loadingKey = `${turnId}:${tabId}`;
+                                const isTurnTabLoading = !!turnLoadingTabs[loadingKey];
+
+                                return (
+                                  <button
+                                    key={tabId}
+                                    type="button"
+                                    onClick={() => handleTurnTabSelect(turn, turnId, tabId, isLatest)}
+                                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                      activeTurnTab === tabId
+                                        ? 'bg-card text-primary shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                  >
+                                    {TAB_LABELS[tabId]}
+                                    {isTurnTabLoading && (
+                                      <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
 
                             {activeTurnTab === 'learn' && (
-                              <LearnTabView
-                                summary={turnContent?.summary}
-                                keyIdeas={turnContent?.key_ideas}
-                                readCards={readCards}
-                                onReadCard={handleReadCard}
-                                topic={turnContent?.topic || userText || conversation?.title}
-                                learningContent={turnContent}
-                                depthLevel={depthLevel}
-                                getConceptStatus={getConceptStatus}
-                                onRegenerateBlock={isLatest ? handleRegenerateBlock : undefined}
-                                onOpenTab={(tabId) => setTurnTabs(prev => ({ ...prev, [turnId]: tabId }))}
-                                cognitiveState={derivedCognitiveState}
-                                simulationDetection={isLatest ? simulationDetection : null}
-                                responseMode={turnContent?.responseMode}
-                                onExpandContent={isLatest ? handleExpandContent : undefined}
-                                isExpanding={isLatest && isExpandingContent}
-                              />
+                              <div className="space-y-4">
+                                {assistantText && (
+                                  <div className={`rounded-lg border px-4 py-3 ${
+                                    turn.assistant?.metadata?.error
+                                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                                      : 'border-border bg-background'
+                                  }`}>
+                                    <MessageBubble content={assistantText} showTTS={!turn.assistant?.metadata?.error} />
+                                  </div>
+                                )}
+
+                                {turnContent ? (
+                                  <LearnTabView
+                                    summary={turnContent?.summary}
+                                    keyIdeas={turnContent?.key_ideas}
+                                    readCards={readCards}
+                                    onReadCard={handleReadCard}
+                                    topic={turnContent?.topic || userText || conversation?.title}
+                                    learningContent={turnContent}
+                                    depthLevel={depthLevel}
+                                    getConceptStatus={getConceptStatus}
+                                    onRegenerateBlock={isLatest ? handleRegenerateBlock : undefined}
+                                    onOpenTab={(tabId) => setTurnTabs(prev => ({ ...prev, [turnId]: tabId }))}
+                                    cognitiveState={derivedCognitiveState}
+                                    simulationDetection={turnSimulationDetection}
+                                    responseMode={turnContent?.responseMode}
+                                    onExpandContent={isLatest ? handleExpandContent : undefined}
+                                    isExpanding={isLatest && isExpandingContent}
+                                  />
+                                ) : (
+                                  <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                    Click Learn to generate learning notes for this question.
+                                  </div>
+                                )}
+                              </div>
                             )}
 
-                            {activeTurnTab === 'quiz' && (
+                            {activeTurnTab === 'quiz' && hasTurnTabContent(turnContent, 'quiz') && (
                               <QuizView
                                 quiz={turnContent?.quiz}
                                 userId={userId}
@@ -1551,7 +1752,13 @@ function LearningPageContent() {
                               />
                             )}
 
-                            {activeTurnTab === 'flashcards' && (
+                            {activeTurnTab === 'quiz' && !hasTurnTabContent(turnContent, 'quiz') && (
+                              <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                Click Quiz to generate questions for this answer.
+                              </div>
+                            )}
+
+                            {activeTurnTab === 'flashcards' && hasTurnTabContent(turnContent, 'flashcards') && (
                               <FlashcardsView
                                 flashcards={turnContent?.flashcards}
                                 userId={userId}
@@ -1560,7 +1767,13 @@ function LearningPageContent() {
                               />
                             )}
 
-                            {activeTurnTab === 'mindmap' && (
+                            {activeTurnTab === 'flashcards' && !hasTurnTabContent(turnContent, 'flashcards') && (
+                              <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                Click Flashcards to generate cards for this answer.
+                              </div>
+                            )}
+
+                            {activeTurnTab === 'mindmap' && hasTurnTabContent(turnContent, 'mindmap') && (
                               <MindMapTabView
                                 mindMap={turnContent?.mind_map}
                                 keyIdeas={turnContent?.key_ideas}
@@ -1570,8 +1783,30 @@ function LearningPageContent() {
                                 onCaptureReady={isLatest ? handleMindmapCaptureReady : undefined}
                               />
                             )}
-                          </div>
-                        )}
+
+                            {activeTurnTab === 'mindmap' && !hasTurnTabContent(turnContent, 'mindmap') && (
+                              <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                Click Mind Map to generate a map for this answer.
+                              </div>
+                            )}
+
+                            {activeTurnTab === 'simulation' && turnSimulationDetection?.supported && (
+                              <SimulationView
+                                topic={turnContent?.topic || userText || conversation?.title}
+                                userId={userId}
+                                onInteraction={handleInteraction}
+                                accessToken={accessToken}
+                                simulationDetection={turnSimulationDetection}
+                              />
+                            )}
+
+                            {activeTurnTab === 'simulation' && !turnSimulationDetection?.supported && (
+                              <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                {turnLoadingTabs[`${turnId}:simulation`]
+                                  ? 'Checking simulation support...'
+                                  : 'Click Simulation to check and open an interactive visual for this question.'}
+                              </div>
+                            )}
                       </div>
                     )}
                   </div>
