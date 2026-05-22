@@ -361,12 +361,6 @@ export default function CodingHelpView({
       {/* Actions */}
       <div className="pt-6 border-t border-border flex flex-wrap gap-3">
         <button
-          onClick={() => onOpenTab?.('examples')}
-          className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          See More Examples
-        </button>
-        <button
           onClick={() => onOpenTab?.('quiz')}
           className="flex items-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
         >

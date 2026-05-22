@@ -23,7 +23,6 @@ async function parseJsonResponse(response, fallbackMessage) {
  * Hook for fetching and managing learning content
  * Supports lazy loading by content type:
  * - learn: key_ideas, summary (Learn tab)
- * - examples: examples (Examples tab)
  * - flashcards-mindmap: flashcards + mind_map (Flashcards & Mind Map tabs)
  * - quiz: quiz questions (Quiz tab)
  */
@@ -31,7 +30,6 @@ export function useLearningContent() {
   // Per-tab content storage
   const [contentByTab, setContentByTab] = useState({
     learn: null,
-    examples: null,
     flashcardsMindmap: null,
     quiz: null,
   });
@@ -39,7 +37,6 @@ export function useLearningContent() {
   // Loading states per tab
   const [loadingTabs, setLoadingTabs] = useState({
     learn: false,
-    examples: false,
     flashcardsMindmap: false,
     quiz: false,
   });
@@ -66,7 +63,7 @@ export function useLearningContent() {
   /**
    * Fetch content for a specific tab (lazy loading)
    * @param {string} query - The learning topic
-   * @param {string} tabType - One of: 'learn', 'examples', 'flashcards-mindmap', 'quiz'
+   * @param {string} tabType - One of: 'learn', 'flashcards-mindmap', 'quiz'
    * @param {string} userId - User ID for personalization
    * @param {string} accessToken - Auth token
    * @param {object} preferences - User preferences { mode: 'simple'|'balanced'|'deep', style: 'story'|'visual'|'step-by-step' }
@@ -79,7 +76,6 @@ export function useLearningContent() {
     // Map tab types to state keys
     const tabKeyMap = {
       'learn': 'learn',
-      'examples': 'examples',
       'flashcards-mindmap': 'flashcardsMindmap',
       'quiz': 'quiz',
     };
@@ -182,7 +178,7 @@ export function useLearningContent() {
 
     // If force refresh, clear all cached content
     if (forceRefresh) {
-      setContentByTab({ learn: null, examples: null, flashcardsMindmap: null, quiz: null });
+      setContentByTab({ learn: null, flashcardsMindmap: null, quiz: null });
       setFetchedTabs(new Set());
       setContent(null);
     }
@@ -240,7 +236,6 @@ export function useLearningContent() {
             skill_areas: data.content.skill_areas,
             next_topics: data.content.next_topics,
           },
-          examples: { examples: data.content.examples },
           flashcardsMindmap: {
             flashcards: data.content.flashcards,
             mind_map: data.content.mind_map,
@@ -249,7 +244,7 @@ export function useLearningContent() {
         });
 
         // Mark all tabs as fetched
-        setFetchedTabs(new Set(['learn', 'examples', 'flashcards-mindmap', 'quiz']));
+        setFetchedTabs(new Set(['learn', 'flashcards-mindmap', 'quiz']));
 
         return data.content;
       } catch (err) {
@@ -270,7 +265,6 @@ export function useLearningContent() {
   const hasTabContent = useCallback((tabType) => {
     const tabKeyMap = {
       'learn': 'learn',
-      'examples': 'examples',
       'flashcards-mindmap': 'flashcardsMindmap',
       'flashcards': 'flashcardsMindmap',
       'mindmap': 'flashcardsMindmap',
@@ -286,7 +280,6 @@ export function useLearningContent() {
   const getTabContent = useCallback((tabType) => {
     const tabKeyMap = {
       'learn': 'learn',
-      'examples': 'examples',
       'flashcards-mindmap': 'flashcardsMindmap',
       'flashcards': 'flashcardsMindmap',
       'mindmap': 'flashcardsMindmap',
@@ -302,7 +295,6 @@ export function useLearningContent() {
   const isTabLoading = useCallback((tabType) => {
     const tabKeyMap = {
       'learn': 'learn',
-      'examples': 'examples',
       'flashcards-mindmap': 'flashcardsMindmap',
       'flashcards': 'flashcardsMindmap',
       'mindmap': 'flashcardsMindmap',
@@ -405,7 +397,7 @@ export function useLearningContent() {
   /**
    * Expand content to a deeper mode (progressive disclosure)
    * Used when user clicks "Learn More" on a quick explanation
-   * @param {string} targetMode - The mode to expand to: 'deep_learn', 'examples', 'quiz', etc.
+   * @param {string} targetMode - The mode to expand to: 'deep_learn', 'quiz', 'flashcards', etc.
    * @param {string} query - The learning topic
    * @param {string} userId - User ID
    * @param {string} accessToken - Auth token
@@ -430,9 +422,8 @@ export function useLearningContent() {
       return await fetchTabContent(query, 'learn', userId, accessToken, { ...preferences, forceMode: 'deep_learn' }, conversationId);
     }
 
-    // For other modes (examples, quiz, flashcards), use normal lazy loading
+    // For other modes (quiz, flashcards), use normal lazy loading
     const tabMap = {
-      'examples': 'examples',
       'quiz': 'quiz',
       'flashcards': 'flashcards-mindmap',
       'mindmap': 'flashcards-mindmap',
@@ -448,7 +439,7 @@ export function useLearningContent() {
 
   const clearContent = useCallback(() => {
     setContent(null);
-    setContentByTab({ learn: null, examples: null, flashcardsMindmap: null, quiz: null });
+    setContentByTab({ learn: null, flashcardsMindmap: null, quiz: null });
     setFetchedTabs(new Set());
     setError(null);
     setSimulationDetection(null);

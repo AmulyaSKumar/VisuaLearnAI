@@ -480,6 +480,16 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             <InputBar
               onSend={handleSendMessage}
               inputDisabled={isLoading}
+              webSearchEnabled={webSearchEnabled}
+              onToggleWebSearch={() => {
+                setWebSearchEnabled(prev => {
+                  const next = !prev;
+                  if (next && selectedDocumentId) setSelectedDocumentId(null);
+                  return next;
+                });
+              }}
+              onDocumentUpload={() => setShowDocuments(true)}
+              onGenerateArtifact={() => setError('Ask a question first, then generate quiz, flashcards, or mind map inside that learning session.')}
             />
 
             {/* Suggestions */}

@@ -1068,7 +1068,6 @@ export class LearningContentAgent extends BaseAgent {
   constructor() {
     super('learning-content', 'Orchestrates all learning content agents', '1.0.0');
     this.learnAgent = new LearnAgent();
-    this.examplesAgent = new ExamplesAgent();
     this.quizAgent = new QuizAgent();
     this.flashcardsMindMapAgent = new FlashcardsMindMapAgent();
   }
@@ -1082,8 +1081,6 @@ export class LearningContentAgent extends BaseAgent {
       switch (contentType) {
         case 'learn':
           return await this.learnAgent.execute(input, context);
-        case 'examples':
-          return await this.examplesAgent.execute(input, context);
         case 'quiz':
           return await this.quizAgent.execute(input, context);
         case 'flashcards-mindmap':
@@ -1108,13 +1105,12 @@ export class LearningContentAgent extends BaseAgent {
     // Default: fetch all content in parallel using allSettled for resilience
     const results = await Promise.allSettled([
       this.learnAgent.execute(input, context),
-      this.examplesAgent.execute(input, context),
       this.quizAgent.execute(input, context),
       this.flashcardsMindMapAgent.execute(input, context),
     ]);
 
     // Extract results with fallbacks for failed agents
-    const [learnResult, examplesResult, quizResult, flashcardsMindMapResult] = results;
+    const [learnResult, quizResult, flashcardsMindMapResult] = results;
 
     // Fallback content for each content type
     const fallbackLearn = {
@@ -1130,7 +1126,6 @@ export class LearningContentAgent extends BaseAgent {
       image_search_keywords: [`${query} diagram`],
     };
 
-    const fallbackExamples = { examples: [] };
     const fallbackQuiz = { quiz: [] };
     const fallbackFlashcardsMindMap = {
       flashcards: [],
@@ -1143,13 +1138,6 @@ export class LearningContentAgent extends BaseAgent {
       learnContent = learnResult.value;
     } else {
       console.error(`LearnAgent failed for "${query}":`, learnResult.reason?.message || learnResult.reason);
-    }
-
-    let examplesContent = fallbackExamples;
-    if (examplesResult.status === 'fulfilled') {
-      examplesContent = examplesResult.value;
-    } else {
-      console.error(`ExamplesAgent failed for "${query}":`, examplesResult.reason?.message || examplesResult.reason);
     }
 
     let quizContent = fallbackQuiz;
@@ -1179,8 +1167,6 @@ export class LearningContentAgent extends BaseAgent {
       skill_areas: learnContent.skill_areas || [],
       next_topics: learnContent.next_topics || [],
       image_search_keywords: learnContent.image_search_keywords || [`${query} diagram`],
-      // From examplesAgent
-      examples: examplesContent.examples || [],
       // From quizAgent
       quiz: quizContent.quiz || [],
       // From flashcardsMindMapAgent
@@ -1260,7 +1246,6 @@ Return JSON with this structure:
 
 // Export instances
 export const learnAgent = new LearnAgent();
-export const examplesAgent = new ExamplesAgent();
 export const quizAgent = new QuizAgent();
 export const flashcardsMindMapAgent = new FlashcardsMindMapAgent();
 export const quizFlashcardsAgent = new QuizFlashcardsAgent();

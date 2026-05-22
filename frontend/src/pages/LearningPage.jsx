@@ -11,8 +11,8 @@ import { should3DVisualize } from "../utils/detect3D";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
 import InputBar from "../components/InputBar";
+import MessageBubble from "../components/MessageBubble";
 import LearnTabView from "../components/learning/LearnTabView";
-import ExamplesTabView from "../components/learning/ExamplesTabView";
 import FlashcardsView from "../components/learning/FlashcardsView";
 import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
@@ -26,7 +26,6 @@ import { exportToNotion, getNotionStatus } from "../services/notionService";
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
   learn: 'Learn',
-  examples: 'Examples',
   flashcards: 'Flashcards',
   quiz: 'Quiz',
   mindmap: 'Mind Map',
@@ -85,6 +84,17 @@ function isResourceForQuery(resource, query) {
   return matches / resourceTokens.length >= 0.5;
 }
 
+function findLastIndex(items, predicate) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (predicate(items[index], index)) return index;
+  }
+  return -1;
+}
+
+function getMessageText(message) {
+  return message?.content || message?.text || '';
+}
+
 // Inner component that uses the Learning Intelligence context
 function LearningPageContent() {
   const { id: conversationId } = useParams();
@@ -130,6 +140,7 @@ function LearningPageContent() {
   const [messages, setMessages] = useState([]);
   const [storedContent, setStoredContent] = useState(null);
   const storedContentRef = useRef(storedContent); // Ref to avoid stale closure in callbacks
+  const transcriptEndRef = useRef(null);
   const [factCheck, setFactCheck] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -143,11 +154,19 @@ function LearningPageContent() {
   const [userQuery, setUserQuery] = useState(null); // Store user query for lazy loading
   const [documentId, setDocumentId] = useState(null); // Persist selected document for RAG-backed lazy tabs
   const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [expandedTurnIds, setExpandedTurnIds] = useState(new Set());
+  const [turnTabs, setTurnTabs] = useState({});
 
   // Keep ref in sync with state
   useEffect(() => {
     storedContentRef.current = storedContent;
   }, [storedContent]);
+
+  useEffect(() => {
+    if (!messages.length) return;
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, isFollowUpLoading]);
 
   // Learning Intelligence context
   const {
@@ -417,10 +436,6 @@ function LearningPageContent() {
           newTabs.add('learn');
           newLoaded.add('learn');
           break;
-        case RESOURCE_TYPES.EXAMPLES:
-          newTabs.add('examples');
-          newLoaded.add('examples');
-          break;
         case RESOURCE_TYPES.QUIZ:
           newTabs.add('quiz');
           newLoaded.add('quiz');
@@ -482,11 +497,6 @@ function LearningPageContent() {
             case RESOURCE_TYPES.LEARN:
               merged = { ...merged, ...resource.content };
               break;
-            case RESOURCE_TYPES.EXAMPLES:
-              if (resource.content.examples) {
-                merged.examples = resource.content.examples;
-              }
-              break;
             case RESOURCE_TYPES.QUIZ:
               if (resource.content.quiz) {
                 merged.quiz = resource.content.quiz;
@@ -543,6 +553,42 @@ function LearningPageContent() {
   }, [rawContent]);
 
   const visualizationWidget = rawContent?.visualizationWidget || null;
+
+  const conversationTurns = useMemo(() => {
+    const turns = [];
+    let currentTurn = null;
+
+    messages
+      .filter(message => message.role === 'user' || message.role === 'assistant')
+      .forEach((message) => {
+        if (message.role === 'user') {
+          currentTurn = { user: message, assistant: null };
+          turns.push(currentTurn);
+          return;
+        }
+
+        if (currentTurn && !currentTurn.assistant) {
+          currentTurn.assistant = message;
+        } else {
+          turns.push({ user: null, assistant: message });
+          currentTurn = null;
+        }
+      });
+
+    return turns;
+  }, [messages]);
+
+  useEffect(() => {
+    const latestTurn = conversationTurns[conversationTurns.length - 1];
+    const latestTurnId = latestTurn?.user?.id || latestTurn?.assistant?.id;
+    if (!latestTurnId) return;
+
+    setExpandedTurnIds(new Set([latestTurnId]));
+    setTurnTabs(prev => ({
+      ...prev,
+      [latestTurnId]: prev[latestTurnId] || 'learn',
+    }));
+  }, [conversationTurns]);
 
   const availableNotionArtifacts = useMemo(() => {
     const artifacts = [];
@@ -602,14 +648,16 @@ function LearningPageContent() {
         const msgs = await getConversationMessages(conversationId);
         setMessages(msgs || []);
 
-        // Store user query for lazy loading
-        const userMessage = msgs?.find(m => m.role === 'user');
+        const latestUserIndex = findLastIndex(msgs || [], m => m.role === 'user');
+        const userMessage = latestUserIndex >= 0 ? msgs[latestUserIndex] : null;
         if (userMessage) {
           setUserQuery(userMessage.content);
         }
 
         // CHECK 1: Do we have persisted resources from learning_resources table?
-        const hasPersistedLearnContent = hasResource(RESOURCE_TYPES.LEARN);
+        const persistedLearnResource = getResource(RESOURCE_TYPES.LEARN);
+        const hasPersistedLearnContent =
+          !!persistedLearnResource && isResourceForQuery(persistedLearnResource, userMessage?.content);
         if (hasPersistedLearnContent) {
           console.log('[LearningPage] Using persisted resources from learning_resources table');
           // Content is already merged via the rawContent useMemo
@@ -622,7 +670,14 @@ function LearningPageContent() {
         }
 
         // CHECK 2: Try to get stored learning content from assistant message metadata
-        const assistantMsg = msgs?.find(m => m.role === 'assistant');
+        const assistantMessagesAfterLatestUser = latestUserIndex >= 0
+          ? (msgs || []).slice(latestUserIndex + 1).filter(m => m.role === 'assistant')
+          : [];
+        const assistantMsg =
+          [...assistantMessagesAfterLatestUser].reverse().find(m => m.metadata?.learningContent) ||
+          [...(msgs || [])].reverse().find(m => m.role === 'assistant' && m.metadata?.learningContent) ||
+          [...assistantMessagesAfterLatestUser].reverse()[0] ||
+          [...(msgs || [])].reverse().find(m => m.role === 'assistant');
         const stored = assistantMsg?.metadata?.learningContent;
         const storedFact = assistantMsg?.metadata?.factCheck;
         const storedDocumentId = assistantMsg?.metadata?.documentId || userMessage?.metadata?.documentId || null;
@@ -638,9 +693,6 @@ function LearningPageContent() {
 
           // Track which tabs have content loaded from DB
           const loadedFromDB = new Set(['learn']); // Learn always exists
-          if (Array.isArray(stored.examples) && stored.examples.length > 0) {
-            loadedFromDB.add('examples');
-          }
           if (Array.isArray(stored.flashcards) && stored.flashcards.length > 0) {
             loadedFromDB.add('flashcards');
           }
@@ -679,7 +731,7 @@ function LearningPageContent() {
 
     loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection, isResourcesLoading, hasResource]);
+  }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection, isResourcesLoading, getResource]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   // Handle opening a tab (add to visible, fetch content if needed)
@@ -718,7 +770,6 @@ function LearningPageContent() {
     // Map tabId to resource type
     const tabToResourceType = {
       'learn': RESOURCE_TYPES.LEARN,
-      'examples': RESOURCE_TYPES.EXAMPLES,
       'quiz': RESOURCE_TYPES.QUIZ,
       'flashcards': RESOURCE_TYPES.FLASHCARDS,
       'mindmap': RESOURCE_TYPES.MINDMAP,
@@ -740,8 +791,6 @@ function LearningPageContent() {
     // Check if content exists in storedContent (from message metadata)
     const hasInDB = (() => {
       switch (tabId) {
-        case 'examples':
-          return Array.isArray(currentContent?.examples) && currentContent.examples.length > 0;
         case 'flashcards':
           return Array.isArray(currentContent?.flashcards) && currentContent.flashcards.length > 0;
         case 'quiz':
@@ -1176,6 +1225,8 @@ function LearningPageContent() {
     setUserQuery(query);
 
     let savedUserMessage = null;
+    let savedAssistantMessage = null;
+    let pendingAssistantId = null;
 
     try {
       const { data: userMessage, error: userMessageError } = await supabase
@@ -1192,7 +1243,16 @@ function LearningPageContent() {
       if (userMessageError) throw userMessageError;
       savedUserMessage = userMessage;
 
-      setMessages(prev => [...prev, userMessage]);
+      const pendingAssistantMessage = {
+        id: `pending-${userMessage.id}`,
+        role: 'assistant',
+        content: '',
+        loading: true,
+        created_at: new Date().toISOString(),
+      };
+      pendingAssistantId = pendingAssistantMessage.id;
+
+      setMessages(prev => [...prev, userMessage, pendingAssistantMessage]);
 
       const headers = { 'Content-Type': 'application/json' };
       if (accessToken) {
@@ -1203,7 +1263,7 @@ function LearningPageContent() {
         .filter(message => message.role === 'user' || message.role === 'assistant')
         .map(message => ({
           role: message.role,
-          content: message.content || message.text || '',
+          content: getMessageText(message),
         }))
         .filter(message => message.content);
 
@@ -1216,11 +1276,30 @@ function LearningPageContent() {
           conversationId,
           personaId: defaultPersona?.id,
           documentId,
+          webSearch: webSearchEnabled && !documentId,
           skip3D: true,
         }),
       });
 
       const assistantText = await readChatStream(chatResponse);
+
+      const { data: assistantMessage, error: assistantMessageError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: assistantText || '',
+          metadata: { documentId },
+        })
+        .select()
+        .single();
+
+      if (assistantMessageError) throw assistantMessageError;
+      savedAssistantMessage = assistantMessage;
+
+      setMessages(prev => prev.map(message =>
+        message.id === pendingAssistantId ? assistantMessage : message
+      ));
 
       const learningResponse = await fetch(`${API_BASE}/api/learning-content`, {
         method: 'POST',
@@ -1233,6 +1312,7 @@ function LearningPageContent() {
           conversationId,
           messageId: savedUserMessage.id,
           documentId,
+          webSearch: webSearchEnabled && !documentId,
         }),
       });
 
@@ -1244,24 +1324,26 @@ function LearningPageContent() {
       const learningContent = learningData.content || null;
       const factCheckResult = learningContent?.factCheck || null;
 
-      const { data: assistantMessage, error: assistantMessageError } = await supabase
+      const { data: updatedAssistantMessage, error: updateAssistantMessageError } = await supabase
         .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          role: 'assistant',
+        .update({
           content: assistantText || learningContent?.summary || '',
           metadata: {
+            ...(assistantMessage.metadata || {}),
             documentId,
             learningContent,
             factCheck: factCheckResult,
           },
         })
+        .eq('id', assistantMessage.id)
         .select()
         .single();
 
-      if (assistantMessageError) throw assistantMessageError;
+      if (updateAssistantMessageError) throw updateAssistantMessageError;
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => prev.map(message =>
+        message.id === assistantMessage.id ? updatedAssistantMessage : message
+      ));
       setStoredContent(learningContent);
       setFactCheck(factCheckResult);
 
@@ -1275,7 +1357,21 @@ function LearningPageContent() {
       await fetchResources();
     } catch (err) {
       console.error('[LearningPage] Follow-up failed:', err);
-      setError(err.message || 'Failed to continue this session');
+      if (savedAssistantMessage) {
+        setTabErrors({ learn: err.message || 'Learning cards failed, but the chat answer was saved.' });
+      } else {
+        setMessages(prev => prev.map(message =>
+          message.id === pendingAssistantId
+            ? {
+                ...message,
+                loading: false,
+                content: err.message || 'Failed to continue this session',
+                metadata: { error: true },
+              }
+            : message
+        ));
+        setTabErrors({ learn: err.message || 'Failed to continue this session' });
+      }
     } finally {
       setIsFollowUpLoading(false);
     }
@@ -1292,6 +1388,7 @@ function LearningPageContent() {
     messages,
     readChatStream,
     runSimulationDetection,
+    webSearchEnabled,
     userId,
   ]);
 
@@ -1318,6 +1415,175 @@ function LearningPageContent() {
       Back to Learn
     </button>
   );
+
+  const renderConversationThread = () => {
+    if (conversationTurns.length === 0) return null;
+
+    return (
+      <section className="mx-auto max-w-5xl space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Conversation
+          </h2>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {conversationTurns.map((turn, index) => {
+            const turnId = turn.user?.id || turn.assistant?.id || `turn-${index}`;
+            const isExpanded = expandedTurnIds.has(turnId);
+            const userText = getMessageText(turn.user);
+            const assistantText = getMessageText(turn.assistant);
+            const isLatest = index === conversationTurns.length - 1;
+            const turnContent =
+              turn.assistant?.metadata?.learningContent ||
+              (isLatest ? learningContent : null);
+            const activeTurnTab = turnTabs[turnId] || 'learn';
+            const availableTurnTabs = ['learn'];
+
+            if (turnContent?.quiz?.length) availableTurnTabs.push('quiz');
+            if (turnContent?.flashcards?.length) availableTurnTabs.push('flashcards');
+            if (turnContent?.mind_map) availableTurnTabs.push('mindmap');
+
+            return (
+              <div
+                key={turnId}
+                className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedTurnIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(turnId)) next.delete(turnId);
+                      else next.add(turnId);
+                      return next;
+                    });
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {userText || 'Assistant response'}
+                    </p>
+                    {!isExpanded && assistantText && (
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {assistantText}
+                      </p>
+                    )}
+                  </div>
+                  <svg
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isExpanded && (
+                  <div className="border-t border-border px-4 py-4">
+                    {turn.assistant?.loading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        Thinking...
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {assistantText && (
+                          <div className={`rounded-lg border px-4 py-3 ${
+                            turn.assistant?.metadata?.error
+                              ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                              : 'border-border bg-background'
+                          }`}>
+                            <MessageBubble content={assistantText} showTTS={!turn.assistant?.metadata?.error} />
+                          </div>
+                        )}
+
+                        {turnContent && (
+                          <div className="space-y-4">
+                            <div className="flex gap-1.5 overflow-x-auto rounded-xl bg-muted/40 p-1.5">
+                              {availableTurnTabs.map(tabId => (
+                                <button
+                                  key={tabId}
+                                  type="button"
+                                  onClick={() => setTurnTabs(prev => ({ ...prev, [turnId]: tabId }))}
+                                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                                    activeTurnTab === tabId
+                                      ? 'bg-card text-primary shadow-sm'
+                                      : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                                >
+                                  {TAB_LABELS[tabId]}
+                                </button>
+                              ))}
+                            </div>
+
+                            {activeTurnTab === 'learn' && (
+                              <LearnTabView
+                                summary={turnContent?.summary}
+                                keyIdeas={turnContent?.key_ideas}
+                                readCards={readCards}
+                                onReadCard={handleReadCard}
+                                topic={turnContent?.topic || userText || conversation?.title}
+                                learningContent={turnContent}
+                                depthLevel={depthLevel}
+                                getConceptStatus={getConceptStatus}
+                                onRegenerateBlock={isLatest ? handleRegenerateBlock : undefined}
+                                onOpenTab={(tabId) => setTurnTabs(prev => ({ ...prev, [turnId]: tabId }))}
+                                cognitiveState={derivedCognitiveState}
+                                simulationDetection={isLatest ? simulationDetection : null}
+                                responseMode={turnContent?.responseMode}
+                                onExpandContent={isLatest ? handleExpandContent : undefined}
+                                isExpanding={isLatest && isExpandingContent}
+                              />
+                            )}
+
+                            {activeTurnTab === 'quiz' && (
+                              <QuizView
+                                quiz={turnContent?.quiz}
+                                userId={userId}
+                                onInteraction={handleInteraction}
+                                onBackToLearn={() => setTurnTabs(prev => ({ ...prev, [turnId]: 'learn' }))}
+                                updateConceptMastery={updateConceptMastery}
+                                recordQuizResult={recordQuizResult}
+                                topic={turnContent?.topic || userText || conversation?.title}
+                              />
+                            )}
+
+                            {activeTurnTab === 'flashcards' && (
+                              <FlashcardsView
+                                flashcards={turnContent?.flashcards}
+                                userId={userId}
+                                onInteraction={handleInteraction}
+                                updateConceptMastery={updateConceptMastery}
+                              />
+                            )}
+
+                            {activeTurnTab === 'mindmap' && (
+                              <MindMapTabView
+                                mindMap={turnContent?.mind_map}
+                                keyIdeas={turnContent?.key_ideas}
+                                getConceptStatus={getConceptStatus}
+                                weakAreas={weakAreas}
+                                onGoToQuiz={() => setTurnTabs(prev => ({ ...prev, [turnId]: 'quiz' }))}
+                                onCaptureReady={isLatest ? handleMindmapCaptureReady : undefined}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={transcriptEndRef} />
+        </div>
+      </section>
+    );
+  };
 
   // Render tab content
   const renderTabContent = () => {
@@ -1377,18 +1643,6 @@ function LearningPageContent() {
             isExpanding={isExpandingContent}
             onSaveToNotion={openNotionExport}
           />
-        );
-
-      case 'examples':
-        return (
-          <>
-            <BackButton />
-            <ExamplesTabView
-              examples={learningContent?.examples}
-              onInteraction={handleInteraction}
-              updateConceptMastery={updateConceptMastery}
-            />
-          </>
         );
 
       case 'flashcards':
@@ -1629,8 +1883,8 @@ function LearningPageContent() {
             </div>
           </div>
 
-          {/* Tab Bar - Shows when more than Learn tab exists */}
-          {visibleTabs.length > 1 && (
+          {/* Tabs now live inside each conversation turn. */}
+          {false && visibleTabs.length > 1 && (
             <div className="flex gap-1.5 mt-4 p-1.5 neu-pressed rounded-xl overflow-x-auto">
               {visibleTabs.map(tabId => {
                 const isActive = activeTab === tabId;
@@ -1703,7 +1957,7 @@ function LearningPageContent() {
             </div>
           )}
 
-          {renderTabContent()}
+          {messages.length > 0 ? renderConversationThread() : renderTabContent()}
         </div>
       </div>
 
@@ -1716,6 +1970,16 @@ function LearningPageContent() {
             voiceState={voice.state}
             onVoiceStart={voice.start}
             onVoiceStop={voice.stop}
+            webSearchEnabled={webSearchEnabled}
+            onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
+            onDocumentUpload={() => {
+              setTabErrors({ learn: 'Document upload is available from the new chat screen. Existing selected documents still work in this thread.' });
+            }}
+            onGenerateArtifact={(artifact) => {
+              if (artifact === 'quiz') handleOpenTab('quiz');
+              if (artifact === 'flashcards') handleOpenTab('flashcards');
+              if (artifact === 'mindmap') handleOpenTab('mindmap');
+            }}
           />
         </div>
       </div>

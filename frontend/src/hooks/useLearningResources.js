@@ -12,7 +12,6 @@ export const RESOURCE_TYPES = {
   FLASHCARDS: 'flashcards',
   MINDMAP: 'mindmap',
   QUIZ: 'quiz',
-  EXAMPLES: 'examples',
 };
 
 /**
@@ -34,24 +33,19 @@ export const TAB_CONFIG = {
     order: 2,
     alwaysShow: false,
   },
-  [RESOURCE_TYPES.EXAMPLES]: {
-    label: 'Examples',
-    order: 3,
-    alwaysShow: false,
-  },
   [RESOURCE_TYPES.FLASHCARDS]: {
     label: 'Flashcards',
-    order: 4,
+    order: 3,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.MINDMAP]: {
     label: 'Mind Map',
-    order: 5,
+    order: 4,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.QUIZ]: {
     label: 'Quiz',
-    order: 6,
+    order: 5,
     alwaysShow: false,
   },
 };

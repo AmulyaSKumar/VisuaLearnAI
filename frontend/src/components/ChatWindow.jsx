@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation, Link, useParams } from "react-router-dom";
+import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
 import { useChat } from "../hooks/useChat";
 import { useLearningState } from "../hooks/useLearningState";
 import { useBehaviorTracking } from "../hooks/useBehaviorTracking";
@@ -24,6 +24,7 @@ export default function ChatWindow({
   onConversationUpdated = null,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { id: conversationId } = useParams();
   const { user, session } = useAuth();
   const { defaultPersona } = usePersona();
@@ -334,6 +335,8 @@ export default function ChatWindow({
           voiceState={voice.state}
           onVoiceStart={voice.start}
           onVoiceStop={voice.stop}
+          onGenerateArtifact={() => navigate(`/learn/${conversationId}`)}
+          onDocumentUpload={() => navigate('/chat/new')}
         />
         <div className="text-center mt-2 sm:mt-3">
           <p className="text-[10px] sm:text-xs text-muted-foreground">

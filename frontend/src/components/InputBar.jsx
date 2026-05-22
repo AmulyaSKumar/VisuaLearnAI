@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { VOICE_STATES } from "../hooks/useRealtimeAudio";
 
@@ -13,10 +13,23 @@ const PLACEHOLDERS = [
   "What is photosynthesis?",
 ];
 
-export default function InputBar({ onSend, inputDisabled = false, voiceActive = false, voiceState = null, onVoiceStart, onVoiceStop }) {
+export default function InputBar({
+  onSend,
+  inputDisabled = false,
+  voiceActive = false,
+  voiceState = null,
+  onVoiceStart,
+  onVoiceStop,
+  webSearchEnabled = false,
+  onToggleWebSearch,
+  onDocumentUpload,
+  onGenerateArtifact,
+}) {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [showPlaceholder, setShowPlaceholder] = useState(true);
+  const [showTools, setShowTools] = useState(false);
+  const toolsRef = useRef(null);
 
   const {
     isListening,
@@ -42,6 +55,19 @@ export default function InputBar({ onSend, inputDisabled = false, voiceActive = 
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!showTools) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!toolsRef.current?.contains(event.target)) {
+        setShowTools(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showTools]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -92,6 +118,20 @@ export default function InputBar({ onSend, inputDisabled = false, voiceActive = 
   }, [voiceActive, isListening, onVoiceStart, onVoiceStop, stopListening, sttSupported, startListening]);
 
   const displayText = input + (interimTranscript ? ` ${interimTranscript}` : "");
+  const hasTools = onToggleWebSearch || onDocumentUpload || onGenerateArtifact;
+
+  const handleTool = (action) => {
+    setShowTools(false);
+    if (action === "web") {
+      onToggleWebSearch?.();
+      return;
+    }
+    if (action === "document") {
+      onDocumentUpload?.();
+      return;
+    }
+    onGenerateArtifact?.(action);
+  };
 
   // Get voice state label
   const getVoiceStateLabel = () => {
@@ -131,6 +171,60 @@ export default function InputBar({ onSend, inputDisabled = false, voiceActive = 
         />
 
         <div className="flex items-center gap-2 pr-3">
+          {hasTools && !voiceActive && (
+            <div className="relative" ref={toolsRef}>
+              <button
+                type="button"
+                onClick={() => setShowTools((open) => !open)}
+                className="w-10 h-10 min-h-[40px] min-w-[40px] neu-btn rounded-xl text-foreground flex items-center justify-center"
+                title="Add tools"
+                aria-label="Add tools"
+                aria-expanded={showTools}
+              >
+                <svg width="16" height="16" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                  <path d="M8 2.75C8 2.47 7.78 2.25 7.5 2.25S7 2.47 7 2.75V7H2.75C2.47 7 2.25 7.22 2.25 7.5S2.47 8 2.75 8H7v4.25c0 .28.22.5.5.5s.5-.22.5-.5V8h4.25c.28 0 .5-.22.5-.5s-.22-.5-.5-.5H8V2.75Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              {showTools && (
+                <div className="absolute bottom-full left-0 z-30 mb-2 w-56 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                  {onToggleWebSearch && (
+                    <button
+                      type="button"
+                      onClick={() => handleTool("web")}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
+                    >
+                      <span>Web search</span>
+                      {webSearchEnabled && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </button>
+                  )}
+                  {onDocumentUpload && (
+                    <button
+                      type="button"
+                      onClick={() => handleTool("document")}
+                      className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
+                    >
+                      Upload document
+                    </button>
+                  )}
+                  {onGenerateArtifact && (
+                    <>
+                      <button type="button" onClick={() => handleTool("quiz")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Generate quiz
+                      </button>
+                      <button type="button" onClick={() => handleTool("flashcards")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Generate flashcards
+                      </button>
+                      <button type="button" onClick={() => handleTool("mindmap")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        Generate mind map
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {displayText && (
             <button
               type="button"

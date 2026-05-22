@@ -205,23 +205,6 @@ function buildFallbackForContentType(query, contentType, profile = {}) {
         degraded: true
       };
 
-    case 'examples':
-      return {
-        examples: [
-          {
-            id: 'ex_1',
-            title: `Basic ${topic} Example`,
-            description: `A starter example for ${topic}.`,
-            scenario: `Learn the basics of ${topic} with this simple example.`,
-            code: `// ${topic} example\nconsole.log("Hello, ${topic}!");`,
-            language: 'javascript',
-            explanation: 'A simple starting point.',
-            involves_ai: false
-          }
-        ],
-        degraded: true
-      };
-
     case 'quiz':
       return {
         quiz: [
@@ -262,7 +245,6 @@ function buildFallbackForContentType(query, contentType, profile = {}) {
  * Generate comprehensive learning content for a topic
  * Supports lazy loading via contentType parameter:
  * - 'learn': key_ideas + summary
- * - 'examples': examples only
  * - 'flashcards-mindmap': flashcards + mind_map
  * - 'quiz': quiz questions only
  * - undefined: all content (legacy behavior)
@@ -425,7 +407,7 @@ router.post('/learning-content', async (req, res) => {
 
     // Determine which agent to use based on content type
     // For 'learn' or unspecified contentType, use the orchestrator for adaptive responses
-    // For other types (examples, quiz, flashcards), use the standard agent
+    // For other types (quiz, flashcards), use the standard agent
     const useOrchestrator = !contentType || contentType === 'learn';
 
     const agentToUse = useOrchestrator ? learningOrchestrator : learningContentAgent;
@@ -563,20 +545,6 @@ router.post('/learning-content', async (req, res) => {
               next_topics: result.result.next_topics,
               image_search_keywords: result.result.image_search_keywords,
             },
-          });
-        }
-
-        if (!contentType && result.result.examples?.length > 0) {
-          resourcesToSave.push({
-            type: RESOURCE_TYPES.EXAMPLES,
-            content: { examples: result.result.examples },
-          });
-        }
-
-        if (contentType === 'examples' && result.result.examples?.length > 0) {
-          resourcesToSave.push({
-            type: RESOURCE_TYPES.EXAMPLES,
-            content: { examples: result.result.examples },
           });
         }
 

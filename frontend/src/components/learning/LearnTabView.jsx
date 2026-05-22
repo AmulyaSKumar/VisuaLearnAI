@@ -805,9 +805,9 @@ function CompletionState({ topic, nextTopics = [], onGoToQuiz, onGoToFlashcards 
 // Suggestion configurations aligned with cognitive states
 const SUGGESTION_CONFIG = {
   struggling: {
-    primaryText: "Take your time. Would you like to see some examples first?",
-    primaryAction: 'examples',
-    primaryLabel: 'See Examples',
+    primaryText: "Take your time. A mind map can make this easier to scan.",
+    primaryAction: 'mindmap',
+    primaryLabel: 'View Mind Map',
     tone: 'supportive',
   },
   confused: {
@@ -925,12 +925,6 @@ const SmartSuggestions = memo(function SmartSuggestions({
         {allCompleted ? 'More options' : 'Explore'}
       </p>
       <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => onOpenTab('examples')}
-          className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
-        >
-          Examples
-        </button>
         <button
           onClick={() => onOpenTab('quiz')}
           className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
