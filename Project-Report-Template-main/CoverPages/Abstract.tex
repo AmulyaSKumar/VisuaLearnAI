@@ -4,18 +4,12 @@
   \draw[line width = 4pt] ($(current page.north west) + (0.75in,-0.75in)$) rectangle ($(current page.south east) + (-0.75in,0.75in)$);
 \end{tikzpicture}
 
+\noindent VisuaLearn AI is an adaptive multi-modal intelligent learning platform designed to improve conceptual understanding through structured explanations, interactive visualizations, algorithm simulations, quizzes, flashcards, mind maps, voice interaction, and personalized learning flows. Conventional learning tools often present static text or video content and leave the learner to decide how to study, revise, and practise. This project addresses that gap by organizing generated learning material into reusable artifacts and by selecting suitable teaching strategies based on learner context.
 
-Highlights of significant contributions: One page with 3 to 4 paragraphs\\
+The system follows a modular full-stack architecture. The frontend provides a responsive learning workspace with chat, learning tabs, simulation viewers, visual widgets, persona settings, and voice controls. The backend coordinates request routing, authentication, session handling, learning content generation, simulation detection, visualization handling, feedback collection, and persistence. Conversations and learning resources are stored so that learners can revisit previous sessions and continue revision without regenerating every resource.
 
-Paragraph 1: Importance and relevance of Topic, reported issues and limitations of the topic in performance or computation etc, issues involved in those limitations, need for addressing those issues and a short note on how that is addressed in this report.
+The major contribution of this project is the integration of multiple educational modes into a single adaptive workflow. A learner can ask a question, receive a structured explanation, open flashcards, attempt a quiz, inspect a mind map, or run a simulation where the topic supports procedural learning. The adaptive layer uses learner signals such as engagement, topic status, performance trend, confidence, topic difficulty, previous failures, and response time to choose the response style. Reliability is strengthened using validation, fallback responses, safe rendering, access control, and structured logging.
 
-
-Paragraph 2: Objectives of this work, short note on algebraic methods used and formulations achieved, computational procedures developed. \gls{ic}.
-
-
-Paragraph 3: Description of simulation procedure including SW tools used and choice of test cases. Short note on results achieved and significant highlights of improvements if any in terms of percentage , for example the architecture presented in this report shows 22 \% improve in power consumption as compared to the previously reported articles.
-\gls{ic}
-
-Paragraph 4: The last para needed only if emulation (after simulation) or Hardware developed to validate simulation results in para 3. 
+The implemented system demonstrates how an intelligent learning platform can move beyond plain question answering and act as a study workspace. It is especially useful for computer science, engineering, mathematics, and other domains where learners benefit from stepwise reasoning, visualization, and repeated practice.
 
 \pagebreak

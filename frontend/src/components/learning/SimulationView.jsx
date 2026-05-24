@@ -1,30 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import useSimulation from '../../hooks/useSimulation';
-import ArraySimulation from './simulation/ArraySimulation';
-import GraphSimulation from './simulation/GraphSimulation';
-import TreeSimulation from './simulation/TreeSimulation';
-import GridSimulation from './simulation/GridSimulation';
-import DPSimulation from './simulation/DPSimulation';
-import TimelineSimulation from './simulation/TimelineSimulation';
-import StateMachineSimulation from './simulation/StateMachineSimulation';
-import MathSimulation from './simulation/MathSimulation';
-import StackSimulation from './simulation/StackSimulation';
-import LinkedListSimulation from './simulation/LinkedListSimulation';
-import HeapSimulation from './simulation/HeapSimulation';
-import TuringMachineSimulation from './simulation/TuringMachineSimulation';
-import GenericSimulation from './simulation/GenericSimulation';
+import AdaptiveSimulationFrame from './simulation/AdaptiveSimulationFrame';
 
-/**
- * SimulationView - Main controller for algorithm simulation playback
- * Supports play/pause, step navigation, speed control, and input editing
- *
- * NEW FEATURES:
- * - User-editable inputs with live regeneration
- * - Enhanced visualization with sorted/current/visited highlights
- * - Complexity display
- * - Algorithm title and description
- */
-export default function SimulationView({ topic, userId, onInteraction, accessToken, simulationDetection }) {
+const SPEED_LABELS = {
+  400: 'Fast',
+  800: 'Normal',
+  1400: 'Slow',
+};
+
+function IconButton({ children, onClick, disabled, title, className = '' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-black transition hover:border-[#4c1d95]/40 hover:bg-[#f8f1df] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function SimulationView({ topic, userId, conversationId, onInteraction, accessToken, simulationDetection }) {
   const {
     simulation,
     loading,
@@ -33,618 +31,256 @@ export default function SimulationView({ topic, userId, onInteraction, accessTok
     isValid,
     stepCount,
     refetch,
-    detectionSource,
     detectionConfidence,
-    // New features
-    generatorKey,
-    userInputs,
-    inputSchema,
-    updateInput,
-    regenerateWithInputs
+    simulationId,
+    topicUnderstanding,
+    telemetry,
+    fallbackUsed,
+    submitFeedback,
+    feedbackState,
   } = useSimulation(topic, {
     accessToken,
-    detection: simulationDetection
+    detection: simulationDetection,
+    conversationId,
+    userId,
   });
 
   const [currentStep, setCurrentStep] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1000);
-  const [showInputEditor, setShowInputEditor] = useState(false);
-  const [editingInputs, setEditingInputs] = useState({});
-  const [usingCustomData, setUsingCustomData] = useState(false);
+  const [speed, setSpeed] = useState(800);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Reset step when simulation changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentStep(0);
     setPlaying(false);
-  }, [simulation]);
+  }, [simulationId]);
 
-  // Sync editing inputs with userInputs
   useEffect(() => {
-    setEditingInputs(userInputs || {});
-  }, [userInputs]);
-
-  // Auto-advance when playing
-  useEffect(() => {
-    if (!playing || !simulation?.steps) return;
+    if (!playing || !stepCount) return undefined;
 
     const interval = setInterval(() => {
-      setCurrentStep(prev => {
-        if (prev >= simulation.steps.length - 1) {
+      setCurrentStep((previous) => {
+        if (previous >= stepCount - 1) {
           setPlaying(false);
-          return prev;
+          return previous;
         }
-        return prev + 1;
+        return previous + 1;
       });
     }, speed);
 
     return () => clearInterval(interval);
-  }, [playing, simulation, speed]);
+  }, [playing, speed, stepCount]);
 
-  const handleStepChange = useCallback((newStep) => {
+  const activeStep = simulation?.steps?.[currentStep] || null;
+
+  const handleStepChange = useCallback((nextStep) => {
+    const bounded = Math.max(0, Math.min(nextStep, Math.max(stepCount - 1, 0)));
     setPlaying(false);
-    setCurrentStep(newStep);
-
-    if (onInteraction) {
-      onInteraction({
-        type: 'simulation_step',
-        step: newStep,
-        totalSteps: simulation?.steps?.length,
-        simulationType: simulation?.type
-      });
-    }
-  }, [simulation, onInteraction]);
-
-  const handleNext = () => {
-    if (simulation?.steps) {
-      handleStepChange(Math.min(currentStep + 1, simulation.steps.length - 1));
-    }
-  };
-
-  const handlePrev = () => {
-    handleStepChange(Math.max(currentStep - 1, 0));
-  };
-
-  const handleReset = () => {
-    handleStepChange(0);
-  };
+    setCurrentStep(bounded);
+    onInteraction?.({
+      type: 'simulation_step',
+      step: bounded,
+      totalSteps: stepCount,
+      simulationType: simulation?.type,
+      simulationId,
+    });
+  }, [onInteraction, simulation?.type, simulationId, stepCount]);
 
   const handleTogglePlay = () => {
-    if (!playing && currentStep >= (simulation?.steps?.length || 1) - 1) {
+    const nextPlaying = !playing;
+    if (nextPlaying && currentStep >= stepCount - 1) {
       setCurrentStep(0);
     }
-    setPlaying(!playing);
-
-    if (onInteraction) {
-      onInteraction({
-        type: playing ? 'simulation_pause' : 'simulation_play',
-        step: currentStep
-      });
-    }
+    setPlaying(nextPlaying);
+    onInteraction?.({
+      type: nextPlaying ? 'simulation_play' : 'simulation_pause',
+      step: currentStep,
+      simulationId,
+    });
   };
 
-  // Handle input changes and regeneration
-  const handleInputChange = (key, value) => {
-    setEditingInputs(prev => ({ ...prev, [key]: value }));
+  const handleRestart = () => {
+    setPlaying(false);
+    setCurrentStep(0);
   };
 
   const handleRegenerate = () => {
-    // Parse array input if it's a string
-    const processedInputs = { ...editingInputs };
-    if (inputSchema) {
-      for (const [key, schema] of Object.entries(inputSchema)) {
-        if (schema.type === 'array' && typeof processedInputs[key] === 'string') {
-          processedInputs[key] = processedInputs[key]
-            .replace(/[\[\]]/g, '')
-            .split(/[,\s]+/)
-            .map(s => s.trim())
-            .filter(s => s !== '')
-            .map(Number)
-            .filter(n => !isNaN(n));
-        }
-      }
-    }
-    regenerateWithInputs(processedInputs);
-    setUsingCustomData(true);
-    setShowInputEditor(false);
+    submitFeedback('regenerate', null, 'User requested a regenerated simulation');
   };
 
-  const handleUseRandomData = () => {
-    // Reset to defaults and regenerate
-    setEditingInputs({});
-    regenerateWithInputs({});
-    setUsingCustomData(false);
-    setShowInputEditor(false);
-  };
-
-  // Loading state
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-4">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-muted-foreground text-sm">Generating simulation...</p>
+      <div className="rounded-lg border border-black/10 bg-[#f8f1df] p-8 text-center text-black">
+        <div className="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-[#4c1d95] border-t-transparent animate-spin" />
+        <p className="text-sm font-medium">Building adaptive simulation...</p>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
-        <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-destructive mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p className="font-medium text-destructive">Failed to load simulation</p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
-            <button
-              onClick={() => refetch()}
-              className="mt-3 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
+      <div className="rounded-lg border border-black/10 bg-[#f8f1df] p-5 text-black">
+        <p className="text-sm font-semibold">The simulation viewer needs a refresh.</p>
+        <p className="mt-1 text-sm text-black/70">{error}</p>
+        <button
+          type="button"
+          onClick={() => refetch(topic)}
+          className="mt-4 rounded-md bg-[#4c1d95] px-3 py-2 text-sm font-semibold text-white hover:bg-[#5b21b6]"
+        >
+          Reload
+        </button>
       </div>
     );
   }
 
-  // Empty/no simulation state
   if (!isValid) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-        <p>No simulation available for this topic.</p>
-        <p className="text-sm mt-1">Try searching for sorting, graph, or tree algorithms.</p>
+      <div className="rounded-lg border border-black/10 bg-[#f8f1df] p-6 text-black">
+        <p className="text-sm font-semibold">Choose Simulation from the plus menu to generate an adaptive visual.</p>
+        <p className="mt-1 text-sm text-black/70">The viewer will render the generated educational spec here.</p>
       </div>
     );
   }
 
-  const stepData = simulation.steps[currentStep];
-  const irStepData = simulation.ir?.steps?.[currentStep];
-
-  // Merge step data for visualization
-  const mergedStepData = {
-    ...stepData,
-    // Include new IR highlights if available
-    highlights: irStepData?.highlights || stepData?.highlights || {},
-    variables: irStepData?.state?.variables || stepData?.variables || {},
-    // Include state data for graph/tree visualizations
-    state: irStepData?.state || stepData?.state || {},
-    meta: irStepData?.meta || stepData?.meta || {}
-  };
-
-  // Render type-specific visualization
-  const renderVisualization = () => {
-    switch (simulation.type) {
-      case 'array_sort':
-      case 'array_search':
-      case 'array':
-        return (
-          <ArraySimulation
-            step={mergedStepData}
-            initialArray={simulation.initialArray}
-          />
-        );
-      case 'graph_traversal':
-      case 'graph':
-        return (
-          <GraphSimulation
-            step={mergedStepData}
-            nodes={simulation.nodes}
-            edges={simulation.edges}
-          />
-        );
-      case 'tree_traversal':
-      case 'tree':
-        return (
-          <TreeSimulation
-            step={mergedStepData}
-            nodes={simulation.nodes}
-          />
-        );
-      case 'grid':
-      case 'grid_pathfinding':
-      case 'grid_fill':
-        return (
-          <GridSimulation
-            step={mergedStepData}
-            grid={simulation.grid || simulation.ir?.inputs?.values?.grid}
-          />
-        );
-      case 'dp':
-      case 'dynamic_programming':
-        return (
-          <DPSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'timeline':
-      case 'scheduling':
-        return (
-          <TimelineSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'state_machine':
-      case 'automata':
-      case 'dfa':
-      case 'nfa':
-        return (
-          <StateMachineSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'math':
-      case 'optimization':
-        return (
-          <MathSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'stack':
-        return (
-          <StackSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'linkedlist':
-      case 'linked_list':
-        return (
-          <LinkedListSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'heap':
-      case 'min_heap':
-      case 'max_heap':
-        return (
-          <HeapSimulation
-            step={mergedStepData}
-          />
-        );
-      case 'turing':
-      case 'turing_machine':
-        return (
-          <TuringMachineSimulation
-            step={mergedStepData}
-          />
-        );
-      default:
-        return (
-          <GenericSimulation
-            step={mergedStepData}
-            steps={simulation.steps}
-            currentStepIndex={currentStep}
-          />
-        );
-    }
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Header with title, complexity, and action buttons */}
-      <div className="flex items-center justify-between gap-4 pb-3 border-b border-border">
-        {/* Left side: Title and complexity */}
-        <div className="flex items-center gap-4">
-          {simulation.title && (
-            <h3 className="text-lg font-semibold text-foreground">{simulation.title}</h3>
-          )}
-          {simulation.complexity && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="px-2 py-1 bg-muted rounded-md font-mono">
-                {simulation.complexity.time}
-              </span>
-              <span className="px-2 py-1 bg-muted rounded-md font-mono">
-                {simulation.complexity.space}
-              </span>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 overflow-y-auto bg-[#f8f1df] p-4 sm:p-6' : ''}`}>
+      <section className="rounded-lg border border-black/10 bg-[#f8f1df] p-3 text-black shadow-sm sm:p-4">
+        <div className="mb-3 flex flex-col gap-3 border-b border-black/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4c1d95]">
+              {topicUnderstanding?.domain || simulation?.type || 'Adaptive simulation'}
+            </p>
+            <h3 className="truncate text-base font-semibold text-black">
+              {topicUnderstanding?.topic || topic || 'Simulation'}
+            </h3>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/60">
+              {source && <span>{source === 'guided-fallback' ? 'Guided visual' : 'AI generated'}</span>}
+              {fallbackUsed && <span>Fallback path</span>}
+              {detectionConfidence && <span>{Math.round(detectionConfidence * 100)}% confidence</span>}
+              {telemetry?.generation_time_ms && <span>{telemetry.generation_time_ms}ms generation</span>}
             </div>
-          )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => submitFeedback('helpful', 1)}
+              disabled={feedbackState.pending}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:border-[#4c1d95]/40"
+            >
+              Helpful
+            </button>
+            <button
+              type="button"
+              onClick={() => submitFeedback('not_useful', -1)}
+              disabled={feedbackState.pending}
+              className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black hover:border-[#4c1d95]/40"
+            >
+              Not useful
+            </button>
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={feedbackState.pending}
+              className="rounded-md bg-[#4c1d95] px-3 py-2 text-xs font-semibold text-white hover:bg-[#5b21b6]"
+            >
+              Regenerate
+            </button>
+            <IconButton
+              onClick={() => setIsFullscreen((value) => !value)}
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isFullscreen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9H5V5m10 4h4V5M9 15H5v4m10-4h4v4" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4m8 0h4v4M4 16v4h4m12-4v4h-4" />
+                )}
+              </svg>
+            </IconButton>
+          </div>
         </div>
 
-        {/* Right side: Custom Input button and Play button */}
-        <div className="flex items-center gap-2">
-          {/* Custom Input button - prominent */}
-          {inputSchema && (
-            <button
-              onClick={() => setShowInputEditor(!showInputEditor)}
-              className={`
-                flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200
-                ${showInputEditor
-                  ? 'bg-primary text-primary-foreground shadow-md'
-                  : usingCustomData
-                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
-                    : 'bg-muted hover:bg-muted/80 border border-border hover:border-primary/50'
-                }
-              `}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              {usingCustomData ? 'Custom Data' : 'Custom Input'}
-            </button>
-          )}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="overflow-hidden rounded-lg border border-black/10 bg-white">
+            <AdaptiveSimulationFrame simulation={simulation} currentStep={currentStep} />
+          </div>
 
-          {/* Play button in header */}
-          <button
-            onClick={handleTogglePlay}
-            className={`
-              flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
-              ${playing
-                ? 'bg-amber-500 text-white hover:bg-amber-600'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
-              }
-              shadow-sm hover:shadow-md
-            `}
-          >
-            {playing ? (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <aside className="rounded-lg border border-black/10 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#4c1d95]">
+              Step {currentStep + 1} of {stepCount}
+            </p>
+            <h4 className="mt-2 text-sm font-semibold text-black">
+              {activeStep?.title || 'Current step'}
+            </h4>
+            <p className="mt-2 text-sm leading-6 text-black/70">
+              {activeStep?.description || simulation.explanation}
+            </p>
+            {simulation.explanation && (
+              <p className="mt-4 border-t border-black/10 pt-4 text-xs leading-5 text-black/60">
+                {simulation.explanation}
+              </p>
+            )}
+          </aside>
+        </div>
+
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-black/10">
+          <div
+            className="h-full rounded-full bg-[#4c1d95] transition-all duration-200"
+            style={{ width: `${((currentStep + 1) / stepCount) * 100}%` }}
+          />
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-1">
+            <IconButton onClick={handleRestart} disabled={currentStep === 0} title="Restart">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0019 5" />
+              </svg>
+            </IconButton>
+            <IconButton onClick={() => handleStepChange(currentStep - 1)} disabled={currentStep === 0} title="Previous step">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </IconButton>
+            <IconButton onClick={handleTogglePlay} title={playing ? 'Pause' : 'Play'} className="bg-[#4c1d95] text-white hover:bg-[#5b21b6]">
+              {playing ? (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
                 </svg>
-                Pause
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              ) : (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                Play
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Input Editor Panel - Animated */}
-      <div
-        className={`
-          overflow-hidden transition-all duration-300 ease-in-out
-          ${showInputEditor && inputSchema ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}
-        `}
-      >
-        <div className="p-5 bg-gradient-to-b from-muted/40 to-muted/20 rounded-xl border border-border shadow-sm space-y-4">
-          {/* Panel Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-foreground">Custom Input</h4>
-                <p className="text-xs text-muted-foreground">Enter your own data for the simulation</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowInputEditor(false)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Input Fields */}
-          {inputSchema && Object.entries(inputSchema).map(([key, schema]) => (
-            <div key={key} className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                {schema.label || key}
-                {schema.description && (
-                  <span className="text-xs font-normal text-muted-foreground">— {schema.description}</span>
-                )}
-              </label>
-              {schema.type === 'array' ? (
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={Array.isArray(editingInputs[key]) ? editingInputs[key].join(', ') : editingInputs[key] || ''}
-                    onChange={(e) => handleInputChange(key, e.target.value)}
-                    placeholder="e.g., 5, 3, 8, 2, 7"
-                    className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60">
-                    comma-separated
-                  </span>
-                </div>
-              ) : schema.type === 'number' ? (
-                <input
-                  type="number"
-                  value={editingInputs[key] || ''}
-                  onChange={(e) => handleInputChange(key, Number(e.target.value))}
-                  className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={editingInputs[key] || ''}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                  className="w-full px-4 py-3 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
               )}
-            </div>
-          ))}
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleUseRandomData}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium border-2 border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </IconButton>
+            <IconButton onClick={() => handleStepChange(currentStep + 1)} disabled={currentStep >= stepCount - 1} title="Next step">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              Use Random Data
-            </button>
-            <button
-              onClick={handleRegenerate}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              Run with Custom Data
-            </button>
+            </IconButton>
           </div>
-        </div>
-      </div>
 
-      {/* Source indicator */}
-      {source && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className={`
-            px-1.5 py-0.5 rounded text-[10px] font-medium
-            ${source === 'cache' ? 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-400' :
-              source === 'template' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-              source === 'fallback' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-              'bg-muted text-muted-foreground'}
-          `}>
-            {source === 'cache' ? 'Cached' :
-             source === 'template' ? 'Instant' :
-             source === 'fallback' ? 'Basic' :
-             'Generated'}
-          </span>
-
-          {/* Custom data indicator */}
-          {usingCustomData && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Custom Data
-            </span>
-          )}
-
-          {detectionSource === 'backend' && detectionConfidence && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-500/10 text-neutral-600 dark:text-neutral-400">
-              Auto-detected ({Math.round(detectionConfidence * 100)}% confidence)
-            </span>
-          )}
-
-          <span>{stepCount} steps</span>
-
-          {generatorKey && (
-            <span className="text-muted-foreground/70">• {generatorKey}</span>
-          )}
-        </div>
-      )}
-
-      {/* Visualization area */}
-      <div className="min-h-[280px] border border-border rounded-lg p-4 bg-muted/20 flex items-center justify-center">
-        {renderVisualization()}
-      </div>
-
-      {/* Step description */}
-      <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-        <div className="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-          <span className="text-sm font-bold text-primary">{currentStep + 1}</span>
-        </div>
-        <div>
-          <div className="text-xs text-muted-foreground mb-0.5">
-            Step {currentStep + 1} of {stepCount}
-          </div>
-          <p className="text-sm text-foreground">
-            {stepData?.description || irStepData?.meta?.description || 'No description available'}
-          </p>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary transition-all duration-200"
-          style={{ width: `${((currentStep + 1) / stepCount) * 100}%` }}
-        />
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Navigation buttons */}
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-          <button
-            onClick={handleReset}
-            disabled={currentStep === 0}
-            className="p-2 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Reset to start"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handlePrev}
-            disabled={currentStep === 0}
-            className="p-2 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Previous step"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handleTogglePlay}
-            className="p-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
-            title={playing ? 'Pause' : 'Play'}
-          >
-            {playing ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={currentStep >= stepCount - 1}
-            className="p-2 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Next step"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={() => handleStepChange(stepCount - 1)}
-            disabled={currentStep >= stepCount - 1}
-            className="p-2 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Skip to end"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            </svg>
-          </button>
+          <label className="flex flex-1 items-center gap-3 text-xs font-medium text-black/70 sm:justify-end">
+            Speed
+            <input
+              type="range"
+              min="400"
+              max="1400"
+              step="100"
+              value={speed}
+              onChange={(event) => setSpeed(Number(event.target.value))}
+              className="w-36 accent-[#4c1d95]"
+            />
+            <span className="w-14 text-right">{SPEED_LABELS[speed] || `${speed}ms`}</span>
+          </label>
         </div>
 
-        {/* Speed control */}
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-muted-foreground">Speed:</span>
-          <input
-            type="range"
-            min="200"
-            max="2000"
-            step="100"
-            value={2200 - speed}
-            onChange={(e) => setSpeed(2200 - Number(e.target.value))}
-            className="w-20 h-1.5 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-          />
-          <span className="text-xs text-muted-foreground w-8">
-            {speed < 500 ? 'Fast' : speed > 1500 ? 'Slow' : 'Med'}
-          </span>
-        </div>
-      </div>
+        {feedbackState.error && (
+          <p className="mt-3 text-xs text-red-700">{feedbackState.error}</p>
+        )}
+      </section>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersona } from '../contexts/PersonaContext';
@@ -13,13 +13,6 @@ import {
 } from '../utils/conversationActions';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-const SUGGESTIONS = [
-  { text: "Explain how neural networks work" },
-  { text: "Teach me about photosynthesis" },
-  { text: "How does the stock market work?" },
-  { text: "Explain React hooks with examples" },
-];
 
 const ARTIFACT_LABELS = {
   learn: 'Learn Deeply',
@@ -47,6 +40,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   const [showDocuments, setShowDocuments] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [pendingArtifact, setPendingArtifact] = useState(null);
+  const [recentSuggestions, setRecentSuggestions] = useState([]);
   const accessToken = session?.access_token;
 
   // Document management hook
@@ -57,6 +51,67 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   } = useDocuments();
 
   const selectedDocument = documents.find(d => d.id === selectedDocumentId);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setRecentSuggestions([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadRecentSuggestions = async () => {
+      try {
+        const { data: conversations, error: conversationError } = await supabase
+          .from('conversations')
+          .select('id, updated_at')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(8);
+
+        if (conversationError) throw conversationError;
+
+        const conversationIds = (conversations || []).map((conversation) => conversation.id);
+        if (conversationIds.length === 0) {
+          if (!cancelled) setRecentSuggestions([]);
+          return;
+        }
+
+        const { data: messages, error: messageError } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .in('conversation_id', conversationIds)
+          .eq('role', 'user')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (messageError) throw messageError;
+
+        const seen = new Set();
+        const suggestions = [];
+        for (const message of messages || []) {
+          const text = String(message.content || '').trim();
+          if (text.length < 4) continue;
+          const key = generateConversationTitle(text).toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          suggestions.push({ text });
+          if (suggestions.length >= 4) break;
+        }
+
+        if (!cancelled) setRecentSuggestions(suggestions);
+      } catch (suggestionError) {
+        console.warn('Failed to load recent suggestions:', suggestionError);
+        if (!cancelled) setRecentSuggestions([]);
+      }
+    };
+
+    loadRecentSuggestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const handleDocumentUpload = async (file) => {
     const document = await uploadDocument(file);
@@ -331,30 +386,32 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               }}
             />
 
-            {/* Suggestions */}
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground text-center font-medium uppercase tracking-wider">
-                Try these examples
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {SUGGESTIONS.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className="flex items-center gap-3 p-4 min-h-[52px] neu-btn text-left group"
-                  >
-                    <div className="w-8 h-8 neu-circle-pressed flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm text-foreground/80 group-hover:text-foreground">
-                      {suggestion.text}
-                    </span>
-                  </button>
-                ))}
+            {/* Recent Suggestions */}
+            {recentSuggestions.length > 0 && (
+              <div className="space-y-4">
+                <p className="text-xs text-muted-foreground text-center font-medium uppercase tracking-wider">
+                  Recent topics
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {recentSuggestions.map((suggestion, idx) => (
+                    <button
+                      key={`${suggestion.text}-${idx}`}
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      className="flex items-center gap-3 p-4 min-h-[52px] neu-btn text-left group"
+                    >
+                      <div className="w-8 h-8 neu-circle-pressed flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm text-foreground/80 group-hover:text-foreground">
+                        {suggestion.text}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

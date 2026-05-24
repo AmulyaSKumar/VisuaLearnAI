@@ -1,27 +1,138 @@
-\chapter{Analysis/Design of Pipelined Analog to Digital converter}
+\chapter{System Design}
 
-Every chapter should start with an introduction paragraph. This paragraph should brief about the flow of the chapter. This introduction can be limited within 4 to 5 sentences. The chapter heading should be appropriately modified (a sample heading is shown for this chapter).But don't start the introduction paragraph in the chapters like "This chapter deals with....". Instead you should bring in the highlights of the chapter in the introduction paragraph. 
-\section{Contents of this Chapter}
-This chapter should contain the following sections and subsections in detail.
-\begin{enumerate}
-\item Specifications for the Design
-\item Pre analysis work for the design or Models used
-\item Design methodology in detail
-\item Design Equations
-\item Experimental techniques (if any)
-\end{enumerate}
-Apart from the aforementioned sections, you can add sections as per the requirements of the project in consultation with your guide.
+VisuaLearn AI is designed as a layered and modular system. The design separates user interaction, request orchestration, intelligent decision-making, educational content generation, simulation, visualization, voice interaction, and data persistence. This chapter presents the architecture, module-wise design, data flow, database design, and adaptive learning workflow.
 
-\section{Paraphrasing}
-When you paraphrase a written passage, you rewrite it to state the essential ideas in your own words. Because you do not quote your source word for word when paraphrasing, it is unnecessary to enclose the paraphrased material in quotation marks. However, the paraphrased material must be properly referenced because the ideas are taken from someone else whether or not the words are identical. 
+\section[System Architecture]{\textbf{System Architecture}}
+The system follows a five-layer architecture: presentation layer, application layer, intelligence layer, service layer, and data layer. Each layer has a clear responsibility and communicates with adjacent layers.
 
-Ordinarily, the majority of the notes you take during the research phase of writing your report will paraphrase the original material. Paraphrase only the essential ideas. Strive to put original ideas into your own words without distorting them."
+\begin{figure}[H]
+\centering
+\resizebox{0.85\textwidth}{!}{%
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, minimum width=7.4cm, minimum height=0.9cm, align=center},
+arrow/.style={-{Latex[length=2mm]}, thick},
+node distance=0.6cm
+]
+\node[box] (p) {Presentation Layer: Chat, Learning Workspace, Voice, Settings};
+\node[box, below=of p] (a) {Application Layer: Routing, Authentication, Sessions, Validation};
+\node[box, below=of a] (i) {Intelligence Layer: Context Builder, Strategy Selector, Personalization};
+\node[box, below=of i] (s) {Service Layer: Learning Content, Simulation, Visualization, Voice};
+\node[box, below=of s] (d) {Data Layer: Users, Conversations, Resources, Feedback};
+\draw[arrow] (p) -- (a);
+\draw[arrow] (a) -- (i);
+\draw[arrow] (i) -- (s);
+\draw[arrow] (s) -- (d);
+\draw[arrow] (d.east) .. controls +(2,0) and +(2,0) .. (a.east);
+\end{tikzpicture}
+}
+\caption{Layered Architecture of VisuaLearn AI}
+\label{fig:layeredarchitecture}
+\end{figure}
 
-\section{Quotations}
-When you have borrowed words, facts, or idea of any kind from someone else's work, acknowledge your debt by giving your source credit in footnote (or in running text as cited reference). Otherwise, you will be guilty of plagiarism. Also, be sure you have represented the original material honestly and accurately. Direct word to word quotations are enclosed in quotation marks."
+\section[Presentation Layer Design]{\textbf{Presentation Layer Design}}
+The presentation layer is implemented as a responsive web application. It provides the learner with the following views:
+\begin{itemize}[leftmargin=1.2cm]
+	\item Chat interface for asking questions and receiving responses.
+	\item Learning workspace for notes, examples, flashcards, quizzes, mind maps, and simulations.
+	\item Simulation viewer with playback controls.
+	\item Visual widget frame for dynamic learning artifacts.
+	\item Voice interface for spoken learning sessions.
+	\item Settings page for personalization and account configuration.
+\end{itemize}
 
-\vspace{0.75cm}
+The learning workspace is designed to reduce clutter. Instead of showing all generated content in one long page, each artifact is placed in a suitable tab or panel. This supports focused reading and easier revision.
 
- \textbf{The chapters should not end with figures, instead bring the paragraph explaining about the figure at the end followed by a summary paragraph.}
+\section[Application Layer Design]{\textbf{Application Layer Design}}
+The application layer receives frontend requests and routes them to the correct backend module. It performs authentication, request validation, trace logging, error handling, and response formatting. It also supports streaming output so that learners can see responses progressively.
 
-After elaborating the various sections of the chapter (From Chapter 2 onwards), a summary paragraph should be written discussing the highlights of that particular chapter. This summary paragraph should not be numbered separately. This paragraph should connect the present chapter to the next chapter.  
+The application layer contains routes for chat, learning content, simulations, visualizations, voice sessions, documents, personas, progress, and settings. This modular routing structure makes the project easier to maintain and test.
+
+\section[Intelligence Layer Design]{\textbf{Intelligence Layer Design}}
+The intelligence layer is responsible for adapting the teaching strategy. It builds a context vector from learner signals and selects one of the supported response modes. The context includes:
+\begin{itemize}[leftmargin=1.2cm]
+	\item Cognitive state
+	\item Engagement level
+	\item Topic status
+	\item Performance trend
+	\item Confidence
+	\item Topic difficulty
+	\item Previous failures
+	\item Response time
+\end{itemize}
+
+The teaching strategies are visual learning, guided steps, quiz checking, concise explanation, Socratic questioning, and remediation. The selected strategy influences how the learning response is generated and displayed.
+
+\section[Service Layer Design]{\textbf{Service Layer Design}}
+The service layer contains the core educational modules. The learning content service generates structured notes, examples, quizzes, flashcards, and mind maps. The simulation service determines whether a topic is procedural and generates state transitions. The visualization service prepares visual or spatial content. The voice service supports real-time spoken interaction. The resource service stores and retrieves generated learning artifacts.
+
+\section[Data Layer Design]{\textbf{Data Layer Design}}
+The data layer stores all persistent learning information. The main data entities are:
+\begin{itemize}[leftmargin=1.2cm]
+	\item Users: authentication and profile details.
+	\item Conversations: learning sessions created by users.
+	\item Messages: learner queries and system responses.
+	\item Learning resources: notes, quizzes, flashcards, mind maps, simulations, and visual references.
+	\item Feedback records: quiz results, completion data, and learner ratings.
+	\item Adaptive decisions: selected strategy, context, and reward information.
+\end{itemize}
+
+\section[Data Flow Diagram]{\textbf{Data Flow Diagram}}
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+entity/.style={draw, rectangle, rounded corners, minimum width=2.8cm, minimum height=0.8cm, align=center},
+process/.style={draw, ellipse, minimum width=3.0cm, minimum height=0.95cm, align=center},
+store/.style={draw, cylinder, shape border rotate=90, aspect=0.28, minimum width=1.5cm, minimum height=1.1cm, align=center},
+arrow/.style={-{Latex[length=2mm]}, thick},
+node distance=0.9cm
+]
+\node[entity] (user) {Learner};
+\node[process, right=of user] (request) {Request Processing};
+\node[process, right=of request] (engine) {Learning Engine};
+\node[entity, right=of engine] (output) {Learning Output};
+\node[store, below=of request] (db) {Data Store};
+\draw[arrow] (user) -- (request);
+\draw[arrow] (request) -- (engine);
+\draw[arrow] (engine) -- (output);
+\draw[arrow] (request) -- (db);
+\draw[arrow] (engine) -- (db);
+\draw[arrow] (db) -- (request);
+\end{tikzpicture}
+}
+\caption{Data Flow Diagram of VisuaLearn AI}
+\label{fig:dataflow}
+\end{figure}
+
+\section[Adaptive Learning Workflow]{\textbf{Adaptive Learning Workflow}}
+The adaptive workflow connects learner behavior with future teaching decisions. When a learner asks a question, the system builds context and selects a response strategy. After the learner interacts with the output, feedback is stored. The feedback affects future decisions.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.85cm, align=center},
+arrow/.style={-{Latex[length=2mm]}, thick},
+node distance=0.55cm
+]
+\node[box] (q) {Question};
+\node[box, right=of q] (c) {Context};
+\node[box, right=of c] (p) {Policy};
+\node[box, right=of p] (r) {Response};
+\node[box, right=of r] (f) {Feedback};
+\draw[arrow] (q) -- (c);
+\draw[arrow] (c) -- (p);
+\draw[arrow] (p) -- (r);
+\draw[arrow] (r) -- (f);
+\draw[arrow] (f.south) .. controls +(0,-0.7) and +(0,-0.7) .. (c.south);
+\end{tikzpicture}
+}
+\caption{Adaptive Learning Workflow}
+\label{fig:adaptiveworkflow}
+\end{figure}
+
+\section[Module Interaction]{\textbf{Module Interaction}}
+The modules interact in a sequential but flexible manner. A single learner query may produce a direct explanation, a learning resource, a simulation, a visual widget, or a voice response. The backend decides which module is suitable based on query intent and learner context. All generated resources are saved so that the frontend can reload them during future sessions.
+
+\section[Design Summary]{\textbf{Design Summary}}
+The design of VisuaLearn AI emphasizes modularity, adaptability, reliability, and usability. The layered architecture allows independent development of the frontend, backend, intelligent services, and data storage. The adaptive workflow supports personalization, while the learning workspace organizes outputs into meaningful educational artifacts.

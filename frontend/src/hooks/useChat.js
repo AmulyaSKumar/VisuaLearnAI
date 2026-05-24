@@ -40,7 +40,13 @@ export function useChat(
   const { startStream, currentMessage, isLoadingWidget, personalizationMeta } = useSSEStream();
   const { assets, isStreaming: isAssetStreaming, progress: assetProgress, startAssetStream } = useAssetStream();
   const { plan, isLoading: isPlanLoading, generatePlan } = useLearningPlan();
-  const { content: learningContent, isLoading: isLearningContentLoading, generateContent: generateLearningContent, trackInteraction } = useLearningContent();
+  const {
+    content: learningContent,
+    isLoading: isLearningContentLoading,
+    generateContent: generateLearningContent,
+    trackInteraction,
+    clearContent,
+  } = useLearningContent();
 
   // Get current persona from context
   const { defaultPersona } = usePersona();
@@ -140,6 +146,10 @@ export function useChat(
   }, [onConversationUpdated, userId]);
 
   const sendMessage = useCallback(async (text, preferences = {}) => {
+    if (!preferences.requestedArtifact) {
+      clearContent();
+    }
+
     const userMsg = { id: Date.now().toString(), role: "user", content: text, text };
     const newContext = [...messages, userMsg];
     setMessages(newContext);
@@ -358,6 +368,7 @@ export function useChat(
   }, [
     accessToken,
     assets,
+    clearContent,
     defaultPersona,
     generate3D,
     generateLearningContent,
@@ -394,32 +405,6 @@ export function useChat(
     conversationIdRef.current = null;
   }, []);
 
-  /**
-   * Add a voice message to the chat (from voice transcript sync)
-   * Messages are already saved to DB by the backend, this updates UI state
-   */
-  const addVoiceMessage = useCallback((role, text, messageId) => {
-    if (!text || !messageId) return;
-
-    setMessages(prev => {
-      // Check if message already exists (avoid duplicates)
-      if (prev.some(m => m.id === messageId)) {
-        return prev;
-      }
-
-      const newMessage = {
-        id: messageId,
-        role,
-        content: text,
-        // Store in metadata.source to match MessageList expectations
-        metadata: { source: 'voice' },
-        timestamp: new Date().toISOString(),
-      };
-
-      return [...prev, newMessage];
-    });
-  }, []);
-
   return {
     messages,
     isStreaming,
@@ -428,8 +413,6 @@ export function useChat(
     isLoadingWidget,
     sendMessage,
     clearMessages,
-    // Voice message sync
-    addVoiceMessage,
     // Personalization transparency
     personalizationMeta,
     // Asset streaming

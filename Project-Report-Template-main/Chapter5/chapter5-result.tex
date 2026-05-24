@@ -1,110 +1,69 @@
-\chapter{Results \& Discussions}
-Every chapter should start with an introduction paragraph. This paragraph should brief about the flow of the chapter. This introduction can be limited within 4 to 5 sentences. The chapter heading should be appropriately modified (a sample heading is shown for this chapter).But don't start the introduction paragraph in the chapters like "This chapter deals with....". Instead you should bring in the highlights of the chapter in the introduction paragraph.
-\section{Contents of this chapter}
-All the results obtained for your objectives should be discussed in this chapter. This chapter should contain the following sections as per the project.
-\begin{enumerate}
-\item Simulation results
-\item Experimental results
-\item Performance Comparison
-\item Inferences drawn from the results obtained
-\end{enumerate}
-All the figures should be properly explained by bringing the scenarios of the design done in the project. A detailed discussion of results obtained should be done in this chapter.
+\chapter{Testing and Results}
 
-\section{Tables in thesis}
-\begin{itemize}
-	\item All Table Caption should be in Sentence Case, TNR 10 Pt. It should be of the Format:
-	\begin{itemize}
-		\item Table 1.1 Results of the experiment ….(Centered)
-	\end{itemize}
-	\item It should be cited as Table 1.1.
-	\item Caption should appear above the Table.
-	\item Table Header and the entries should be of Font TNR 10 Pt, Justified.
-	\item For wider Table, the page orientation can be Landscape.
-	\item For Larger Table, it can run to pages and the header should be repeated for each page of the Table.
-	\item Table must be adjusted to fit in the page and no single row is left out for a new page.	
+Testing was performed to verify that VisuaLearn AI satisfies its functional requirements, responds correctly to learner actions, stores learning resources, and remains usable across devices. The system contains several interacting modules, so testing was carried out at the frontend, backend, database, simulation, visualization, voice, and learning workflow levels.
+
+\section[Testing Strategy]{\textbf{Testing Strategy}}
+The testing strategy included the following:
+\begin{itemize}[leftmargin=1.2cm]
+	\item Functional testing of login, chat, learning resources, simulation, visualization, and settings.
+	\item Backend route testing for valid and invalid requests.
+	\item Manual testing of complete learner workflows.
+	\item Simulation testing using deterministic algorithm examples.
+	\item Responsive testing on desktop and mobile screen sizes.
+	\item Error handling tests for missing input, unavailable resources, and rendering failures.
+	\item Persistence testing for conversations, messages, and learning resources.
 \end{itemize}
 
-Sample Table \ref{c5:tab1} is given below for your reference,
+\section[Functional Test Cases]{\textbf{Functional Test Cases}}
+\begin{longtable}{p{1.1cm}p{4cm}p{5.3cm}p{2.3cm}}
+\caption{Functional Test Cases}\\
+\toprule
+\textbf{ID} & \textbf{Scenario} & \textbf{Expected Result} & \textbf{Status}\\
+\midrule
+TC01 & User login & Valid user is authenticated and redirected to the application & Passed\\
+TC02 & New conversation & A new learning session is created and shown in recent sessions & Passed\\
+TC03 & Ask question & The system returns an educational response and stores it & Passed\\
+TC04 & Open learning workspace & Learning tabs and generated resources are displayed & Passed\\
+TC05 & Generate flashcards & Flashcards appear with question and answer structure & Passed\\
+TC06 & Generate quiz & Questions, options, and feedback are shown & Passed\\
+TC07 & Generate mind map & Concepts are organized as related nodes & Passed\\
+TC08 & Detect simulation topic & Suitable procedural topics open simulation workflow & Passed\\
+TC09 & Invalid input & A controlled error or fallback response is shown & Passed\\
+TC10 & Logout & User session is cleared securely & Passed\\
+\bottomrule
+\end{longtable}
 
-\begin{table}[htb]
-\fontsize{10}{12}\selectfont
-\caption{Country List}
-\label{c5:tab1}
-\begin{tabular}{|p{3cm}|c|c|c|}
-	%\hline
-	%\multicolumn{4}{|c|}{Country List} \\
-	\hline
-	\textbf{Country Name     or Area Name}& \textbf {ISO ALPHA 2 Code} & \textbf {ISO ALPHA 3 Code} & \textbf{ISO numeric Code}\\
-	\hline
-	\textbf{Afghanistan}   & AF    & AFG &   004\\\hline
-	\textbf{Aland Islands}&   AX  & ALA   & 248\\\hline
-	\textbf{Albania} & AL & ALB&  008\\\hline
-	\textbf{Algeria}    &DZ & DZA&  012\\\hline
-	\textbf{American Samoa}&   AS  & ASM&016\\\hline
-	\textbf{Andorra}& AD  & AND   & 020\\\hline
-	\textbf{Angola}& AO  & AGO& 024\\
-	\hline
-\end{tabular}
-\end{table}
+\section[Learning Workflow Testing]{\textbf{Learning Workflow Testing}}
+The learning workflow was tested using topics from computer science, grammar, general science, and engineering. Example queries included merge sort, breadth-first search, parts of speech, machine learning, neural networks, selection sort, and how an engine works. These topics were selected because they require different learning formats.
 
-%\begin{table}[htp]
-%\fontsize{10}{12}\selectfont
-%\centering
-%\caption{Data units, sources, and dates} \label{c5:tab2}
-%\begin{tabular}{| *4{>{\arraybackslash}m{1in}|} @{}m{0pt}@{}}
-%	\hline
-%	\textbf{Variable} & \textbf{Dates} & \textbf{Units} &
-%	\textbf{Source}  &\\[2ex] 
-%	\hline
-%	\textbf{Nominal Physical Capital Stock} & 1950-1990 & Billions
-%			US\$ & Nehru and Dhareshwar (1993) &\\[0ex]
-%	\hline
-%	\textbf{Total Population} & 1950-1990 & Billions & Nehru and
-%			Dhareshwar (1993) &\\[0ex]
-%	\hline
-%	\textbf{Nominal GDP} & 1950-1990 & Billions  US\$ & PWT &\\[5ex]
-%	\hline
-%	\textbf{Real GDP per capita} & 1950-1990 & 2005 US\$ per capita & PWT &\\[5ex]
-%	\hline
-%\end{tabular}
-%\end{table}
+Algorithmic topics were suitable for simulations and guided steps. Conceptual topics were suitable for explanations, examples, flashcards, and quizzes. Grammar topics were suitable for examples and assessment. This confirmed that the system can organize learning support based on topic type.
 
-\section{Math equation in thesis}
-All equation should be written using equation editor or using an equivalent tool.
-\begin{itemize}
-	\item Equations should be numbered as : 1.1, 1.2 ...
-	\item Equation should be Centered, 12 Pt, TNR. 
-	\item Equation number should be right Justified
-	\item It should be cited as Eqn. 1.1.
-   \item If the sentence starts by citing an equation, then it should be written as Equation 1.1 For example, Equation 5.1 states the Pythagoras theorem.
+\section[Simulation Testing]{\textbf{Simulation Testing}}
+Simulation testing focused on state correctness. For sorting algorithms, the array state was checked after each comparison and swap. For graph traversal, the visited node order was inspected. For stack and queue topics, push, pop, enqueue, and dequeue operations were checked. For tree topics, node relationships and traversal order were verified.
 
-	
+The results showed that the simulation module works best for deterministic processes. For topics that do not have clear state transitions, the system avoids forcing simulation and instead provides structured explanations.
+
+\section[Visualization Testing]{\textbf{Visualization Testing}}
+Visualization testing verified whether generated visual components load safely and whether fallback messages appear when rendering is not possible. Device capability checks were used to avoid heavy visual rendering on unsupported devices. The isolated widget frame helped prevent invalid visual content from affecting the full application.
+
+\section[Responsive Testing]{\textbf{Responsive Testing}}
+The application was tested on desktop and mobile widths. The sidebar, chat input, learning content, flashcard cards, quiz view, simulation view, and settings page were checked for overflow and readability. Mobile improvements focused on keeping the main learning content visible, reducing unnecessary side content, and preventing persona or status labels from overflowing.
+
+\section[Error Handling Testing]{\textbf{Error Handling Testing}}
+Error handling was tested by submitting incomplete requests, unavailable resources, unsuitable simulation topics, and rendering failures. The system returned controlled messages instead of exposing raw internal details. Fallback content helped preserve the learning flow even when one feature could not complete.
+
+\section[Observed Results]{\textbf{Observed Results}}
+The implementation produced the following results:
+\begin{itemize}[leftmargin=1.2cm]
+	\item Learners can create and continue learning conversations.
+	\item Structured learning resources are generated and displayed in separate views.
+	\item Flashcards and quizzes support revision and self-assessment.
+	\item Mind maps organize related concepts visually.
+	\item Simulations support procedural understanding for algorithmic topics.
+	\item Voice interaction supports natural question asking and accessibility.
+	\item Persistent storage allows learners to revisit previous sessions.
+	\item Adaptive strategy selection supports more personalized response formats.
 \end{itemize}
 
-For example in Eqn. \ref{eqn:pythag thm}, The well known Pythagorean theorem $x^2 + y^2 = z^2$ was 
-proved to be invalid for other exponents. 
-Meaning the next equation has no integer solutions:
-
-\begin{equation}
-\label{eqn:pythag thm}
-	x^n + y^n = z^n
-\end{equation}
-
-The mass-energy equivalence is described by the famous equation in Eqn. \ref{eqn:mass-eng}
-\begin{equation}
-\label{eqn:mass-eng}
-	E=mc^2
-\end{equation}
-
-discovered in 1905 by Albert Einstein. 
-
-\section{Interpretation of results}
-
-\vspace{2.5cm}
-
- \textbf{The chapters should not end with figures, instead bring the paragraph explaining about the figure at the end followed by a summary paragraph.}
-
-After elaborating the various sections of the chapter (From Chapter 2 onwards), a summary paragraph should be written discussing the highlights of that particular chapter. This summary paragraph should not be numbered separately. This paragraph should connect the present chapter to the next chapter.
-
-
-
+\section[Result Summary]{\textbf{Result Summary}}
+Testing confirmed that VisuaLearn AI functions as an integrated adaptive learning workspace. The system performs best when topics can be represented through structured explanation, practice, visualization, or simulation. The platform successfully demonstrates the project objective of moving beyond plain answer generation toward a reusable and interactive learning environment.

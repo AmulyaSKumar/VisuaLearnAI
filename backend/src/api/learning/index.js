@@ -23,7 +23,7 @@ import {
   formatChunksAsContext,
 } from '../../services/rag/index.js';
 import { processPdfFromStorage } from '../../services/rag/pdfProcessor.js';
-import { classifySimulationIntent, mightBeSimulationRelated } from '../../simulation/classifier.js';
+import { topicUnderstandingAgent } from '../../simulation/adaptive-engine.js';
 import { saveLearningResource, RESOURCE_TYPES } from '../../database/client.js';
 import { searchForLearning } from '../../services/webSearch.js';
 
@@ -436,35 +436,28 @@ router.post('/learning-content', async (req, res) => {
       error: result.error || null
     });
 
-    // Run simulation detection using new dynamic simulation engine
-    // Only run for 'learn' content type or when no contentType specified (full content)
+    // Run AI-only simulation understanding. Rendering is generated later by /api/simulation/generate.
     let simulationDetection = null;
     if (!contentType || contentType === 'learn') {
       try {
-        // Quick pre-filter to avoid unnecessary LLM calls
-        if (mightBeSimulationRelated(query)) {
-          const classification = await classifySimulationIntent(query);
-          simulationDetection = {
-            supported: classification.simulatable,
-            type: classification.type,
-            algorithm: classification.algorithm,
-            generatorKey: classification.generatorKey || classification.algorithm,
-            confidence: classification.confidence,
-            suggestedInputs: classification.inputs,
-            inputSchema: classification.inputSchema,
-            reason: classification.reason
-          };
-          console.log(`[LearningContent] Simulation detection:`, {
-            query: query.slice(0, 30),
-            supported: simulationDetection?.supported,
-            type: simulationDetection?.type,
-            algorithm: simulationDetection?.algorithm,
-            confidence: simulationDetection?.confidence,
-            cached: classification.cached
-          });
-        } else {
-          simulationDetection = { supported: false, reason: 'Query not simulation related' };
-        }
+        const understanding = await topicUnderstandingAgent(query);
+        simulationDetection = {
+          supported: understanding.supported !== false,
+          topic: understanding.topic,
+          domain: understanding.domain,
+          complexity: understanding.complexity,
+          educationalIntent: understanding.educationalIntent,
+          simulationType: understanding.simulationType,
+          confidence: understanding.confidence,
+        };
+        console.log('[LearningContent] Simulation detection:', {
+          query: query.slice(0, 30),
+          supported: simulationDetection.supported,
+          topic: simulationDetection.topic,
+          domain: simulationDetection.domain,
+          simulationType: simulationDetection.simulationType,
+          confidence: simulationDetection.confidence,
+        });
       } catch (detectErr) {
         console.warn('[LearningContent] Simulation detection failed:', detectErr.message);
         // Non-blocking - continue without detection

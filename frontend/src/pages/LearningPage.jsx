@@ -6,7 +6,6 @@ import { getConversationMessages, supabase, updateAssistantMessageContent } from
 import { useLearningContent } from "../hooks/useLearningContent";
 import { useLearningResources, RESOURCE_TYPES } from "../hooks/useLearningResources";
 import { use3DWidget } from "../hooks/use3DWidget";
-import useRealtimeAudio, { VOICE_STATES } from "../hooks/useRealtimeAudio";
 import { should3DVisualize } from "../utils/detect3D";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
@@ -19,8 +18,6 @@ import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
 import EngagingLoader from "../components/learning/EngagingLoader";
 import WidgetFrame from "../components/WidgetFrame";
-import VoiceToggleButton from "../components/VoiceToggleButton";
-import VoiceIndicator from "../components/VoiceIndicator";
 import { exportToNotion, getNotionStatus } from "../services/notionService";
 
 // Tab labels for dynamic tab bar
@@ -48,9 +45,6 @@ const DEPTH_LEVELS = [
   { id: 'balanced', label: 'Balanced', description: 'Mix of simple and technical' },
   { id: 'deep', label: 'Technical', description: 'Full detail, industry terms' },
 ];
-
-// Map depth levels to API mode values
-const depthToMode = (depth) => depth; // Now using 'deep' directly
 
 const TOPIC_STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'can', 'explain', 'for', 'full', 'fully', 'form',
@@ -104,37 +98,6 @@ function LearningPageContent() {
   const userId = user?.id;
   const accessToken = session?.access_token;
 
-  // Voice transcript handler - adds messages to local state
-  const handleVoiceTranscript = useCallback((role, text, messageId) => {
-    if (!text || !messageId) return;
-
-    setMessages(prev => {
-      // Check if message already exists (avoid duplicates)
-      if (prev.some(m => m.id === messageId)) {
-        return prev;
-      }
-
-      const newMessage = {
-        id: messageId,
-        role,
-        content: text,
-        // Store in metadata.source to match MessageList expectations
-        metadata: { source: 'voice' },
-        created_at: new Date().toISOString(),
-      };
-
-      return [...prev, newMessage];
-    });
-  }, []);
-
-  // Voice conversation hook
-  const voice = useRealtimeAudio({
-    conversationId: conversationId || null,
-    accessToken,
-    personaId: defaultPersona?.id,
-    onTranscript: handleVoiceTranscript,
-  });
-
   const [activeTab, setActiveTab] = useState('learn');
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -147,7 +110,7 @@ function LearningPageContent() {
   const [readCards, setReadCards] = useState(new Set());
   const [showDepthDropdown, setShowDepthDropdown] = useState(false);
   // Only Learn tab by default, other tabs appear when user requests them
-  const [visibleTabs, setVisibleTabs] = useState(['learn']);
+  const [, setVisibleTabs] = useState(['learn']);
   const [loadingTabs, setLoadingTabs] = useState(new Set()); // Per-tab loading state
   const [loadedTabs, setLoadedTabs] = useState(new Set(['learn'])); // Track which tabs have content
   const [tabErrors, setTabErrors] = useState({}); // { tabId: "error message" }
@@ -233,8 +196,6 @@ function LearningPageContent() {
     getResource,
     hasResource,
     saveResource,
-    addAvailableType,
-    getTabs: getPersistedTabs,
   } = useLearningResources(conversationId, accessToken);
 
   const {
@@ -273,7 +234,6 @@ function LearningPageContent() {
     clearContent,
     // NEW: Response mode and intent classification for adaptive UI
     responseMode: hookResponseMode,
-    intentClassification: hookIntentClassification,
     expandContent,
   } = useLearningContent();
 
@@ -349,21 +309,19 @@ function LearningPageContent() {
 
       if (data.success && data.supported) {
         console.log('[LearningPage] Simulation SUPPORTED:', {
-          type: data.type,
-          algorithm: data.algorithm,
+          topic: data.topic,
+          domain: data.domain,
+          simulationType: data.simulationType,
           confidence: data.confidence,
-          hasInputSchema: !!data.inputSchema
         });
         setLocalSimulationDetection({
           supported: data.supported,
-          type: data.type,
-          algorithm: data.algorithm,
+          topic: data.topic,
+          domain: data.domain,
+          complexity: data.complexity,
+          educationalIntent: data.educationalIntent,
+          simulationType: data.simulationType,
           confidence: data.confidence,
-          reason: data.reason,
-          // NEW: Include fields for custom input UI
-          generatorKey: data.generatorKey,
-          inputSchema: data.inputSchema,
-          suggestedInputs: data.suggestedInputs
         });
       } else {
         console.log('[LearningPage] Simulation NOT supported:', data.reason || 'No match');
@@ -382,9 +340,9 @@ function LearningPageContent() {
 
     const { confidence } = simulationDetection;
     console.log('[LearningPage] Simulation detection:', {
-      type: simulationDetection.type,
+      topic: simulationDetection.topic,
+      simulationType: simulationDetection.simulationType,
       confidence,
-      algorithm: simulationDetection.algorithm
     });
 
     // Show simulation tab whenever supported (any confidence level)
@@ -732,7 +690,6 @@ function LearningPageContent() {
     }
 
     loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, conversationId, navigate, userId, depthLevel, runSimulationDetection, isResourcesLoading, getResource]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
@@ -943,7 +900,7 @@ function LearningPageContent() {
         return next;
       });
     }
-  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId, hasResource, conversation, messages, generate3D, saveResource, visualizationSkipReason]);
+  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId, documentId, hasResource, conversation, messages, generate3D, saveResource, visualizationSkipReason]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   const handleReadCard = (cardId) => {
@@ -2028,18 +1985,6 @@ function LearningPageContent() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
-      {/* Voice Indicator - shown when voice is active */}
-      {voice.isActive && (
-        <VoiceIndicator
-          state={voice.state}
-          transcript={voice.transcript}
-          userTranscript={voice.userTranscript}
-          sessionDuration={voice.sessionDuration}
-          error={voice.error}
-          onStop={voice.stop}
-        />
-      )}
-
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -2051,13 +1996,6 @@ function LearningPageContent() {
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {/* Voice Toggle Button */}
-              <VoiceToggleButton
-                state={voice.state}
-                onToggle={() => voice.isActive ? voice.stop() : voice.start()}
-                disabled={!accessToken}
-              />
-
               {/* Depth Level Toggle */}
               <div className="relative">
                 <button
@@ -2118,38 +2056,6 @@ function LearningPageContent() {
             </div>
           </div>
 
-          {/* Tabs now live inside each conversation turn. */}
-          {false && visibleTabs.length > 1 && (
-            <div className="flex gap-1.5 mt-4 p-1.5 neu-pressed rounded-xl overflow-x-auto">
-              {visibleTabs.map(tabId => {
-                const isActive = activeTab === tabId;
-                const isTabLoading = loadingTabs.has(tabId);
-                const hasError = !!tabErrors[tabId];
-
-                return (
-                  <button
-                    key={tabId}
-                    onClick={() => handleOpenTab(tabId)}
-                    className={`px-3 py-2 text-sm font-medium transition-all rounded-lg whitespace-nowrap ${
-                      isActive
-                        ? 'neu-raised-sm text-primary'
-                        : hasError
-                          ? 'text-destructive hover:neu-raised-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:neu-raised-sm'
-                    }`}
-                  >
-                    {TAB_LABELS[tabId]}
-                    {isTabLoading && (
-                      <span className="ml-1.5 w-3 h-3 inline-block border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    )}
-                    {hasError && !isTabLoading && (
-                      <span className="ml-1 text-destructive">!</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
 
@@ -2201,10 +2107,6 @@ function LearningPageContent() {
           <InputBar
             onSend={handleFollowUp}
             inputDisabled={isFollowUpLoading || isLoading || isLearningContentLoading}
-            voiceActive={voice.isActive}
-            voiceState={voice.state}
-            onVoiceStart={voice.start}
-            onVoiceStop={voice.stop}
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
             onDocumentUpload={() => {
@@ -2214,6 +2116,7 @@ function LearningPageContent() {
               if (artifact === 'quiz') handleOpenTab('quiz');
               if (artifact === 'flashcards') handleOpenTab('flashcards');
               if (artifact === 'mindmap') handleOpenTab('mindmap');
+              if (artifact === 'simulation') handleOpenTab('simulation');
             }}
           />
         </div>

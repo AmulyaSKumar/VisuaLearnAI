@@ -34,15 +34,6 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
             {/* User Message */}
             {msg.role === "user" && (
               <div className="relative bg-primary/10 text-foreground px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] sm:max-w-[75%] border border-primary/20 shadow-sm">
-                {/* Voice indicator badge */}
-                {msg.metadata?.source === 'voice' && (
-                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 bg-green-500 text-white rounded-full shadow-sm" title="Voice message">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    </svg>
-                  </span>
-                )}
                 <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{msg.content}</p>
               </div>
             )}
@@ -72,23 +63,10 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
             {msg.role === "assistant" && msg.text && (
               <div className="group flex w-full max-w-4xl gap-3 sm:gap-4">
                 <div className="relative w-8 h-8 rounded-full bg-primary/15 flex-shrink-0 flex items-center justify-center text-primary shadow-sm mt-1">
-                  {msg.metadata?.source === 'voice' ? (
-                    // Voice response icon
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    </svg>
-                  ) : (
-                    // Default book icon
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                    </svg>
-                  )}
-                  {/* Voice badge indicator */}
-                  {msg.metadata?.source === 'voice' && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
-                  )}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
                 </div>
                 <div className="flex-1 min-w-0">
                   <MessageBubble content={msg.text} showTTS={msg.id !== "streaming-now"} />

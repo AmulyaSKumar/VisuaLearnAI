@@ -16,7 +16,6 @@ import simulationRoutes from './simulation/routes.js';
 import visualizationRoutes from './visualization/index.js';
 import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
-import realtimeRoutes from './realtime/routes.js';
 import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
@@ -192,9 +191,9 @@ export function registerRoutes(app) {
 
   /**
    * Simulation API
-   * POST /api/simulation - Generate algorithm simulation (auth + rate limited)
-   * POST /api/simulation/detect - Detect if query supports simulation (no auth needed)
-   * GET /api/simulation/types - List available simulation types (no auth needed)
+   * POST /api/simulation/detect - Topic Understanding Agent
+   * POST /api/simulation/generate - AI-only adaptive simulation pipeline
+   * POST /api/simulation/feedback - Simulation-specific feedback
    */
   router.use('/simulation', simulationRoutes);
 
@@ -239,12 +238,6 @@ export function registerRoutes(app) {
    * POST /api/personas/:id/set-default - Set as default persona
    */
   router.use('/personas', requireAuth, personaRoutes);
-
-  /**
-   * Realtime Voice API - Protected
-   * POST /api/realtime/session - Create ephemeral session for Azure OpenAI Realtime
-   */
-  router.use('/realtime', requireAuth, realtimeRoutes);
 
   /**
    * Admin API - Requires admin user
@@ -375,6 +368,8 @@ export function registerRoutes(app) {
         'POST /api/learning-content',
         'POST /api/simulation',
         'POST /api/simulation/detect',
+        'POST /api/simulation/generate',
+        'POST /api/simulation/feedback',
         'GET /api/simulation/types',
         'POST /api/generate-3d',
         'POST /api/tts',
@@ -385,7 +380,6 @@ export function registerRoutes(app) {
         'POST /api/personas',
         'GET /api/personas/default',
         'POST /api/personas/:id/set-default',
-        'POST /api/realtime/session',
         'GET /api/usage/:userId',
         'GET /api/progress/:userId',
         'GET /api/health'

@@ -6,7 +6,6 @@
 
 import http from 'http';
 import express from 'express';
-import { WebSocketServer, WebSocket } from 'ws';
 
 import { config } from './config/environment.js';
 import { setupMiddleware, setupErrorHandler } from './middleware/index.js';
@@ -15,9 +14,7 @@ import { logger, createRequestLogger, getSentryRequestHandler, getSentryErrorHan
 import { traceMiddleware } from './middleware/traceMiddleware.js';
 import { supabase } from './database/client.js';
 import { agentRegistry } from './agents/index.js';
-import { createRealtimeProxy } from './websocket/realtime-proxy.js';
 import { scheduleDailyReset } from './services/costTracker.js';
-import { verifyWebSocketToken } from './services/auth.js';
 import { cache } from './services/cache.js';
 
 // Initialize Express app
@@ -43,7 +40,7 @@ setupErrorHandler(app);  // Application error handler
 app.use(getSentryErrorHandler());  // Sentry error handler (if enabled)
 
 /**
- * Native HTTP server with SSE & WebSocket support
+ * Native HTTP server with SSE support
  */
 const server = http.createServer((req, res) => {
   // CORS preflight
@@ -60,87 +57,10 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
 
-  // Everything else → Express (including /api/chat and /api/tool-result)
+  // Everything else goes through Express (including /api/chat and /api/tool-result)
   app(req, res);
 });
 
-/**
- * WebSocket Server (for real-time voice)
- */
-const wss = new WebSocketServer({ noServer: true });
-
-server.on('upgrade', async (req, socket, head) => {
-  const sanitizedUrl = (() => {
-    if (!req.url) return req.url;
-    try {
-      const urlObj = new URL(req.url, 'ws://localhost');
-      if (urlObj.searchParams.has('token')) {
-        const rawToken = urlObj.searchParams.get('token') || '';
-        urlObj.searchParams.set('token', `[${rawToken.length} chars]`);
-      }
-      return `${urlObj.pathname}${urlObj.search}`;
-    } catch {
-      return req.url.replace(/token=[^&]+/i, 'token=[redacted]');
-    }
-  })();
-
-  logger.info({ url: sanitizedUrl }, 'WebSocket upgrade request received');
-
-  // Only handle /ws/realtime path
-  if (!req.url?.startsWith('/ws/realtime')) {
-    logger.warn({ url: req.url }, 'WebSocket upgrade rejected: wrong path');
-    socket.destroy();
-    return;
-  }
-
-  // Extract token from query parameter
-  try {
-    const urlObj = new URL(req.url, 'ws://localhost');
-    const token = urlObj.searchParams.get('token');
-
-    // Log auth params WITHOUT the actual token (security)
-    const safeParams = {};
-    for (const [key, value] of urlObj.searchParams.entries()) {
-      safeParams[key] = key === 'token' ? `[${value.length} chars]` : value;
-    }
-    logger.info({ hasToken: !!token, params: safeParams }, 'WebSocket auth params');
-
-    if (!token) {
-      logger.warn('WebSocket connection rejected: missing token');
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    // Verify the token
-    logger.info('Verifying WebSocket token...');
-    const user = await verifyWebSocketToken(token);
-    logger.info({ userId: user.userId?.slice(0, 8) }, 'WebSocket token verified');
-    req.user = user;
-
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      logger.info('WebSocket upgrade successful');
-      wss.emit('connection', ws, req);
-    });
-  } catch (error) {
-    logger.warn({ error: error.message, stack: error.stack }, 'WebSocket auth failed');
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-    socket.destroy();
-  }
-});
-
-wss.on('connection', (clientWs, req) => {
-  const userId = req.user?.userId || 'anonymous';
-  logger.info(`🎙️ Voice client connected (user: ${userId.slice(0, 8)}...)`);
-
-  // Create personalized realtime proxy connection
-  // Fetches user profile, metrics, and injects personalization
-  createRealtimeProxy(clientWs, req.url, req.user);
-});
-
-/**
- * Start server
- */
 const PORT = config.port;
 
 export async function startServer() {
@@ -216,6 +136,6 @@ export async function startServer() {
 /**
  * Export for testing
  */
-export { app, server, wss };
+export { app, server };
 
 export default server;

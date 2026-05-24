@@ -192,9 +192,10 @@ function simulationBlocks(content) {
   const detection = content.detection || content;
   return [
     heading(2, 'Simulation'),
-    paragraph(`Algorithm: ${text(detection.algorithm || detection.generatorKey, 'Not specified')}`),
-    paragraph(`Type: ${text(detection.type, 'Not specified')}`),
-    ...(detection.reason ? paragraphs(detection.reason) : []),
+    paragraph(`Topic: ${text(detection.topic, 'Not specified')}`),
+    paragraph(`Domain: ${text(detection.domain, 'Not specified')}`),
+    paragraph(`Simulation type: ${text(detection.simulationType, 'Not specified')}`),
+    paragraph(`Intent: ${text(detection.educationalIntent, 'Not specified')}`),
   ];
 }
 
