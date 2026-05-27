@@ -6,7 +6,6 @@ const ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
-  visualization: '3D View',
 };
 
 export function buildLearningDocument({ conversation, resources, artifactTypes }) {
@@ -52,8 +51,6 @@ export function documentToNotionBlocks(document, { mindmapFileUploadId = null } 
       blocks.push(...mindmapBlocks(resource.content, mindmapFileUploadId));
     } else if (artifactType === 'simulation') {
       blocks.push(...simulationBlocks(resource.content));
-    } else if (artifactType === 'visualization') {
-      blocks.push(...visualizationBlocks(resource.content));
     }
   }
 
@@ -196,16 +193,6 @@ function simulationBlocks(content) {
     paragraph(`Domain: ${text(detection.domain, 'Not specified')}`),
     paragraph(`Simulation type: ${text(detection.simulationType, 'Not specified')}`),
     paragraph(`Intent: ${text(detection.educationalIntent, 'Not specified')}`),
-  ];
-}
-
-function visualizationBlocks(content) {
-  const widget = content.widget || content.visualizationWidget || content;
-  return [
-    heading(2, '3D View Reference'),
-    paragraph(`Title: ${text(widget.title, '3D visualization')}`),
-    paragraph(`Topic: ${text(widget.topic, 'Not specified')}`),
-    ...(widget.description ? paragraphs(widget.description) : []),
   ];
 }
 

@@ -648,8 +648,8 @@ export function getBanditActionPrompt(decision) {
   const promptMap = {
     visual_widget: [
       'BANDIT ACTION: visual_widget',
-      'Prefer a widget-first explanation when helpful.',
-      'Use the show_widget tool for interactive explanation before long prose.',
+      'Prefer a renderer-driven visual explanation when helpful.',
+      'Use the show_widget tool only with declarative JSON data specs, never executable UI code.',
     ],
     guided_steps: [
       'BANDIT ACTION: guided_steps',

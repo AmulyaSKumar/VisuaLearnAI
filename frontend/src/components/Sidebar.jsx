@@ -7,6 +7,17 @@ import {
   normalizeConversationTitle,
 } from "../utils/conversationActions";
 
+function getConversationMode(conversation) {
+  return conversation?.metadata?.mode === "learning" ? "learning" : "chat";
+}
+
+function getConversationPath(conversation) {
+  if (!conversation?.id) return "/chat/new";
+  return getConversationMode(conversation) === "learning"
+    ? `/learn/${conversation.id}`
+    : `/chat/${conversation.id}`;
+}
+
 export default function Sidebar({
   conversations,
   loading = false,
@@ -116,7 +127,7 @@ export default function Sidebar({
       setPendingDeleteId(null);
 
       if (isActiveConversation) {
-        navigate(nextConversation ? `/learn/${nextConversation.id}` : "/chat/new");
+        navigate(nextConversation ? getConversationPath(nextConversation) : "/chat/new");
       }
     } catch {
       setInlineError("Delete failed");
@@ -154,7 +165,7 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="px-3 mb-5">
+      <div className="px-3 mb-5 space-y-2">
         <button
           onClick={() => {
             clearModes();
@@ -167,7 +178,24 @@ export default function Sidebar({
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
           </svg>
-          <span>New convo</span>
+          <span>New Chat</span>
+        </button>
+        <button
+          onClick={() => {
+            clearModes();
+            navigate("/chat/new?mode=learning");
+            onClose?.();
+          }}
+          className="group/learn w-full flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 min-h-[44px] text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+          title="Explore / Learning Mode"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />
+            <path d="M8 7h8" />
+            <path d="M8 11h6" />
+          </svg>
+          <span>Explore / Learning Mode</span>
         </button>
       </div>
 
@@ -297,7 +325,10 @@ export default function Sidebar({
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => navigate(`/learn/${conversation.id}`)}
+                        onClick={() => {
+                          navigate(getConversationPath(conversation));
+                          onClose?.();
+                        }}
                         className="flex min-w-0 flex-1 items-center gap-2 text-left"
                       >
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">

@@ -8,7 +8,6 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export const RESOURCE_TYPES = {
   LEARN: 'learn',
   SIMULATION: 'simulation',
-  VISUALIZATION: 'visualization',
   FLASHCARDS: 'flashcards',
   MINDMAP: 'mindmap',
   QUIZ: 'quiz',
@@ -28,24 +27,19 @@ export const TAB_CONFIG = {
     order: 1,
     alwaysShow: false,
   },
-  [RESOURCE_TYPES.VISUALIZATION]: {
-    label: '3D View',
-    order: 2,
-    alwaysShow: false,
-  },
   [RESOURCE_TYPES.FLASHCARDS]: {
     label: 'Flashcards',
-    order: 3,
+    order: 2,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.MINDMAP]: {
     label: 'Mind Map',
-    order: 4,
+    order: 3,
     alwaysShow: false,
   },
   [RESOURCE_TYPES.QUIZ]: {
     label: 'Quiz',
-    order: 5,
+    order: 4,
     alwaysShow: false,
   },
 };

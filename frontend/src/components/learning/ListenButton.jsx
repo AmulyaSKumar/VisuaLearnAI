@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import useTextToSpeech from '../../hooks/useTextToSpeech';
 
 // Audio wave bars animation
 function AudioWave({ isPlaying }) {
@@ -66,125 +66,57 @@ function StopIcon({ className = "w-4 h-4" }) {
  * Uses Web Speech API directly for reliable control
  */
 export default function ListenButton({ text, variant = 'default', className = '' }) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
-  const utteranceRef = useRef(null);
-  const synthRef = useRef(null);
+  const {
+    isSpeaking,
+    isPaused,
+    isLoading,
+    isSupported,
+    speak,
+    pause,
+    resume,
+    stop,
+  } = useTextToSpeech({ rate: 0.95 });
 
-  // Initialize speech synthesis
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) {
-      setIsSupported(false);
+  const handleStop = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    stop();
+  };
+
+  const handlePause = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    pause();
+  };
+
+  const handleResume = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    resume();
+  };
+
+  const handleMainClick = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isLoading) return;
+    if (isPaused) {
+      resume();
       return;
     }
-    synthRef.current = window.speechSynthesis;
-
-    // Cleanup on unmount
-    return () => {
-      if (synthRef.current) {
-        synthRef.current.cancel();
-      }
-    };
-  }, []);
-
-  // Speak text
-  const speak = useCallback(() => {
-    if (!synthRef.current || !text) return;
-
-    // Cancel any current speech first
-    synthRef.current.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    utterance.onstart = () => {
-      console.log('[TTS] Started speaking');
-      setIsSpeaking(true);
-      setIsPaused(false);
-    };
-
-    utterance.onend = () => {
-      console.log('[TTS] Finished speaking');
-      setIsSpeaking(false);
-      setIsPaused(false);
-    };
-
-    utterance.onerror = (event) => {
-      console.log('[TTS] Error:', event.error);
-      // Always reset state on any error
-      setIsSpeaking(false);
-      setIsPaused(false);
-    };
-
-    utterance.onpause = () => {
-      console.log('[TTS] Paused');
-      setIsPaused(true);
-    };
-
-    utterance.onresume = () => {
-      console.log('[TTS] Resumed');
-      setIsPaused(false);
-    };
-
-    utteranceRef.current = utterance;
-    synthRef.current.speak(utterance);
-  }, [text]);
-
-  // Stop speech completely
-  const stop = useCallback((e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    console.log('[TTS] Stop clicked');
-    if (synthRef.current) {
-      synthRef.current.cancel();
-      setIsSpeaking(false);
-      setIsPaused(false);
-    }
-  }, []);
-
-  // Pause speech
-  const pause = useCallback((e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    console.log('[TTS] Pause clicked');
-    if (synthRef.current && isSpeaking && !isPaused) {
-      synthRef.current.pause();
-      setIsPaused(true);
-    }
-  }, [isSpeaking, isPaused]);
-
-  // Resume speech
-  const resume = useCallback((e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    console.log('[TTS] Resume clicked');
-    if (synthRef.current && isPaused) {
-      synthRef.current.resume();
-      setIsPaused(false);
-    }
-  }, [isPaused]);
-
-  // Main button click - start or stop
-  const handleMainClick = useCallback((e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
     if (isSpeaking) {
-      stop();
-    } else {
-      speak();
+      pause();
+      return;
     }
-  }, [isSpeaking, speak, stop]);
+    speak(text);
+  };
 
   if (!isSupported) return null;
 
@@ -199,9 +131,9 @@ export default function ListenButton({ text, variant = 'default', className = ''
             ? 'bg-primary text-primary-foreground'
             : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
         } ${className}`}
-        title={isSpeaking ? 'Stop' : 'Listen'}
+        title={isPaused ? 'Resume' : isSpeaking ? 'Pause' : 'Listen'}
       >
-        {isSpeaking ? <AudioWave isPlaying={!isPaused} /> : <SpeakerIcon />}
+        {isLoading ? <AudioWave isPlaying /> : isSpeaking ? <AudioWave isPlaying={!isPaused} /> : <SpeakerIcon />}
       </button>
     );
   }
@@ -221,7 +153,7 @@ export default function ListenButton({ text, variant = 'default', className = ''
         {isSpeaking ? (
           <>
             <AudioWave isPlaying={!isPaused} />
-            <span>{isPaused ? 'Paused' : 'Playing'}</span>
+            <span>{isPaused ? 'Paused' : isLoading ? 'Preparing' : 'Playing'}</span>
           </>
         ) : (
           <>
@@ -256,7 +188,7 @@ export default function ListenButton({ text, variant = 'default', className = ''
               {/* Pause/Resume button */}
               <button
                 type="button"
-                onClick={isPaused ? resume : pause}
+                onClick={isPaused ? handleResume : handlePause}
                 className="p-1.5 rounded-md hover:bg-primary/20 text-primary transition-colors"
                 title={isPaused ? 'Resume' : 'Pause'}
               >
@@ -266,7 +198,7 @@ export default function ListenButton({ text, variant = 'default', className = ''
               {/* Stop button */}
               <button
                 type="button"
-                onClick={stop}
+                onClick={handleStop}
                 className="p-1.5 rounded-md hover:bg-primary/20 text-primary transition-colors"
                 title="Stop"
               >

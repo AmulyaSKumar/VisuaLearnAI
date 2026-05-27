@@ -20,15 +20,6 @@ function letterToIndex(letter) {
   return index >= 0 && index < 26 ? index : 0;
 }
 
-// Question type labels
-const QUESTION_TYPE_LABELS = {
-  mcq: 'Multiple Choice',
-  fill_blank: 'Fill Blank',
-  true_false: 'True/False',
-  output_prediction: 'Output',
-  code_sandbox: 'Code',
-};
-
 // ============================================
 // CODE SANDBOX COMPONENT
 // ============================================
@@ -492,66 +483,6 @@ function MCQQuestion({ question, onSubmit, showResult, isCorrect }) {
 }
 
 // ============================================
-// EXPLANATION PANEL
-// ============================================
-
-function ExplanationPanel({ question, isCorrect }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4 pt-4 border-t border-border"
-    >
-      {/* Result */}
-      <p className={`text-sm font-medium ${isCorrect ? 'text-foreground' : 'text-muted-foreground'}`}>
-        {isCorrect ? 'Correct' : 'Incorrect'}
-      </p>
-
-      {/* Detailed Explanation */}
-      <AnimatePresence>
-        {(question.explanation || question.why_it_matters || question.code_example) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-4 overflow-hidden"
-          >
-            {question.explanation && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Explanation
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">{question.explanation}</p>
-              </div>
-            )}
-
-            {question.why_it_matters && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Why it matters
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">{question.why_it_matters}</p>
-              </div>
-            )}
-
-            {question.code_example && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                  Example
-                </p>
-                <pre className="p-4 bg-muted/50 border border-border rounded-md font-mono text-sm text-foreground overflow-x-auto">
-                  {question.code_example}
-                </pre>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// ============================================
 // MAIN QUIZ VIEW
 // ============================================
 
@@ -571,20 +502,28 @@ export default function QuizView({
   topic
 }) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [answers, setAnswers] = useState({});
   const [isCompleted, setIsCompleted] = useState(false);
   const [currentIsCorrect, setCurrentIsCorrect] = useState(false);
   const [retryMode, setRetryMode] = useState(false);
   const [retryQuestionIndices, setRetryQuestionIndices] = useState([]);
-  const [retryIndex, setRetryIndex] = useState(0);
 
   // Handle both new flat array format and old nested format
   const allQuestions = Array.isArray(quiz) ? quiz : (quiz?.questions || []);
 
   // In retry mode, use only the retry questions; otherwise use all
   const questions = retryMode ? retryQuestionIndices.map(i => allQuestions[i]) : allQuestions;
-  const actualQuestionIndex = retryMode ? retryQuestionIndices[currentQuestion] : currentQuestion;
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
 
   if (!questions || questions.length === 0) {
     return (
@@ -600,6 +539,37 @@ export default function QuizView({
   const question = questions[currentQuestion];
   const questionType = question.type || 'mcq';
   const progress = ((currentQuestion + 1) / questions.length) * 100;
+  const shellClassName = isFullscreen
+    ? 'fixed inset-0 z-[9999] overflow-y-auto bg-background p-4 sm:p-8'
+    : 'relative';
+  const innerClassName = isFullscreen
+    ? 'flex min-h-[calc(100dvh-2rem)] w-full flex-col justify-center bg-background p-5 sm:min-h-[calc(100dvh-4rem)] sm:p-8'
+    : 'space-y-6';
+  const fullscreenButton = (
+    <button
+      type="button"
+      onClick={() => setIsFullscreen(value => !value)}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      aria-label={isFullscreen ? 'Exit full screen quiz' : 'Open quiz full screen'}
+      title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+    >
+      {isFullscreen ? (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 3v5H3" />
+          <path d="M16 3v5h5" />
+          <path d="M8 21v-5H3" />
+          <path d="M16 21v-5h5" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 8V3h5" />
+          <path d="M21 8V3h-5" />
+          <path d="M3 16v5h5" />
+          <path d="M21 16v5h-5" />
+        </svg>
+      )}
+    </button>
+  );
 
   const handleAnswer = (isCorrect) => {
     setShowResult(true);
@@ -746,14 +716,13 @@ export default function QuizView({
     const hasIncorrect = score.incorrect > 0;
 
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="py-8 space-y-8"
-      >
-        {retryMode && (
-          <p className="text-xs text-muted-foreground uppercase tracking-wide text-center">Retry complete</p>
-        )}
+      <div className={shellClassName}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={`${innerClassName} py-8 space-y-8`}
+        >
+        <div className="flex justify-end">{fullscreenButton}</div>
 
         <div className="text-center">
           <p className="text-5xl font-semibold text-foreground tabular-nums">{score.percentage}%</p>
@@ -800,12 +769,14 @@ export default function QuizView({
             </button>
           )}
         </div>
-      </motion.div>
+        </motion.div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className={shellClassName}>
+      <div className={innerClassName}>
       {/* Retry Mode Banner */}
       {retryMode && (
         <div className="flex items-center justify-between py-2 border-b border-border">
@@ -838,10 +809,7 @@ export default function QuizView({
           </div>
         </div>
 
-        {/* Question Type Label */}
-        <span className="text-xs text-muted-foreground">
-          {QUESTION_TYPE_LABELS[questionType] || 'Question'}
-        </span>
+        {fullscreenButton}
       </div>
 
       {/* Question */}
@@ -858,9 +826,15 @@ export default function QuizView({
         </motion.div>
       </AnimatePresence>
 
-      {/* Explanation Panel */}
+      {/* Result */}
       {showResult && (
-        <ExplanationPanel question={question} isCorrect={currentIsCorrect} />
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={`pt-4 text-sm font-medium ${currentIsCorrect ? 'text-foreground' : 'text-muted-foreground'}`}
+        >
+          {currentIsCorrect ? 'Correct' : 'Incorrect'}
+        </motion.p>
       )}
 
       {/* Next Button */}
@@ -876,6 +850,7 @@ export default function QuizView({
           </motion.button>
         </div>
       )}
+      </div>
     </div>
   );
 }

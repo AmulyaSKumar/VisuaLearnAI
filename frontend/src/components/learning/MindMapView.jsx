@@ -3,7 +3,17 @@ import { useState, useEffect, useRef } from 'react';
 export default function MindMapView({ mindmap, topic }) {
   const [expandedNodes, setExpandedNodes] = useState(new Set(['central']));
   const [selectedNode, setSelectedNode] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
 
   if (!mindmap) {
     return (
@@ -33,8 +43,44 @@ export default function MindMapView({ mindmap, topic }) {
     toggleNode(node.id);
   };
 
+  const shellClassName = isFullscreen
+    ? 'fixed inset-0 z-[9999] overflow-y-auto bg-background p-4 sm:p-6'
+    : 'space-y-4';
+  const innerClassName = isFullscreen
+    ? 'mx-auto flex min-h-[calc(100dvh-2rem)] w-full max-w-7xl flex-col gap-6 bg-background sm:min-h-[calc(100dvh-3rem)]'
+    : 'space-y-4';
+  const fullscreenButton = (
+    <button
+      type="button"
+      onClick={() => setIsFullscreen(value => !value)}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      aria-label={isFullscreen ? 'Exit full screen mind map' : 'Open mind map full screen'}
+      title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+    >
+      {isFullscreen ? (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 3v5H3" />
+          <path d="M16 3v5h5" />
+          <path d="M8 21v-5H3" />
+          <path d="M16 21v-5h5" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 8V3h5" />
+          <path d="M21 8V3h-5" />
+          <path d="M3 16v5h5" />
+          <path d="M21 16v5h-5" />
+        </svg>
+      )}
+    </button>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className={shellClassName}>
+      <div className={innerClassName}>
+      <div className="flex justify-end">
+        {fullscreenButton}
+      </div>
       {/* Central Topic */}
       <div className="flex flex-col items-center">
         <div
@@ -123,6 +169,7 @@ export default function MindMapView({ mindmap, topic }) {
           Sub-topics
         </span>
         <span>Click to expand/collapse</span>
+      </div>
       </div>
     </div>
   );

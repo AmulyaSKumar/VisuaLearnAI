@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SIMULATION_TIMEOUT_MS = 15000;
+const simulationResultCache = new Map();
+const simulationRequestCache = new Map();
 
 function buildAuthHeaders(accessToken) {
   const headers = { 'Content-Type': 'application/json' };
@@ -8,6 +11,31 @@ function buildAuthHeaders(accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
   return headers;
+}
+
+function normalizeSimulationResult(data) {
+  return data?.final || data?.spec || data?.bundle || null;
+}
+
+function detectionSignature(detection) {
+  if (!detection) return 'none';
+  return JSON.stringify({
+    supported: detection.supported,
+    topic: detection.topic,
+    family: detection.family,
+    domain: detection.domain,
+    simulationType: detection.simulationType,
+    confidence: detection.confidence,
+    activeTopic: detection.decision?.activeTopic,
+    needed: detection.decision?.simulation?.needed,
+    explicit: detection.decision?.simulation?.explicit,
+  });
+}
+
+function sourceFor(data) {
+  const final = normalizeSimulationResult(data);
+  if (final?.type === 'sandbox_simulation') return 'sandbox-engine';
+  return 'invalid';
 }
 
 export default function useSimulation(topic, options = {}) {
@@ -28,11 +56,33 @@ export default function useSimulation(topic, options = {}) {
   const [plan, setPlan] = useState(null);
   const [telemetry, setTelemetry] = useState(null);
   const [fallbackUsed, setFallbackUsed] = useState(false);
-  const [feedbackState, setFeedbackState] = useState({ type: null, pending: false, error: null });
 
   const fetchingRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
   const previousTopicRef = useRef(topic);
+  const detectionRef = useRef(detection);
+  const mountedRef = useRef(true);
+  const detectionKey = useMemo(() => detectionSignature(detection), [detection]);
+
+  useEffect(() => {
+    detectionRef.current = detection;
+  }, [detectionKey, detection]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const applyResult = useCallback((data) => {
+    const final = normalizeSimulationResult(data);
+    if (!mountedRef.current) return;
+    setSimulation(final);
+    setSimulationId(data?.simulationId || data?.id || null);
+    setTopicUnderstanding(data?.topicUnderstanding || data?.plannerOutput?.topicUnderstanding || null);
+    setPlan(data?.plan || data?.plannerOutput || null);
+    setTelemetry(data?.telemetry || null);
+    setFallbackUsed(Boolean(data?.fallbackUsed));
+    setSource(sourceFor(data));
+  }, []);
 
   const fetchSimulation = useCallback(async (overrideTopic, overrides = {}) => {
     const targetTopic = (overrideTopic || topic || '').trim();
@@ -41,12 +91,19 @@ export default function useSimulation(topic, options = {}) {
     const fetchKey = JSON.stringify({
       topic: targetTopic,
       conversationId,
-      previousSimulationId: overrides.previousSimulationId || null,
+      userId,
       feedbackType: overrides.feedbackContext?.type || null,
+      detection: detectionKey,
     });
 
     if (fetchingRef.current && lastFetchKeyRef.current === fetchKey) {
       return null;
+    }
+
+    if (!overrides.feedbackContext && simulationResultCache.has(fetchKey)) {
+      const cached = simulationResultCache.get(fetchKey);
+      applyResult(cached);
+      return cached;
     }
 
     fetchingRef.current = true;
@@ -54,75 +111,68 @@ export default function useSimulation(topic, options = {}) {
     setLoading(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), SIMULATION_TIMEOUT_MS);
+
     try {
-      const response = await fetch(`${API_BASE}/api/simulation/generate`, {
-        method: 'POST',
-        headers: buildAuthHeaders(accessToken),
-        body: JSON.stringify({
-          query: targetTopic,
-          conversationId,
-          userId,
-          previousSimulationId: overrides.previousSimulationId || simulationId,
-          feedbackContext: overrides.feedbackContext || null,
-        }),
-      });
+      const requestPromise = simulationRequestCache.get(fetchKey) || (async () => {
+        const activeDetection = detectionRef.current;
+        const response = await fetch(`${API_BASE}/api/simulation/generate`, {
+          method: 'POST',
+          headers: buildAuthHeaders(accessToken),
+          signal: controller.signal,
+          body: JSON.stringify({
+            query: targetTopic,
+            conversationId,
+            userId,
+            decision: activeDetection?.decision || null,
+            options: {
+              useLlm: overrides.useLlm ?? false,
+              conversationId,
+              userId,
+              feedbackContext: overrides.feedbackContext || null,
+              decision: activeDetection?.decision || null,
+            },
+          }),
+        });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Could not load simulation.');
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Could not load simulation.');
+        }
+        simulationResultCache.set(fetchKey, data);
+        return data;
+      })();
+
+      simulationRequestCache.set(fetchKey, requestPromise);
+      const data = await requestPromise;
+      const final = normalizeSimulationResult(data);
+      if (final?.type !== 'sandbox_simulation') {
+        throw new Error('Simulation engine returned a non-sandbox result.');
       }
-
-      setSimulation(data.spec || null);
-      setSimulationId(data.simulationId || null);
-      setTopicUnderstanding(data.topicUnderstanding || null);
-      setPlan(data.plan || null);
-      setTelemetry(data.telemetry || null);
-      setFallbackUsed(Boolean(data.fallbackUsed));
-      setSource(data.fallbackUsed ? 'guided-fallback' : 'ai-generated');
+      applyResult(data);
       return data;
     } catch (err) {
-      setError(err.message || 'Could not load simulation.');
-      setSimulation(null);
-      setSource(null);
+      const message = err.name === 'AbortError'
+        ? 'Simulation generation timed out.'
+        : err.message || 'Could not load simulation.';
+      if (mountedRef.current) {
+        setError(message);
+        setSimulation(null);
+        setSource(null);
+      }
       return null;
     } finally {
-      setLoading(false);
+      simulationRequestCache.delete(fetchKey);
+      window.clearTimeout(timeout);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
       fetchingRef.current = false;
     }
-  }, [accessToken, conversationId, simulationId, topic, userId]);
+  }, [accessToken, applyResult, conversationId, detectionKey, topic, userId]);
 
-  const submitFeedback = useCallback(async (type, score = null, reason = null) => {
-    if (!simulationId) return null;
-
-    setFeedbackState({ type, pending: true, error: null });
-
-    try {
-      const response = await fetch(`${API_BASE}/api/simulation/feedback`, {
-        method: 'POST',
-        headers: buildAuthHeaders(accessToken),
-        body: JSON.stringify({ simulationId, type, score, reason }),
-      });
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Could not save feedback.');
-      }
-
-      setFeedbackState({ type, pending: false, error: null });
-
-      if (type === 'regenerate') {
-        await fetchSimulation(topic, {
-          previousSimulationId: simulationId,
-          feedbackContext: { type, score, reason },
-        });
-      }
-
-      return data;
-    } catch (err) {
-      setFeedbackState({ type, pending: false, error: err.message || 'Could not save feedback.' });
-      return null;
-    }
-  }, [accessToken, fetchSimulation, simulationId, topic]);
+  const submitFeedback = useCallback(async () => ({ success: true, stored: false }), []);
 
   useEffect(() => {
     if (previousTopicRef.current !== topic) {
@@ -135,30 +185,27 @@ export default function useSimulation(topic, options = {}) {
       setPlan(null);
       setTelemetry(null);
       setFallbackUsed(false);
-      setFeedbackState({ type: null, pending: false, error: null });
       lastFetchKeyRef.current = null;
     }
   }, [topic]);
 
   useEffect(() => {
     if (!autoFetch || !topic || loading || fetchingRef.current) return;
-    if (!detection) return;
-    if (detection.supported === false) {
+    const activeDetection = detectionRef.current;
+    if (!activeDetection) return;
+    if (activeDetection.supported === false) {
       setSimulation(null);
       setSource(null);
       setError(null);
       return;
     }
     fetchSimulation(topic);
-  }, [autoFetch, detection, fetchSimulation, loading, topic]);
+  }, [autoFetch, detectionKey, fetchSimulation, loading, topic]);
 
   const isValid = useMemo(() => (
     Boolean(
       simulation
-      && Array.isArray(simulation.steps)
-      && simulation.steps.length > 0
-      && Array.isArray(simulation.primitives)
-      && simulation.primitives.length > 0,
+      && simulation.type === 'sandbox_simulation',
     )
   ), [simulation]);
 
@@ -170,14 +217,15 @@ export default function useSimulation(topic, options = {}) {
     refetch: fetchSimulation,
     isValid,
     stepCount: simulation?.steps?.length || 0,
-    simulationType: simulation?.type || topicUnderstanding?.simulationType || detection?.simulationType || null,
+    simulationType: simulation?.type || simulation?.spec_type || topicUnderstanding?.simulationType || detection?.simulationType || null,
     simulationId,
     topicUnderstanding,
     plan,
     telemetry,
     fallbackUsed,
+    scene3d: null,
     submitFeedback,
-    feedbackState,
+    feedbackState: { type: null, pending: false, error: null },
     detectionSource: detection ? 'backend' : null,
     detectionConfidence: detection?.confidence || null,
   };

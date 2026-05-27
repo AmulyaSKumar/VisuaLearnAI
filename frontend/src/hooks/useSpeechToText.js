@@ -7,6 +7,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
  * @param {string} options.language - BCP 47 language tag (default: 'en-US')
  * @param {boolean} options.continuous - Keep listening after speech ends (default: false)
  * @param {boolean} options.interimResults - Return interim results (default: true)
+ * @param {number} options.silenceTimeoutMs - Stop after silence/idle time (default: 3000)
  * @param {Function} options.onResult - Callback when speech is recognized
  * @param {Function} options.onError - Callback when an error occurs
  */
@@ -15,6 +16,7 @@ export default function useSpeechToText(options = {}) {
     language = 'en-US',
     continuous = false,
     interimResults = true,
+    silenceTimeoutMs = 3000,
     onResult,
     onError,
   } = options;
@@ -26,8 +28,24 @@ export default function useSpeechToText(options = {}) {
   const [isSupported, setIsSupported] = useState(true);
 
   const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
+
+  const resetSilenceTimer = useCallback(() => {
+    clearSilenceTimer();
+    if (!silenceTimeoutMs) return;
+    silenceTimerRef.current = window.setTimeout(() => {
+      recognitionRef.current?.stop();
+    }, silenceTimeoutMs);
+  }, [clearSilenceTimer, silenceTimeoutMs]);
 
   // Keep callbacks up to date
   useEffect(() => {
@@ -54,9 +72,11 @@ export default function useSpeechToText(options = {}) {
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
+      resetSilenceTimer();
     };
 
     recognition.onend = () => {
+      clearSilenceTimer();
       setIsListening(false);
       setInterimTranscript('');
     };
@@ -76,8 +96,10 @@ export default function useSpeechToText(options = {}) {
         }
       }
 
+      resetSilenceTimer();
+
       if (finalText) {
-        setTranscript(prev => prev + finalText);
+        setTranscript(prev => `${prev}${prev && !prev.endsWith(' ') ? ' ' : ''}${finalText}`.trimStart());
         onResultRef.current?.(finalText);
       }
 
@@ -115,11 +137,12 @@ export default function useSpeechToText(options = {}) {
     recognitionRef.current = recognition;
 
     return () => {
+      clearSilenceTimer();
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
     };
-  }, [language, continuous, interimResults]);
+  }, [clearSilenceTimer, continuous, interimResults, language, resetSilenceTimer]);
 
   // Start listening
   const startListening = useCallback(() => {
@@ -153,10 +176,11 @@ export default function useSpeechToText(options = {}) {
 
   // Stop listening
   const stopListening = useCallback(() => {
+    clearSilenceTimer();
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
-  }, []);
+  }, [clearSilenceTimer]);
 
   // Toggle listening
   const toggleListening = useCallback(() => {

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = 'http://localhost:3001';
 
@@ -8,6 +9,7 @@ const API_BASE = 'http://localhost:3001';
 export function useFeedback() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastFeedback, setLastFeedback] = useState(null);
+  const { user, session } = useAuth();
 
   /**
    * Submit feedback for a message
@@ -22,8 +24,12 @@ export function useFeedback() {
     try {
       const response = await fetch(`${API_BASE}/api/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
+          userId: user?.id || null,
           type,
           messageId,
           content,

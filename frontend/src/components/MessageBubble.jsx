@@ -1,60 +1,31 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useEffect, useState } from "react";
+import useTextToSpeech from "../hooks/useTextToSpeech";
 
-export default function MessageBubble({ content, showTTS = false }) {
-  if (!content) return null;
+export default function MessageBubble({ content, showTTS = false, isStreaming = false }) {
+  const {
+    isSpeaking,
+    isPaused,
+    isLoading,
+    isSupported,
+    speak,
+    pause,
+    resume,
+    stop,
+  } = useTextToSpeech({ rate: 0.95 });
+  const [renderedHtml, setRenderedHtml] = useState("");
 
-  const [ttsState, setTtsState] = useState("idle"); // idle | loading | playing
-  const audioRef = useRef(null);
-
-  // Cleanup audio on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleTTS = useCallback(async () => {
-    if (ttsState === "playing") {
-      // Stop playback
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-      setTtsState("idle");
+  const handleTTS = () => {
+    if (isLoading) return;
+    if (isPaused) {
+      resume();
       return;
     }
-
-    setTtsState("loading");
-    try {
-      const res = await fetch("http://localhost:3001/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: content }),
-      });
-      const data = await res.json();
-      if (!data.audio) throw new Error(data.error || "No audio");
-
-      // Create audio element from base64 MP3
-      const audioBlob = new Blob(
-        [Uint8Array.from(atob(data.audio), c => c.charCodeAt(0))],
-        { type: "audio/mp3" }
-      );
-      const url = URL.createObjectURL(audioBlob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-
-      audio.onplay = () => setTtsState("playing");
-      audio.onended = () => { setTtsState("idle"); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setTtsState("idle"); URL.revokeObjectURL(url); };
-      audio.play();
-    } catch (err) {
-      console.error("TTS error:", err);
-      setTtsState("idle");
+    if (isSpeaking) {
+      pause();
+      return;
     }
-  }, [content, ttsState]);
+    speak(content);
+  };
 
   // Parse markdown-like content into rendered HTML
   const renderMarkdown = (text) => {
@@ -136,44 +107,75 @@ export default function MessageBubble({ content, showTTS = false }) {
       .replace(/`([^`]+)`/g, '<code class="bg-muted text-primary px-1.5 py-0.5 rounded text-[13px] font-mono">$1</code>');
   };
 
+  useEffect(() => {
+    const updateHtml = () => setRenderedHtml(renderMarkdown(content || ""));
+    if (!isStreaming) {
+      updateHtml();
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(updateHtml, 100);
+    return () => window.clearTimeout(timeoutId);
+  }, [content, isStreaming]);
+
+  if (!content) return null;
+
   return (
-    <div className="relative group">
-      <div 
-        className="max-w-none" 
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} 
-      />
-      {/* TTS Listen button */}
-      {showTTS && (
-        <button
-          onClick={handleTTS}
-          disabled={ttsState === "loading"}
-          className={`mt-2 inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg text-xs font-medium transition-all
-            ${ttsState === "playing"
-              ? "bg-primary/20 text-primary ring-1 ring-primary/30"
-              : ttsState === "loading"
-                ? "bg-muted text-muted-foreground cursor-wait"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
-            }`}
-        >
-          {ttsState === "loading" ? (
-            <>
-              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" /></svg>
-              Generating...
-            </>
-          ) : ttsState === "playing" ? (
-            <>
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-              Stop
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>
-              Listen
-            </>
-          )}
-        </button>
+    <div className="relative group rounded-lg border border-border/60 bg-background/40 p-3">
+      {showTTS && isSupported && (
+        <div className="mb-2 flex justify-end">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleTTS}
+              disabled={isLoading}
+              className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all
+                ${isSpeaking
+                  ? "bg-primary/20 text-primary ring-1 ring-primary/30"
+                  : isLoading
+                    ? "bg-muted text-muted-foreground cursor-wait"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+            >
+              {isLoading ? (
+                <>
+                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" /></svg>
+                  Preparing
+                </>
+              ) : isSpeaking && !isPaused ? (
+                <>
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+                  Pause
+                </>
+              ) : isPaused ? (
+                <>
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  Resume
+                </>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
+                  Play
+                </>
+              )}
+            </button>
+            {(isSpeaking || isPaused) && (
+              <button
+                type="button"
+                onClick={stop}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                title="Stop"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+              </button>
+            )}
+          </div>
+        </div>
       )}
+      <div
+        className="max-w-none"
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
+      />
     </div>
   );
 }
-

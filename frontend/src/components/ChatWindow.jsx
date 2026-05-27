@@ -1,21 +1,20 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation, Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
 import { useChat } from "../hooks/useChat";
 import { useLearningState } from "../hooks/useLearningState";
 import { useBehaviorTracking } from "../hooks/useBehaviorTracking";
 import { useAuth } from "../contexts/AuthContext";
 import { usePersona } from "../contexts/PersonaContext";
-import MessageList from "./MessageList";
+import MessageRenderer from "./MessageRenderer";
 import InputBar from "./InputBar";
 import DocumentUpload from "./DocumentUpload";
 import LearningPlanCard from "./LearningPlanCard";
 import LearningPlanInput from "./LearningPlanInput";
-import AssetProgress from "./AssetProgress";
 import LearningStatePanel from "./LearningStatePanel";
 import SessionSummary from "./SessionSummary";
-import Widget3DSkeleton from "./Widget3DSkeleton";
 import PersonaBadge from "./PersonaBadge";
 import { useDocuments } from "../hooks/useDocuments";
+import { supabase } from "../lib/supabase";
 
 const ARTIFACT_TABS = {
   learn: 'text',
@@ -35,11 +34,24 @@ const ARTIFACT_LABELS = {
   summarize: 'Document Summary',
 };
 
+const INLINE_LEARNING_ARTIFACTS = new Set(['quiz', 'flashcards', 'mindmap']);
+const SUPPRESS_ASSET_ARTIFACTS = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
+
+function inferExplicitArtifact(text) {
+  const value = String(text || '');
+  if (/\b(quiz|test me|ask me questions|practice questions|question me)\b/i.test(value)) return 'quiz';
+  if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
+  if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
+  if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
+  return null;
+}
+
 export default function ChatWindow({
   onConversationCreated = null,
   onConversationUpdated = null,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { id: conversationId } = useParams();
   const { user, session } = useAuth();
   const { defaultPersona } = usePersona();
@@ -60,8 +72,6 @@ export default function ChatWindow({
     sendMessage,
     personalizationMeta,
     assets,
-    isAssetStreaming,
-    assetProgress,
     plan,
     isPlanLoading,
     generateLearningPlan,
@@ -69,8 +79,6 @@ export default function ChatWindow({
     isLearningContentLoading,
     generateLearningContent,
     trackInteraction,
-    // 3D widget generation (separate from chat)
-    is3DLoading,
   } = useChat(conversationId || null, userId, onConversationCreated, onConversationUpdated, accessToken);
 
   // Learning state management
@@ -90,9 +98,85 @@ export default function ChatWindow({
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
   const [pendingArtifact, setPendingArtifact] = useState(null);
   const [learningWorkspaceInitialTab, setLearningWorkspaceInitialTab] = useState('text');
+  const [conversationMode, setConversationMode] = useState('chat');
   const cognitiveStatesRef = useRef([]);
   const topicsRef = useRef([]);
   const selectedDocument = documents.find(doc => doc.id === selectedDocumentId);
+  const isLearningConversation = conversationMode === 'learning';
+  const conversationHeaderTitle = isLearningConversation ? 'Learning Session' : 'New Conversation';
+  const selectedInputTools = useMemo(() => {
+    const tools = [];
+
+    if (webSearchEnabled && !selectedDocumentId) {
+      tools.push({
+        id: 'web-search',
+        label: 'Web search',
+        onRemove: () => setWebSearchEnabled(false),
+      });
+    }
+
+    if (selectedDocument) {
+      tools.push({
+        id: 'document',
+        label: `Document: ${selectedDocument.filename}`,
+        onRemove: () => setSelectedDocumentId(null),
+      });
+    } else if (showDocumentUpload) {
+      tools.push({
+        id: 'upload-document',
+        label: 'Upload document',
+        onRemove: () => setShowDocumentUpload(false),
+      });
+    }
+
+    if (pendingArtifact) {
+      tools.push({
+        id: `artifact-${pendingArtifact}`,
+        label: ARTIFACT_LABELS[pendingArtifact] || pendingArtifact,
+        onRemove: () => setPendingArtifact(null),
+      });
+    }
+
+    return tools;
+  }, [pendingArtifact, selectedDocument, selectedDocumentId, showDocumentUpload, webSearchEnabled]);
+
+  useEffect(() => {
+    if (!conversationId || !userId) {
+      setConversationMode('chat');
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadConversationMode = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('metadata')
+          .eq('id', conversationId)
+          .eq('user_id', userId)
+          .single();
+
+        if (error) throw error;
+        if (!cancelled) {
+          const persistedMode = data?.metadata?.mode === 'learning' ? 'learning' : 'chat';
+          setConversationMode(persistedMode);
+          if (persistedMode === 'learning') {
+            navigate(`/learn/${conversationId}`, { replace: true });
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load conversation mode:', error);
+        if (!cancelled) setConversationMode('chat');
+      }
+    };
+
+    loadConversationMode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, navigate, userId]);
 
   // Update learning state from personalization metadata
   useEffect(() => {
@@ -123,7 +207,7 @@ export default function ChatWindow({
   // Track follow-ups when sending messages
   const handleSendMessage = useCallback(async (text) => {
     behaviorTracking.trackFollowUp();
-    const requestedArtifact = pendingArtifact;
+    const requestedArtifact = pendingArtifact || inferExplicitArtifact(text);
     if (requestedArtifact) {
       setLearningWorkspaceInitialTab(ARTIFACT_TABS[requestedArtifact] || 'text');
     }
@@ -132,12 +216,21 @@ export default function ChatWindow({
       documentId: selectedDocumentId,
       webSearch: webSearchEnabled && !selectedDocumentId,
       requestedArtifact,
+      mode: conversationMode,
     });
 
     setSelectedDocumentId(null);
     setShowDocumentUpload(false);
     setPendingArtifact(null);
-  }, [behaviorTracking, pendingArtifact, selectedDocumentId, sendMessage, webSearchEnabled]);
+  }, [behaviorTracking, conversationMode, pendingArtifact, selectedDocumentId, sendMessage, webSearchEnabled]);
+
+  const latestMessage = messages[messages.length - 1] || null;
+  const suppressExternalAssets = SUPPRESS_ASSET_ARTIFACTS.has(pendingArtifact)
+    || SUPPRESS_ASSET_ARTIFACTS.has(currentStreamedMessage?.metadata?.requestedArtifact)
+    || SUPPRESS_ASSET_ARTIFACTS.has(latestMessage?.metadata?.requestedArtifact);
+  const latestHasInlineLearningArtifact = latestMessage?.role === 'assistant'
+    && INLINE_LEARNING_ARTIFACTS.has(latestMessage?.metadata?.requestedArtifact)
+    && latestMessage?.metadata?.learningContent;
 
   const handleDocumentUpload = useCallback(async (file) => {
     const document = await uploadDocument(file);
@@ -163,16 +256,15 @@ export default function ChatWindow({
   }, [messages]);
 
   const handleGenerateArtifact = useCallback(async (artifact) => {
-    const query = getArtifactQueryFromContext(artifact);
-
-    if (!query) {
-      setPendingArtifact(artifact);
-      return;
-    }
-
     if (artifact === 'summarize' && !selectedDocumentId) {
       setPendingArtifact(artifact);
       setShowDocumentUpload(true);
+      return;
+    }
+
+    const query = getArtifactQueryFromContext(artifact);
+    if (!query || !isLearningConversation || conversationId) {
+      setPendingArtifact(artifact);
       return;
     }
 
@@ -194,6 +286,7 @@ export default function ChatWindow({
     conversationId,
     generateLearningContent,
     getArtifactQueryFromContext,
+    isLearningConversation,
     selectedDocumentId,
     userId,
     webSearchEnabled,
@@ -252,9 +345,17 @@ export default function ChatWindow({
       {/* Top Bar with Learning State Panel */}
       <div className="flex-shrink-0 border-b border-border/50 bg-card/50">
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-4">
-          {/* Learning State Panel Toggle */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-            {showStatePanel ? (
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold text-foreground sm:text-base">
+                {conversationHeaderTitle}
+              </h1>
+              <p className="truncate text-xs text-muted-foreground">
+                {isLearningConversation ? 'Topic learning workspace' : 'Conversational chat'}
+              </p>
+            </div>
+
+            {isLearningConversation && showStatePanel ? (
               <LearningStatePanel
                 cognitiveState={learningState.cognitiveState}
                 learningStyle={learningState.learningStyle}
@@ -265,7 +366,7 @@ export default function ChatWindow({
                 strongTopics={learningState.strongTopics}
                 isCompact={true}
               />
-            ) : (
+            ) : isLearningConversation ? (
               <button
                 onClick={() => setShowStatePanel(true)}
                 className="flex items-center gap-2 px-2 sm:px-3 py-1.5 min-h-[36px] bg-muted/50 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -277,7 +378,7 @@ export default function ChatWindow({
                 <span className="hidden sm:inline">Show Learning State</span>
                 <span className="sm:hidden">State</span>
               </button>
-            )}
+            ) : null}
           </div>
 
           {/* Right side actions */}
@@ -285,19 +386,20 @@ export default function ChatWindow({
             {/* Active Persona Badge */}
             {defaultPersona && <PersonaBadge persona={defaultPersona} />}
 
-            {/* Dashboard Link */}
-            <Link
-              to="/dashboard"
-              className="flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 min-h-[36px] min-w-[36px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 20V10M12 20V4M6 20v-6" />
-              </svg>
-              <span className="hidden sm:inline">Dashboard</span>
-            </Link>
+            {isLearningConversation && (
+              <Link
+                to="/dashboard"
+                className="flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 min-h-[36px] min-w-[36px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 20V10M12 20V4M6 20v-6" />
+                </svg>
+                <span className="hidden sm:inline">Dashboard</span>
+              </Link>
+            )}
 
             {/* Session Summary Button */}
-            {messages.length > 2 && (
+            {isLearningConversation && messages.length > 2 && (
               <button
                 onClick={handleShowSessionSummary}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
@@ -312,7 +414,7 @@ export default function ChatWindow({
             )}
 
             {/* Collapse State Panel */}
-            {showStatePanel && (
+            {isLearningConversation && showStatePanel && (
               <button
                 onClick={() => setShowStatePanel(false)}
                 className="p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
@@ -328,7 +430,7 @@ export default function ChatWindow({
       </div>
 
       {/* Learning Plan Section */}
-      {(showPlanInput || plan || isPlanLoading) && (
+      {isLearningConversation && (showPlanInput || plan || isPlanLoading) && (
         <div className="flex-shrink-0 max-h-[40vh] overflow-y-auto p-4 md:p-6 border-b border-border/50 bg-muted/20">
           {showPlanInput && !plan && (
             <LearningPlanInput
@@ -349,37 +451,28 @@ export default function ChatWindow({
         </div>
       )}
 
-      {/* Asset Progress */}
-      {(isAssetStreaming || assets.widgets.length > 0 || assets.images.length > 0) && (
-        <div className="px-4 md:px-6 pt-4">
-          <AssetProgress
-            isStreaming={isAssetStreaming}
-            progress={assetProgress}
-            assets={assets}
-          />
-        </div>
-      )}
-
       {/* Message List */}
-      <MessageList
+      <MessageRenderer
+        mode={conversationMode}
         messages={messages}
         currentStreamedMessage={currentStreamedMessage}
         isLoadingWidget={isLoadingWidget}
-        factCheck={assets.factCheck}
-        images={assets.images}
+        factCheck={suppressExternalAssets ? null : assets.factCheck}
+        images={suppressExternalAssets ? [] : assets.images}
         userId={userId}
+        conversationId={conversationId}
+        accessToken={accessToken}
         onWidgetInteraction={handleWidgetInteraction}
-        learningContent={learningContent}
-        isLearningContentLoading={isLearningContentLoading}
+        learningContent={latestHasInlineLearningArtifact ? null : learningContent}
+        isLearningContentLoading={latestHasInlineLearningArtifact ? false : isLearningContentLoading}
         onLearningInteraction={trackInteraction}
-        is3DLoading={is3DLoading}
         learningWorkspaceInitialTab={learningWorkspaceInitialTab}
       />
 
       {/* Input Area */}
       <div className="mx-auto w-full max-w-5xl flex-shrink-0 bg-background p-3 pt-2 sm:p-4 md:p-6">
         {/* Plan Toggle Button */}
-        {!showPlanInput && !plan && messages.length === 0 && (
+        {isLearningConversation && !showPlanInput && !plan && messages.length === 0 && (
           <div className="mb-3 sm:mb-4 flex justify-center">
             <button
               onClick={() => setShowPlanInput(true)}
@@ -394,28 +487,8 @@ export default function ChatWindow({
           </div>
         )}
 
-        {(webSearchEnabled || selectedDocument || pendingArtifact || showDocumentUpload || uploadProgress) && (
+        {(showDocumentUpload || uploadProgress) && (
           <div className="mb-3 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {webSearchEnabled && !selectedDocumentId && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                  Web search on
-                  <button type="button" onClick={() => setWebSearchEnabled(false)} className="text-primary/70 hover:text-primary">x</button>
-                </span>
-              )}
-              {selectedDocument && (
-                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                  <span className="truncate">Document: {selectedDocument.filename}</span>
-                  <button type="button" onClick={() => setSelectedDocumentId(null)} className="text-primary/70 hover:text-primary">x</button>
-                </span>
-              )}
-              {pendingArtifact && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                  Generate {ARTIFACT_LABELS[pendingArtifact] || pendingArtifact}
-                  <button type="button" onClick={() => setPendingArtifact(null)} className="text-primary/70 hover:text-primary">x</button>
-                </span>
-              )}
-            </div>
             {(showDocumentUpload || uploadProgress) && (
               <DocumentUpload
                 compact
@@ -431,6 +504,7 @@ export default function ChatWindow({
           onSend={handleSendMessage}
           inputDisabled={isStreaming || isPlanLoading}
           webSearchEnabled={webSearchEnabled}
+          selectedTools={selectedInputTools}
           onToggleWebSearch={() => {
             setWebSearchEnabled(prev => {
               const next = !prev;

@@ -2,6 +2,13 @@ import { useState, useCallback, useRef } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function artifactToContentType(artifact) {
+  if (artifact === 'quiz') return 'quiz';
+  if (artifact === 'flashcards' || artifact === 'mindmap') return 'flashcards-mindmap';
+  if (artifact === 'learn' || artifact === 'summarize') return 'learn';
+  return null;
+}
+
 async function parseJsonResponse(response, fallbackMessage) {
   const rawText = await response.text();
 
@@ -176,6 +183,8 @@ export function useLearningContent() {
    */
   const generateContent = useCallback(async (query, userId = null, forceRefresh = false, accessToken = null, preferences = null, options = {}) => {
     if (!query?.trim()) return null;
+    const requestedArtifact = preferences?.requestedArtifact || null;
+    const contentType = artifactToContentType(requestedArtifact);
 
     // If force refresh, clear all cached content
     if (forceRefresh) {
@@ -204,6 +213,7 @@ export function useLearningContent() {
             query,
             userId,
             forceRefresh,
+            contentType,
             preferences,
             conversationId: options.conversationId,
             documentId: options.documentId,
@@ -225,6 +235,8 @@ export function useLearningContent() {
         }
 
         const mergedContent = {
+          topic: data.content.topic || query,
+          title: data.content.title || query,
           ...data.content,
           simulationDetection: data.simulationDetection || null,
         };
@@ -239,9 +251,9 @@ export function useLearningContent() {
 
         // Also populate per-tab state
         setContentByTab({
-          learn: {
-            topic: data.content.topic,
-            title: data.content.title,
+          learn: contentType && contentType !== 'learn' ? null : {
+            topic: mergedContent.topic,
+            title: mergedContent.title,
             summary: data.content.summary,
             key_ideas: data.content.key_ideas,
             difficulty_level: data.content.difficulty_level,
@@ -250,15 +262,21 @@ export function useLearningContent() {
             skill_areas: data.content.skill_areas,
             next_topics: data.content.next_topics,
           },
-          flashcardsMindmap: {
+          flashcardsMindmap: contentType === 'quiz' ? null : {
+            topic: mergedContent.topic,
+            title: mergedContent.title,
             flashcards: data.content.flashcards,
             mind_map: data.content.mind_map,
           },
-          quiz: { quiz: data.content.quiz },
+          quiz: contentType === 'flashcards-mindmap' ? null : {
+            topic: mergedContent.topic,
+            title: mergedContent.title,
+            quiz: data.content.quiz,
+          },
         });
 
         // Mark all tabs as fetched
-        setFetchedTabs(new Set(['learn', 'flashcards-mindmap', 'quiz']));
+        setFetchedTabs(new Set(contentType ? [contentType] : ['learn', 'flashcards-mindmap', 'quiz']));
 
         return mergedContent;
       } catch (err) {

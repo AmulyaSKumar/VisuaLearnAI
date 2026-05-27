@@ -1,5 +1,75 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+function safeText(value) {
+  return String(value ?? '').replace(/[<>]/g, '').trim();
+}
+
+function keywordList(content) {
+  const values = [
+    ...(content?.keywords || []),
+    ...(content?.keyTerms || []),
+    ...(content?.concepts || []).map(concept => concept.title),
+  ];
+  return [...new Set(values.map(safeText).filter(Boolean))].slice(0, 10);
+}
+
+function renderHighlightedText(text, keywords) {
+  const clean = safeText(text);
+  if (!keywords.length) return clean;
+
+  const escaped = keywords.map(keyword => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
+  return clean.split(pattern).map((part, index) => {
+    const isKeyword = keywords.some(keyword => keyword.toLowerCase() === part.toLowerCase());
+    return isKeyword ? (
+      <mark key={`${part}-${index}`} className="rounded bg-primary/15 px-1 text-primary">
+        {part}
+      </mark>
+    ) : part;
+  });
+}
+
+function buildInteractiveBlocks(content) {
+  const explicitBlocks = Array.isArray(content?.interactiveBlocks) ? content.interactiveBlocks : [];
+  if (explicitBlocks.length > 0) return explicitBlocks.slice(0, 8);
+
+  const blocks = [];
+  if (content?.examples?.length) {
+    blocks.push({
+      type: 'examples',
+      title: 'Examples',
+      items: content.examples.slice(0, 3).map(example => ({
+        title: example.title || example.description,
+        body: example.real_world_context || example.description,
+      })),
+    });
+  }
+
+  if (content?.concepts?.length) {
+    blocks.push({
+      type: 'steps',
+      title: 'Step Cards',
+      items: content.concepts.slice(0, 4).map(concept => ({
+        title: concept.title,
+        body: concept.description || concept.explanation,
+      })),
+    });
+  }
+
+  if (content?.keyTakeaways?.length) {
+    blocks.push({
+      type: 'emphasis',
+      title: 'Emphasis',
+      items: content.keyTakeaways.slice(0, 3).map(takeaway => ({
+        title: 'Remember',
+        body: takeaway,
+      })),
+    });
+  }
+
+  return blocks;
+}
+
 export default function InteractiveText({ content, audioMode = false }) {
   const [currentParagraph, setCurrentParagraph] = useState(0);
   const [currentSentence, setCurrentSentence] = useState(0);
@@ -30,6 +100,8 @@ export default function InteractiveText({ content, audioMode = false }) {
 
   const text = getExplanationText();
   const paragraphs = text.split('\n\n').filter(p => p.trim());
+  const keywords = keywordList(content);
+  const interactiveBlocks = buildInteractiveBlocks(content);
 
   // Split paragraph into sentences
   const getSentences = (paragraph) => {
@@ -197,10 +269,50 @@ export default function InteractiveText({ content, audioMode = false }) {
                   : 'text-foreground'
             }`}
           >
-            {sentence}
+            {renderHighlightedText(sentence, keywords)}
           </span>
         ))}
       </div>
+
+      {keywords.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {keywords.map(keyword => (
+            <span key={keyword} className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+              {keyword}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {interactiveBlocks.length > 0 && (
+        <div className="grid gap-3">
+          {interactiveBlocks.map((block, blockIndex) => (
+            <details
+              key={`${block.title || block.type}-${blockIndex}`}
+              className="rounded-lg border border-border bg-card"
+              open={block.type === 'steps'}
+            >
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground">
+                {safeText(block.title || block.type || 'More detail')}
+              </summary>
+              <div className="grid gap-3 border-t border-border p-4">
+                {(block.items || []).map((item, itemIndex) => (
+                  <div key={`${item.title || itemIndex}-${itemIndex}`} className="rounded-md bg-muted/30 p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {safeText(item.title || `Step ${itemIndex + 1}`)}
+                    </p>
+                    {item.body && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {renderHighlightedText(item.body, keywords)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center justify-between">

@@ -21,12 +21,6 @@ import {
   getUserDefaultPersona,
 } from "../src/database/client.js";
 import {
-  sanitizeWidgetCode,
-  generateSafeFallback,
-  validate3DWidgetSafety,
-  inject3DSafetyWrapper
-} from "../src/utils/sanitize-widget.js";
-import {
   getAzureTextClient,
   getAzureTextModel,
   toOpenAIMessages,
@@ -38,6 +32,10 @@ import {
   formatChunksAsContext,
 } from "../src/services/rag/index.js";
 import { processPdfFromStorage } from "../src/services/rag/pdfProcessor.js";
+import {
+  LearningOrchestratorDecision,
+} from "../src/services/learningOrchestratorDecision.js";
+import { buildResponseBehavior, sanitizeAssistantResponse } from "../src/services/responseBehavior.js";
 
 const router = Router();
 
@@ -156,6 +154,10 @@ async function getCachedPersona(personaId, userId) {
 
 const client = getAzureTextClient();
 const model = getAzureTextModel();
+const VISUAL_SPEC_VERSION = '1.0';
+const VISUAL_SPEC_TYPES = new Set(['timeline', 'chart', 'network', 'flow', 'matrix', 'sequence', 'comparison', 'graph', '3d_scene']);
+const VISUAL_SPEC_CONTROLS = new Set(['play', 'pause', 'restart', 'step', 'speed', 'fullscreen']);
+const EXECUTABLE_OUTPUT_PATTERN = /<\s*\/?\s*(html|head|body|style|script|svg|canvas|iframe|object|embed|link|meta|div|span|button)\b|```|(?:document|window|globalThis|parent|top|process|fs)\s*\.|\b(import|require|eval|Function|XMLHttpRequest|WebSocket|fetch|npm|npx|yarn|pnpm)\b|on(?:click|load|error|mouseover)\s*=|javascript:/i;
 
 function setupSSE(res) {
   res.setHeader("Content-Type", "text/event-stream");
@@ -170,44 +172,104 @@ function sendSSE(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function sanitizeWidgetInput(input = {}) {
-  if (!input?.widget_code) return input;
+function stripUnsafeStrings(value, fallback = '') {
+  const text = String(value ?? fallback).trim();
+  if (!text || EXECUTABLE_OUTPUT_PATTERN.test(text)) return fallback;
+  return text.slice(0, 240);
+}
 
-  const widgetCode = input.widget_code;
-  const widgetType = input.widget_type || '2d';
-  const is3D = widgetType === '3d' ||
-               widgetCode.toLowerCase().includes('three.js') ||
-               widgetCode.toLowerCase().includes('webglrenderer');
-
-  const sanitizeResult = sanitizeWidgetCode(widgetCode, {
-    strict: false,
-    allowFetch: is3D,
-  });
-
-  if (!sanitizeResult.safe) {
-    logger.warn({ violations: sanitizeResult.violations }, "Widget code sanitization failed");
-    return {
-      ...input,
-      widget_code: generateSafeFallback(input.title, sanitizeResult.violations),
-    };
-  }
-
-  if (is3D) {
-    const safetyCheck = validate3DWidgetSafety(widgetCode);
-    if (!safetyCheck.valid) {
-      logger.debug({ missing: safetyCheck.missing }, "3D widget missing safety features, injecting wrapper");
-      return {
-        ...input,
-        widget_code: inject3DSafetyWrapper(widgetCode),
-      };
+function sanitizeSpecValue(value, depth = 0) {
+  if (depth > 6) return null;
+  if (value == null) return value;
+  if (typeof value === 'string') return stripUnsafeStrings(value);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.slice(0, 150).map(item => sanitizeSpecValue(item, depth + 1)).filter(item => item !== null);
+  if (typeof value === 'object') {
+    const output = {};
+    for (const [key, nested] of Object.entries(value).slice(0, 40)) {
+      const safeKey = stripUnsafeStrings(key, '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+      if (!safeKey) continue;
+      output[safeKey] = sanitizeSpecValue(nested, depth + 1);
     }
+    return output;
+  }
+  return null;
+}
+
+function fallbackVisualSpec(title = 'Visual explanation', rejectionReason = 'fallback_visual_spec', validationRuleTriggered = null) {
+  return {
+    version: VISUAL_SPEC_VERSION,
+    title: stripUnsafeStrings(title, 'Visual explanation'),
+    spec_type: 'flow',
+    objects: [
+      { id: 'idea', type: 'node', label: 'Key idea', x: 20, y: 45 },
+      { id: 'process', type: 'node', label: 'Process', x: 50, y: 45 },
+      { id: 'result', type: 'node', label: 'Result', x: 80, y: 45 },
+    ],
+    animations: [
+      { type: 'highlight', target: 'idea', step: 0 },
+      { type: 'highlight', target: 'process', step: 1 },
+      { type: 'highlight', target: 'result', step: 2 },
+    ],
+    controls: ['play', 'pause', 'restart', 'step', 'speed'],
+    explanation: 'A safe declarative visual spec was used because executable visual content is not allowed.',
+    telemetry: {
+      rejection_reason: rejectionReason,
+      validation_rule_triggered: validationRuleTriggered,
+      fallback_used: true,
+    },
+  };
+}
+
+function sanitizeWidgetInput(input = {}) {
+  const raw = JSON.stringify(input || {});
+  if (EXECUTABLE_OUTPUT_PATTERN.test(raw)) {
+    logger.warn({ title: input?.title }, "Rejected executable visual tool output");
+    return fallbackVisualSpec(input?.title, 'executable_output_rejected', 'executable_output_pattern');
   }
 
-  if (sanitizeResult.warnings.length > 0) {
-    logger.debug({ warnings: sanitizeResult.warnings }, "Widget code sanitization warnings");
+  const normalized = input?.spec && typeof input.spec === 'object'
+    ? { ...input.spec, title: input.title || input.spec.title, spec_type: input.spec_type || input.spec.type || input.spec.spec_type }
+    : input;
+
+  const specType = VISUAL_SPEC_TYPES.has(normalized?.spec_type)
+    ? normalized.spec_type
+    : VISUAL_SPEC_TYPES.has(normalized?.type)
+      ? normalized.type
+      : null;
+
+  if (!specType) {
+    logger.warn({ specType: normalized?.spec_type || normalized?.type }, "Rejected unsupported visual spec type");
+    return fallbackVisualSpec(normalized?.title, 'unsupported_spec', 'renderer_capability_check');
   }
 
-  return input;
+  const objects = Array.isArray(normalized?.objects)
+    ? sanitizeSpecValue(normalized.objects).slice(0, 150)
+    : [];
+
+  if (objects.length === 0) {
+    return fallbackVisualSpec(normalized?.title, 'empty_objects_rejected', 'objects_required');
+  }
+
+  const controls = Array.isArray(normalized?.controls)
+    ? normalized.controls.filter(control => VISUAL_SPEC_CONTROLS.has(control)).slice(0, 6)
+    : ['play', 'pause', 'restart', 'step', 'speed'];
+
+  return {
+    version: stripUnsafeStrings(normalized.version, VISUAL_SPEC_VERSION) || VISUAL_SPEC_VERSION,
+    title: stripUnsafeStrings(normalized.title, 'Visual spec'),
+    spec_type: specType,
+    objects,
+    animations: Array.isArray(normalized?.animations) ? sanitizeSpecValue(normalized.animations).slice(0, 150) : [],
+    controls,
+    explanation: stripUnsafeStrings(normalized.explanation, ''),
+    telemetry: {
+      rejection_reason: null,
+      validation_rule_triggered: null,
+      fallback_used: false,
+    },
+  };
 }
 
 function parseToolArguments(rawArgs = '') {
@@ -336,14 +398,15 @@ router.post("/chat", async (req, res) => {
     userId,
     behavior,
     conversationId = null,
-    skip3D = false,
     personaId = null,
     temporaryStyle = null,
     documentId = null,
     learningAction = null,
     preferences = {},
+    mode = preferences?.mode || 'chat',
+    conversationState = {},
   } = req.body;
-  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), skip3D, personaId: personaId?.slice(0,8), documentId: documentId?.slice(0,8) }, "POST /api/chat");
+  logger.info({ messageCount: messages?.length, userId: userId?.slice(0,8), personaId: personaId?.slice(0,8), documentId: documentId?.slice(0,8) }, "POST /api/chat");
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "messages array is required" });
@@ -363,9 +426,38 @@ router.post("/chat", async (req, res) => {
     // Extract topic from last user message
     const lastUserMessage = messages.filter(m => m.role === 'user').pop();
     const userQuery = typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : '';
-    const currentTopic = extractCurrentTopic(userQuery);
+    const requestedArtifact = learningAction || preferences?.requestedArtifact || null;
+    let orchestrationDecision = LearningOrchestratorDecision({
+      query: userQuery,
+      mode,
+      conversationState,
+      requestedArtifact,
+    });
+
+    const guardQuery = orchestrationDecision.activeTopic || orchestrationDecision.resolvedQuery || userQuery;
+    if (orchestrationDecision.simulation?.needed) {
+      try {
+        orchestrationDecision = await applySimulationSupportGuard(orchestrationDecision, guardQuery);
+      } catch (guardError) {
+        logger.warn({ error: guardError.message, query: guardQuery }, 'Simulation support guard failed');
+        orchestrationDecision = {
+          ...orchestrationDecision,
+          simulation: {
+            ...orchestrationDecision.simulation,
+            needed: orchestrationDecision.simulation.explicit,
+            fallback: !orchestrationDecision.simulation.explicit,
+          },
+        };
+      }
+    }
+
+    const currentTopic = orchestrationDecision.activeTopic || extractCurrentTopic(userQuery);
+    const responseBehavior = buildResponseBehavior({
+      query: userQuery,
+      decision: orchestrationDecision,
+    });
     const documentGrounding = await buildDocumentGrounding({ documentId, userId, query: userQuery });
-    const intentionalLearningAction = learningAction || preferences?.requestedArtifact || null;
+    const intentionalLearningAction = requestedArtifact;
 
     // Fetch user profile and metrics (used as CONTEXT for bandit, not for prompt shaping)
     const profile = await getCachedProfile(userId);
@@ -406,8 +498,7 @@ router.post("/chat", async (req, res) => {
 
     // Build personalized system prompt with persona
     // Use createSystemPrompt which handles persona injection at the start
-    const queryPrefs = skip3D ? { style: 'text' } : {};
-    const basePrompt = createSystemPrompt(profile, queryPrefs, effectivePersona);
+    const basePrompt = createSystemPrompt(profile, {}, effectivePersona);
 
     // Normal chat must stay conversational. Structured learning behavior is only
     // enabled when the user explicitly chooses a plus-menu learning action.
@@ -419,7 +510,7 @@ router.post("/chat", async (req, res) => {
 
     const responseModeInstructions = intentionalLearningAction
       ? `\n\n## Response Format Requirement\n${actionInstructions}`
-      : '\n\n## Response Mode\nRespond naturally and directly like a normal chat assistant. Do not create learning tabs, quizzes, flashcards, mind maps, or structured lesson output unless the user explicitly asks for them.';
+      : `\n\n## Response Mode\nRespond as VisuaLearn, an adaptive learning tutor, not a generic chatbot. Keep simple definitions short. For process or algorithm concepts, use a vivid hook, short concept explanation, small step-by-step story, real example, and one key takeaway. Do not create long walls of text.\n\nForbidden chatbot phrases: do not use "Oh yeah", "No worries", "Of course", "I can help you with", "If you want", "Glad to help", "Happy to help", or "Let me know". Avoid conversational filler and start directly with the answer or concept title.\n\nForbidden endings: never end with "If you want...", "Would you like...", "I can also explain...", "Want me to...", or any follow-up question. Suggested next actions are rendered by the app as buttons, not by you.\n\nDo not create learning tabs, quizzes, flashcards, mind maps, raw HTML, CSS, JavaScript, canvas, iframe, executable code, JSON, or SimulationSpec objects. If a simulation or 3D view is needed, explain the concept in text only; the renderer will handle the visual separately through internal simulationData.\n\nCurrent topic: ${currentTopic || 'none'}.\nResponse kind: ${responseBehavior.responseKind}.`;
 
     const systemPrompt = `${basePrompt}${ragInstructions}${responseModeInstructions}`;
 
@@ -437,10 +528,34 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    logger.info({ selectedAction: banditDecision.selectedAction, learningAction: intentionalLearningAction, topic: currentTopic, source: banditDecision.decisionSource, skip3D }, "Bandit decision");
+    sendSSE(res, {
+      type: 'orchestration_decision',
+      decision: orchestrationDecision,
+      activeTopic: orchestrationDecision.activeTopic,
+      conversationState: orchestrationDecision.conversationState,
+      suggestedActions: responseBehavior.suggestedActions,
+      adaptiveExplanation: responseBehavior.adaptiveExplanation,
+      responseKind: responseBehavior.responseKind,
+    });
 
-    // Normal conversation mode is text-only. Widget/simulation tools are opt-in.
-    const tools = skip3D || !intentionalLearningAction ? [] : [SHOW_WIDGET_TOOL];
+    logger.info({
+      selectedAction: banditDecision.selectedAction,
+      learningAction: intentionalLearningAction,
+      topic: currentTopic,
+      orchestration: {
+        mode: orchestrationDecision.mode,
+        simulation: orchestrationDecision.simulation,
+        scene3D: orchestrationDecision.scene3D,
+        artifacts: orchestrationDecision.artifacts,
+      },
+      source: banditDecision.decisionSource,
+    }, "Bandit decision");
+
+    // Normal conversation mode is text-only. Sandbox simulations are rendered by
+    // /api/simulation/debug, not by the old show_widget tool.
+    const tools = !intentionalLearningAction || intentionalLearningAction === 'simulation'
+      ? []
+      : [SHOW_WIDGET_TOOL];
 
     const heartbeat = setInterval(() => {
       if (!aborted) {
@@ -450,6 +565,7 @@ router.post("/chat", async (req, res) => {
 
     // Collect response text and tool calls for enforcement
     let responseText = "";
+    let streamedText = "";
     const toolCalls = [];
 
     const abortedRef = {
@@ -473,7 +589,12 @@ router.post("/chat", async (req, res) => {
       abortedRef,
       onText: (text) => {
         responseText += text;
-        sendSSE(res, { type: "text_delta", text });
+        const sanitizedText = sanitizeAssistantResponse(responseText);
+        const nextDelta = sanitizedText.slice(streamedText.length);
+        streamedText = sanitizedText;
+        if (nextDelta) {
+          sendSSE(res, { type: "text_delta", text: nextDelta });
+        }
       },
       onTool: (toolCall) => {
         toolCalls.push({ name: toolCall.name, id: toolCall.id, input: toolCall.input });
@@ -588,6 +709,8 @@ router.post("/tool-result", async (req, res) => {
         return aborted;
       },
     };
+    let responseText = "";
+    let streamedText = "";
 
     res.on("close", () => {
       if (!aborted) {
@@ -597,12 +720,22 @@ router.post("/tool-result", async (req, res) => {
       }
     });
 
+    const followupTools = banditData?.selectedAction === 'simulation' ? [] : [SHOW_WIDGET_TOOL];
+
     await streamOpenAIChat({
       messages,
       system: systemPrompt,
-      tools: [SHOW_WIDGET_TOOL],
+      tools: followupTools,
       abortedRef,
-      onText: (text) => sendSSE(res, { type: "text_delta", text }),
+      onText: (text) => {
+        responseText += text;
+        const sanitizedText = sanitizeAssistantResponse(responseText);
+        const nextDelta = sanitizedText.slice(streamedText.length);
+        streamedText = sanitizedText;
+        if (nextDelta) {
+          sendSSE(res, { type: "text_delta", text: nextDelta });
+        }
+      },
       onTool: (toolCall) => {
         sendSSE(res, {
           type: "tool_use",

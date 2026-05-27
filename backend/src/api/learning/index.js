@@ -23,7 +23,6 @@ import {
   formatChunksAsContext,
 } from '../../services/rag/index.js';
 import { processPdfFromStorage } from '../../services/rag/pdfProcessor.js';
-import { topicUnderstandingAgent } from '../../simulation/adaptive-engine.js';
 import { saveLearningResource, RESOURCE_TYPES } from '../../database/client.js';
 import { searchForLearning } from '../../services/webSearch.js';
 
@@ -436,34 +435,6 @@ router.post('/learning-content', async (req, res) => {
       error: result.error || null
     });
 
-    // Run AI-only simulation understanding. Rendering is generated later by /api/simulation/generate.
-    let simulationDetection = null;
-    if (!contentType || contentType === 'learn') {
-      try {
-        const understanding = await topicUnderstandingAgent(query);
-        simulationDetection = {
-          supported: understanding.supported !== false,
-          topic: understanding.topic,
-          domain: understanding.domain,
-          complexity: understanding.complexity,
-          educationalIntent: understanding.educationalIntent,
-          simulationType: understanding.simulationType,
-          confidence: understanding.confidence,
-        };
-        console.log('[LearningContent] Simulation detection:', {
-          query: query.slice(0, 30),
-          supported: simulationDetection.supported,
-          topic: simulationDetection.topic,
-          domain: simulationDetection.domain,
-          simulationType: simulationDetection.simulationType,
-          confidence: simulationDetection.confidence,
-        });
-      } catch (detectErr) {
-        console.warn('[LearningContent] Simulation detection failed:', detectErr.message);
-        // Non-blocking - continue without detection
-      }
-    }
-
     if (!result.success || !result.result) {
       // For specific content types, return type-specific fallback
       if (contentType) {
@@ -584,17 +555,6 @@ router.post('/learning-content', async (req, res) => {
           }
         }
 
-        // Save simulation detection result if applicable
-        if (simulationDetection?.supported) {
-          resourcesToSave.push({
-            type: RESOURCE_TYPES.SIMULATION,
-            content: {
-              detection: simulationDetection,
-              // Simulation data will be saved when actually generated
-            },
-          });
-        }
-
         // Save all resources in parallel
         await Promise.all(
           resourcesToSave.map(r =>
@@ -623,7 +583,6 @@ router.post('/learning-content', async (req, res) => {
       // NEW: Include response mode and intent classification for frontend
       responseMode,
       intentClassification,
-      simulationDetection, // Include detection result for frontend tiered UI
       executionTime: result.executionTime,
       // Include bandit decision for reward tracking
       banditDecision: {

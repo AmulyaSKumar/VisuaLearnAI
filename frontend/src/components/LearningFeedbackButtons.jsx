@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useFeedback } from "../hooks/useFeedback";
 
 /**
  * LearningFeedbackButtons - Enhanced feedback for adaptive learning
@@ -13,6 +14,7 @@ export default function LearningFeedbackButtons({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
   const [isExpanded, setIsExpanded] = useState(showExpanded);
+  const { submitFeedback } = useFeedback();
 
   const feedbackOptions = [
     {
@@ -54,23 +56,19 @@ export default function LearningFeedbackButtons({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("http://localhost:3001/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await submitFeedback(
+        option.signal === "negative" ? "thumbs_down" : "suggestion",
+        messageId,
+        option.label,
+        {
           userId,
-          messageId,
-          feedbackType: option.id,
-          signal: option.signal,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (response.ok) {
-        setSubmitted(option.id);
-        if (onFeedback) {
-          onFeedback(option);
-        }
+          learningSignal: option.signal,
+          learningFeedbackType: option.id,
+        },
+      );
+      setSubmitted(option.id);
+      if (onFeedback) {
+        onFeedback(option);
       }
     } catch (err) {
       console.error("Feedback submission failed:", err);

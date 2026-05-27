@@ -33,6 +33,25 @@ function validateEnv() {
 
 validateEnv();
 
+export function getRealtimeConfigStatus() {
+  const required = [
+    'AZURE_REALTIME_ENDPOINT',
+    'AZURE_REALTIME_API_KEY',
+    'AZURE_REALTIME_DEPLOYMENT',
+  ];
+  const missing = required.filter(key => !process.env[key]);
+
+  return {
+    configured: missing.length === 0,
+    missing,
+  };
+}
+
+const realtimeStatus = getRealtimeConfigStatus();
+if (!realtimeStatus.configured) {
+  console.warn('Realtime configuration incomplete', { missing: realtimeStatus.missing });
+}
+
 /**
  * Environment configuration object
  */
@@ -58,6 +77,14 @@ export const config = {
     imageEndpoint: process.env.AZURE_IMAGE_ENDPOINT,
     imageApiVersion: process.env.AZURE_IMAGE_API_VERSION || '2024-02-01',
     ttsModel: process.env.AZURE_TTS_MODEL,
+  },
+
+  azureRealtime: {
+    endpoint: process.env.AZURE_REALTIME_ENDPOINT,
+    apiKey: process.env.AZURE_REALTIME_API_KEY,
+    deployment: process.env.AZURE_REALTIME_DEPLOYMENT || process.env.AZURE_REALTIME_MODEL,
+    apiVersion: process.env.AZURE_REALTIME_API_VERSION || 'v1',
+    transcriptionDeployment: process.env.AZURE_REALTIME_TRANSCRIPTION_DEPLOYMENT,
   },
 
   // Notion export integration

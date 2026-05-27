@@ -1,138 +1,385 @@
-\chapter{System Design}
+\chapter{Analysis and Design}
 
-VisuaLearn AI is designed as a layered and modular system. The design separates user interaction, request orchestration, intelligent decision-making, educational content generation, simulation, visualization, voice interaction, and data persistence. This chapter presents the architecture, module-wise design, data flow, database design, and adaptive learning workflow.
+VisuaLearn is designed as a layered, modular, and agent-driven learning platform. The system separates presentation, routing, context building, adaptive decision-making, learning artifact generation, validation, storage, and feedback. This chapter presents the requirements, technology stack, system architecture, diagrams, data model, API flow, security design, and design rationale.
 
-\section[System Architecture]{\textbf{System Architecture}}
-The system follows a five-layer architecture: presentation layer, application layer, intelligence layer, service layer, and data layer. Each layer has a clear responsibility and communicates with adjacent layers.
+\section{Requirement Analysis}
+
+The functional requirements identified for the project are:
+\begin{enumerate}[leftmargin=1.2cm]
+\item The system shall allow users to sign up, log in, and access protected learning features.
+\item The system shall provide a chat interface for educational questions and streamed AI responses.
+\item The system shall save conversations, messages, learning resources, and generated artifacts.
+\item The system shall generate explanations, quizzes, flashcards, mind maps, simulations, image outputs, video outputs, and 3D visualizations where suitable.
+\item The system shall use agentic AI modules for context building, adaptive strategy selection, content generation, validation, and feedback handling.
+\item The system shall support document-based learning through retrieval over uploaded resources.
+\item The system shall collect feedback and interaction signals for personalization.
+\item The system shall optionally support voice input and speech output.
+\end{enumerate}
+
+The non-functional requirements are:
+\begin{enumerate}[leftmargin=1.2cm]
+\item \textbf{Scalability:} The backend should support modular route expansion and independent feature services.
+\item \textbf{Reliability:} Failed AI or visualization responses should degrade gracefully with fallback output.
+\item \textbf{Performance:} Streaming responses should reduce perceived latency, and expensive generation routes should be rate limited.
+\item \textbf{Security:} User data and provider keys should be protected through authentication, authorization, backend-only secrets, and safe rendering.
+\item \textbf{Maintainability:} Frontend components, backend routes, services, and agents should remain separated by responsibility.
+\end{enumerate}
+
+\section{Technology Stack}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.4cm}|p{4.2cm}|p{6.2cm}|}
+\hline
+\textbf{Layer} & \textbf{Technology} & \textbf{Purpose} \\
+\hline
+Frontend & React, Vite, Tailwind CSS & Builds the single-page interface, chat workspace, learning tabs, and responsive UI. \\
+\hline
+Backend & Node.js, Express & Handles API routing, middleware, streaming, validation, orchestration, and service integration. \\
+\hline
+Database and Auth & Supabase, PostgreSQL & Provides authentication, user profiles, conversations, messages, feedback, and resource persistence. \\
+\hline
+AI Services & LLM providers, Azure OpenAI optional services & Supports text generation, speech, image generation, video generation hooks, and real-time interaction where configured. \\
+\hline
+Learning APIs & Chat, simulation, visualization, voice, feedback, documents & Exposes modular endpoints for the main learning workflows. \\
+\hline
+Rendering & React components, safe frames, declarative viewers & Displays generated learning artifacts while limiting unsafe output. \\
+\hline
+\end{tabular}
+\caption{Technology stack used in VisuaLearn}
+\label{tab:technology-stack}
+\end{table}
+
+\section{System Architecture}
+
+The system architecture follows the layered structure shown in Figure \ref{fig:architecture}. The presentation layer sends requests to the application layer, the intelligence layer builds context and chooses a strategy, core and multimodal modules generate learning artifacts, support modules validate and format output, and the data layer stores profile, history, logs, and knowledge resources.
 
 \begin{figure}[H]
 \centering
-\resizebox{0.85\textwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-box/.style={draw, rounded corners, minimum width=7.4cm, minimum height=0.9cm, align=center},
-arrow/.style={-{Latex[length=2mm]}, thick},
-node distance=0.6cm
+layer/.style={draw, rounded corners, align=left, text width=12.9cm, minimum height=0.82cm, inner xsep=7pt, font=\small},
+small/.style={draw, rounded corners, align=center, minimum width=2.55cm, minimum height=0.6cm, font=\footnotesize},
+arrow/.style={-{Latex[length=2mm]}, line width=0.45pt},
+flowlabel/.style={font=\footnotesize, fill=white, inner sep=1pt}
 ]
-\node[box] (p) {Presentation Layer: Chat, Learning Workspace, Voice, Settings};
-\node[box, below=of p] (a) {Application Layer: Routing, Authentication, Sessions, Validation};
-\node[box, below=of a] (i) {Intelligence Layer: Context Builder, Strategy Selector, Personalization};
-\node[box, below=of i] (s) {Service Layer: Learning Content, Simulation, Visualization, Voice};
-\node[box, below=of s] (d) {Data Layer: Users, Conversations, Resources, Feedback};
-\draw[arrow] (p) -- (a);
-\draw[arrow] (a) -- (i);
-\draw[arrow] (i) -- (s);
-\draw[arrow] (s) -- (d);
-\draw[arrow] (d.east) .. controls +(2,0) and +(2,0) .. (a.east);
+\node[layer] (presentation) at (0,0) {\textbf{Presentation Layer:} Chat UI \quad | \quad Learn UI \quad | \quad Upload \quad | \quad Visual Viewer};
+
+\node[layer] (application) at (0,-1.18) {\textbf{Application Layer:} API Gateway \quad | \quad Router \quad | \quad Authentication \quad | \quad Session Manager};
+
+\node[layer] (intelligence) at (0,-2.36) {\textbf{Intelligence Layer:} Context Builder \quad | \quad Strategy Selector \quad | \quad Agent Orchestrator};
+
+\node at (-5.5,-3.54) [font=\small\bfseries, anchor=west] {Learning Agents};
+\node[small] (explain) at (-4.0,-4.18) {Explanation};
+\node[small] (quiz) at (-1.35,-4.18) {Quiz};
+\node[small] (flash) at (1.35,-4.18) {Flashcards};
+\node[small] (mind) at (4.0,-4.18) {Mind Map};
+
+\node at (-5.5,-5.08) [font=\small\bfseries, anchor=west] {Multimodal Agents};
+\node[small] (image) at (-4.8,-5.72) {Image};
+\node[small] (video) at (-1.6,-5.72) {Video};
+\node[small] (simulation) at (1.6,-5.72) {Simulation};
+\node[small] (visual) at (4.8,-5.72) {3D Visualization};
+
+\node[layer] (support) at (0,-6.95) {\textbf{Support Layer:} RAG Retrieval \quad | \quad Validation \quad | \quad Formatter \quad | \quad Safe Rendering};
+
+\node[layer] (data) at (0,-8.13) {\textbf{Data Layer:} Knowledge Base \quad | \quad Profiles \quad | \quad History \quad | \quad Logs \quad | \quad Feedback};
+
+\draw[arrow] (presentation) -- node[flowlabel,right]{request} (application);
+\draw[arrow] (application) -- node[flowlabel,right]{secured query} (intelligence);
+\draw[arrow] (intelligence) -- node[flowlabel,right]{selected action} (0,-3.55);
+\draw[arrow] (0,-6.05) -- node[flowlabel,right]{generated artifact} (support);
+\draw[arrow] (support) -- node[flowlabel,right]{store / retrieve} (data);
+\draw[arrow] (data.east) -- ++(0.75,0) |- node[pos=0.25,flowlabel,right]{personalized response} (presentation.east);
 \end{tikzpicture}
 }
-\caption{Layered Architecture of VisuaLearn AI}
-\label{fig:layeredarchitecture}
+\caption{Detailed system architecture of VisuaLearn}
+\label{fig:architecture}
 \end{figure}
 
-\section[Presentation Layer Design]{\textbf{Presentation Layer Design}}
-The presentation layer is implemented as a responsive web application. It provides the learner with the following views:
-\begin{itemize}[leftmargin=1.2cm]
-	\item Chat interface for asking questions and receiving responses.
-	\item Learning workspace for notes, examples, flashcards, quizzes, mind maps, and simulations.
-	\item Simulation viewer with playback controls.
-	\item Visual widget frame for dynamic learning artifacts.
-	\item Voice interface for spoken learning sessions.
-	\item Settings page for personalization and account configuration.
-\end{itemize}
+\section{Use Case Diagram}
 
-The learning workspace is designed to reduce clutter. Instead of showing all generated content in one long page, each artifact is placed in a suitable tab or panel. This supports focused reading and easier revision.
+\begin{figure}[H]
+\centering
+\resizebox{0.88\textwidth}{!}{%
+\begin{tikzpicture}[
+actor/.style={draw, circle, minimum size=0.6cm},
+usecase/.style={draw, ellipse, align=center, minimum width=3.9cm, minimum height=1.05cm},
+arrow/.style={line width=0.35pt}
+]
+\node[actor] (learnerHead) at (0,4) {};
+\draw (0,3.7) -- (0,2.7);
+\draw (-0.6,3.25) -- (0.6,3.25);
+\draw (0,2.7) -- (-0.45,2.0);
+\draw (0,2.7) -- (0.45,2.0);
+\node at (0,1.45) {Learner};
+\node[actor] (adminHead) at (12,4) {};
+\draw (12,3.7) -- (12,2.7);
+\draw (11.4,3.25) -- (12.6,3.25);
+\draw (12,2.7) -- (11.55,2.0);
+\draw (12,2.7) -- (12.45,2.0);
+\node at (12,1.45) {Admin};
+\node[usecase] (chat) at (4.7,5.7) {Ask\\Question};
+\node[usecase] (learn) at (4.7,4.35) {Generate Learn\\Content};
+\node[usecase] (sim) at (4.7,3.0) {Simulation /\\3D / Video};
+\node[usecase] (doc) at (4.7,1.65) {Upload and Query\\Documents};
+\node[usecase] (voice) at (8.9,5.7) {Voice Input /\\Output};
+\node[usecase] (feedback) at (8.9,4.35) {Submit\\Feedback};
+\node[usecase] (history) at (8.9,3.0) {Review\\History};
+\node[usecase] (monitor) at (8.9,1.65) {Monitor Logs\\and Settings};
+\draw[arrow] (0.6,3.7) -- (chat);
+\draw[arrow] (0.6,3.4) -- (learn);
+\draw[arrow] (0.6,3.1) -- (sim);
+\draw[arrow] (0.6,2.8) -- (doc);
+\draw[arrow] (0.6,2.5) -- (voice);
+\draw[arrow] (0.6,2.2) -- (feedback);
+\draw[arrow] (0.6,1.9) -- (history);
+\draw[arrow] (11.4,3.2) -- (monitor);
+\end{tikzpicture}
+}
+\caption{Use case diagram of VisuaLearn}
+\label{fig:use-case}
+\end{figure}
 
-\section[Application Layer Design]{\textbf{Application Layer Design}}
-The application layer receives frontend requests and routes them to the correct backend module. It performs authentication, request validation, trace logging, error handling, and response formatting. It also supports streaming output so that learners can see responses progressively.
+\section{Sequence Diagram for Learning Flow}
 
-The application layer contains routes for chat, learning content, simulations, visualizations, voice sessions, documents, personas, progress, and settings. This modular routing structure makes the project easier to maintain and test.
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+lane/.style={draw, fill=gray!10, minimum width=2.2cm, minimum height=0.75cm, align=center, font=\small},
+arrow/.style={-{Latex[length=2mm]}, line width=0.35pt},
+dasharrow/.style={-{Latex[length=2mm]}, dashed, line width=0.35pt},
+font=\small
+]
+\foreach \x/\name in {0/User,2.4/Frontend,4.8/Backend,7.2/Personalization\\Engine,9.6/RAG\\Module,12.0/Content / Agent\\System,14.4/Database,16.8/Voice\\STT/TTS} {
+  \node[lane] (\x) at (\x,0) {\name};
+  \draw[gray!45] (\x,-0.4) -- (\x,-8.7);
+}
+\draw[arrow] (0,-1.0) -- node[above]{Enter query / voice input} (2.4,-1.0);
+\draw[arrow] (2.4,-1.6) -- node[above]{Convert speech to text} (16.8,-1.6);
+\draw[dasharrow] (16.8,-2.1) -- node[above]{Text input} (2.4,-2.1);
+\draw[arrow] (2.4,-2.7) -- node[above]{Send query + session data} (4.8,-2.7);
+\draw[arrow] (4.8,-3.3) -- node[above]{Fetch profile + history} (14.4,-3.3);
+\draw[dasharrow] (14.4,-3.8) -- node[above]{User data} (4.8,-3.8);
+\draw[arrow] (4.8,-4.4) -- node[above]{Retrieve relevant knowledge} (9.6,-4.4);
+\draw[dasharrow] (9.6,-4.9) -- node[above]{Context chunks} (4.8,-4.9);
+\draw[arrow] (4.8,-5.5) -- node[above]{Context + query} (7.2,-5.5);
+\draw[dasharrow] (7.2,-6.0) -- node[above]{Learning strategy} (4.8,-6.0);
+\draw[arrow] (4.8,-6.6) -- node[above]{Request content / visual / video} (12.0,-6.6);
+\draw[dasharrow] (12.0,-7.1) -- node[above]{Generated content} (4.8,-7.1);
+\draw[arrow] (4.8,-7.7) -- node[above]{Store logs + interaction} (14.4,-7.7);
+\draw[dasharrow] (4.8,-8.2) -- node[above]{Send final response} (2.4,-8.2);
+\draw[arrow] (2.4,-8.7) -- node[above]{Convert text to speech} (16.8,-8.7);
+\draw[dasharrow] (16.8,-9.2) -- node[above]{Audio output / display content} (0,-9.2);
+\end{tikzpicture}
+}
+\caption{Sequence diagram for adaptive learning flow}
+\label{fig:sequence-learning}
+\end{figure}
 
-\section[Intelligence Layer Design]{\textbf{Intelligence Layer Design}}
-The intelligence layer is responsible for adapting the teaching strategy. It builds a context vector from learner signals and selects one of the supported response modes. The context includes:
-\begin{itemize}[leftmargin=1.2cm]
-	\item Cognitive state
-	\item Engagement level
-	\item Topic status
-	\item Performance trend
-	\item Confidence
-	\item Topic difficulty
-	\item Previous failures
-	\item Response time
-\end{itemize}
+\section{Data Design}
 
-The teaching strategies are visual learning, guided steps, quiz checking, concise explanation, Socratic questioning, and remediation. The selected strategy influences how the learning response is generated and displayed.
+The core database design supports authenticated learning sessions, generated artifacts, feedback, and adaptive decisions. Table \ref{tab:data-design} improves the main entity list by including ownership and relationships.
 
-\section[Service Layer Design]{\textbf{Service Layer Design}}
-The service layer contains the core educational modules. The learning content service generates structured notes, examples, quizzes, flashcards, and mind maps. The simulation service determines whether a topic is procedural and generates state transitions. The visualization service prepares visual or spatial content. The voice service supports real-time spoken interaction. The resource service stores and retrieves generated learning artifacts.
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{3cm}|p{4.5cm}|p{5.2cm}|}
+\hline
+\textbf{Table / Entity} & \textbf{Stored Data} & \textbf{Relationship / Purpose} \\
+\hline
+\texttt{user\_profiles} & Learning style, language, comprehension level, pace preference, profile metadata & One profile belongs to one authenticated learner and guides personalization. \\
+\hline
+\texttt{conversations} & Conversation title, owner, timestamps, summary & A user can have many learning sessions. \\
+\hline
+\texttt{messages} & User, assistant, and system messages with metadata & Messages belong to conversations and preserve learning history. \\
+\hline
+\texttt{learning\_resources} & Notes, quizzes, flashcards, mind maps, simulations, visual references & Generated artifacts are linked to conversations and reused during revision. \\
+\hline
+\texttt{documents} & Uploaded files, extracted chunks, embeddings, source metadata & Supports RAG retrieval for document-based learning. \\
+\hline
+\texttt{feedback} & Ratings, corrections, completion, quiz results, usefulness signals & Feedback is connected to messages/resources and informs future adaptation. \\
+\hline
+\texttt{agent\_decisions} & Context vector, selected strategy, confidence, reward data & Stores adaptive strategy selection for analysis and improvement. \\
+\hline
+\texttt{personas} & Tutor style, tone, explanation preference & Personas influence response generation and user experience. \\
+\hline
+\end{tabular}
+\caption{Important data entities in VisuaLearn}
+\label{tab:data-design}
+\end{table}
 
-\section[Data Layer Design]{\textbf{Data Layer Design}}
-The data layer stores all persistent learning information. The main data entities are:
-\begin{itemize}[leftmargin=1.2cm]
-	\item Users: authentication and profile details.
-	\item Conversations: learning sessions created by users.
-	\item Messages: learner queries and system responses.
-	\item Learning resources: notes, quizzes, flashcards, mind maps, simulations, and visual references.
-	\item Feedback records: quiz results, completion data, and learner ratings.
-	\item Adaptive decisions: selected strategy, context, and reward information.
-\end{itemize}
+\section{Database Schema / ER Diagram}
 
-\section[Data Flow Diagram]{\textbf{Data Flow Diagram}}
 \begin{figure}[H]
 \centering
 \resizebox{0.95\textwidth}{!}{%
 \begin{tikzpicture}[
-entity/.style={draw, rectangle, rounded corners, minimum width=2.8cm, minimum height=0.8cm, align=center},
-process/.style={draw, ellipse, minimum width=3.0cm, minimum height=0.95cm, align=center},
-store/.style={draw, cylinder, shape border rotate=90, aspect=0.28, minimum width=1.5cm, minimum height=1.1cm, align=center},
-arrow/.style={-{Latex[length=2mm]}, thick},
-node distance=0.9cm
+entity/.style={draw, rounded corners, align=center, minimum width=3.0cm, minimum height=0.8cm, font=\small},
+arrow/.style={-{Latex[length=2mm]}, line width=0.35pt}
 ]
-\node[entity] (user) {Learner};
-\node[process, right=of user] (request) {Request Processing};
-\node[process, right=of request] (engine) {Learning Engine};
-\node[entity, right=of engine] (output) {Learning Output};
-\node[store, below=of request] (db) {Data Store};
-\draw[arrow] (user) -- (request);
-\draw[arrow] (request) -- (engine);
-\draw[arrow] (engine) -- (output);
-\draw[arrow] (request) -- (db);
-\draw[arrow] (engine) -- (db);
-\draw[arrow] (db) -- (request);
+\node[entity] (user) at (0,3) {Users};
+\node[entity] (profile) at (3.8,4.5) {User Profiles};
+\node[entity] (conv) at (3.8,3) {Conversations};
+\node[entity] (docs) at (3.8,1.5) {Documents};
+\node[entity] (msg) at (7.5,3) {Messages};
+\node[entity] (res) at (11.1,4.2) {Learning Resources};
+\node[entity] (fb) at (11.1,2.8) {Feedback};
+\node[entity] (agent) at (11.1,1.4) {Agent Decisions};
+\node[entity] (persona) at (7.5,4.5) {Personas};
+\draw[arrow] (user) -- node[above]{1:1} (profile);
+\draw[arrow] (user) -- node[above]{1:N} (conv);
+\draw[arrow] (user) -- node[below]{1:N} (docs);
+\draw[arrow] (conv) -- node[above]{1:N} (msg);
+\draw[arrow] (conv) -- node[above]{1:N} (res);
+\draw[arrow] (msg) -- node[right]{1:N} (fb);
+\draw[arrow] (msg) -- node[below]{1:N} (agent);
+\draw[arrow] (persona) -- node[above]{style} (msg);
+\draw[arrow] (docs) -- node[below]{RAG context} (msg);
 \end{tikzpicture}
 }
-\caption{Data Flow Diagram of VisuaLearn AI}
-\label{fig:dataflow}
+\caption{Database schema and entity relationship diagram}
+\label{fig:er-diagram}
 \end{figure}
 
-\section[Adaptive Learning Workflow]{\textbf{Adaptive Learning Workflow}}
-The adaptive workflow connects learner behavior with future teaching decisions. When a learner asks a question, the system builds context and selects a response strategy. After the learner interacts with the output, feedback is stored. The feedback affects future decisions.
+\section{Detailed Data Flow Diagram}
 
 \begin{figure}[H]
 \centering
-\resizebox{0.95\textwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-box/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.85cm, align=center},
-arrow/.style={-{Latex[length=2mm]}, thick},
-node distance=0.55cm
+entity/.style={draw, rectangle, rounded corners, minimum width=2.7cm, minimum height=0.8cm, align=center, font=\small},
+process/.style={draw, ellipse, minimum width=3.2cm, minimum height=0.9cm, align=center, font=\small},
+store/.style={draw, rectangle, minimum width=3.0cm, minimum height=0.8cm, align=center, font=\small},
+arrow/.style={-{Latex[length=2mm]}, line width=0.35pt}
 ]
-\node[box] (q) {Question};
-\node[box, right=of q] (c) {Context};
-\node[box, right=of c] (p) {Policy};
-\node[box, right=of p] (r) {Response};
-\node[box, right=of r] (f) {Feedback};
-\draw[arrow] (q) -- (c);
-\draw[arrow] (c) -- (p);
-\draw[arrow] (p) -- (r);
-\draw[arrow] (r) -- (f);
-\draw[arrow] (f.south) .. controls +(0,-0.7) and +(0,-0.7) .. (c.south);
+\node[entity] (learner) at (0,3) {Learner};
+\node[process] (input) at (3.4,3) {Input Handler};
+\node[process] (ctx) at (6.8,4.2) {Context Builder};
+\node[process] (selector) at (10.2,4.2) {Strategy Selector};
+\node[process] (gen) at (13.6,4.2) {Content Generator};
+\node[process] (multi) at (13.6,2.5) {Simulation / Visualization / Video};
+\node[process] (val) at (10.2,2.5) {Validation};
+\node[store] (db) at (6.8,1.0) {Database};
+\node[store] (docs) at (3.4,1.0) {Document Store};
+\node[entity] (out) at (0,1.0) {Rendered Output};
+\draw[arrow] (learner) -- node[above]{query / voice / file} (input);
+\draw[arrow] (input) -- (ctx);
+\draw[arrow] (docs) -- node[left]{chunks} (ctx);
+\draw[arrow] (db) -- node[right]{profile + history} (ctx);
+\draw[arrow] (ctx) -- (selector);
+\draw[arrow] (selector) -- (gen);
+\draw[arrow] (selector) -- (multi);
+\draw[arrow] (gen) -- (val);
+\draw[arrow] (multi) -- (val);
+\draw[arrow] (val) -- node[right]{store artifacts} (db);
+\draw[arrow] (val) -- (out);
+\draw[arrow] (out) -- node[left]{feedback} (learner);
+\draw[arrow] (learner) .. controls +(0,-2.0) and +(-2.0,0) .. (db);
 \end{tikzpicture}
 }
-\caption{Adaptive Learning Workflow}
-\label{fig:adaptiveworkflow}
+\caption{Detailed data flow diagram}
+\label{fig:detailed-dfd}
 \end{figure}
 
-\section[Module Interaction]{\textbf{Module Interaction}}
-The modules interact in a sequential but flexible manner. A single learner query may produce a direct explanation, a learning resource, a simulation, a visual widget, or a voice response. The backend decides which module is suitable based on query intent and learner context. All generated resources are saved so that the frontend can reload them during future sessions.
+\section{API Flow Description}
 
-\section[Design Summary]{\textbf{Design Summary}}
-The design of VisuaLearn AI emphasizes modularity, adaptability, reliability, and usability. The layered architecture allows independent development of the frontend, backend, intelligent services, and data storage. The adaptive workflow supports personalization, while the learning workspace organizes outputs into meaningful educational artifacts.
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3cm}|p{4.2cm}|p{6cm}|}
+\hline
+\textbf{Route Group} & \textbf{Main Responsibility} & \textbf{Flow} \\
+\hline
+Chat & Conversational learning and streaming response & Receives query, loads session context, invokes strategy selection, streams generated response, and stores messages. \\
+\hline
+Simulation & Procedural visual learning & Detects simulation suitability, generates declarative steps/specification, validates output, and returns a renderable simulation payload. \\
+\hline
+Visualization & Image, video, and 3D learning support & Builds visual-generation request, validates generated artifact or spec, and sends it to the safe viewer. \\
+\hline
+Voice & Speech input and output & Converts speech to text, sends text through learning flow, and converts the final response to speech when enabled. \\
+\hline
+Feedback & Learning signal collection & Stores usefulness, quiz correctness, completion, and correction signals for future personalization. \\
+\hline
+Documents & Document-assisted learning & Uploads files, extracts text, chunks content, stores metadata, and retrieves relevant context for later queries. \\
+\hline
+\end{tabular}
+\caption{Major API route flows}
+\label{tab:api-flow}
+\end{table}
+
+\section{Module Dependency Diagram}
+
+\begin{figure}[H]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+box/.style={draw, rounded corners, align=center, minimum width=3cm, minimum height=0.8cm, font=\small},
+arrow/.style={-{Latex[length=2mm]}, line width=0.35pt}
+]
+\node[box] (ui) at (0,3) {Frontend UI};
+\node[box] (hooks) at (3.5,3) {React Hooks};
+\node[box] (api) at (7,3) {API Routes};
+\node[box] (auth) at (10.5,4.2) {Auth Middleware};
+\node[box] (agents) at (10.5,3) {Agent System};
+\node[box] (services) at (10.5,1.8) {Learning Services};
+\node[box] (db) at (14,3) {Supabase DB};
+\node[box] (providers) at (14,1.8) {AI Providers};
+\draw[arrow] (ui) -- (hooks);
+\draw[arrow] (hooks) -- (api);
+\draw[arrow] (api) -- (auth);
+\draw[arrow] (api) -- (agents);
+\draw[arrow] (agents) -- (services);
+\draw[arrow] (services) -- (db);
+\draw[arrow] (services) -- (providers);
+\draw[arrow] (auth) -- (db);
+\draw[arrow] (db) -- (agents);
+\end{tikzpicture}
+}
+\caption{Module dependency diagram}
+\label{fig:module-dependency}
+\end{figure}
+
+\section{Adaptive Strategy Selection Workflow}
+
+The adaptive strategy selector uses learner state, topic context, and feedback history to choose the most suitable learning action. The workflow replaces a simple question-to-response pipeline with a detailed agentic flow:
+
+\begin{center}
+\texttt{User Query -> Context Builder -> Strategy Selector -> Content Generator -> Simulation/Visualization -> Validation -> Storage -> Feedback}
+\end{center}
+
+\begin{tcblisting}{listing only,colback=gray!10!white, breakable, boxsep=0pt,top=1mm,bottom=1mm,left=1mm,right=1mm,
+listing options={basicstyle=\footnotesize\ttfamily,backgroundcolor=\color{gray!20},breaklines=true,columns=fullflexible}}
+Input: user query, conversation history, profile, document chunks, feedback
+1. Build context from current query, profile, history, and retrieved documents.
+2. Classify intent as normal chat, deep learning, quiz, flashcard, simulation, visualization, video, or voice.
+3. Estimate learner state using confidence, engagement, failures, topic status, and response time.
+4. Select strategy: concise explanation, guided steps, visual explanation, quiz, simulation, remediation, or generated video.
+5. Generate the required learning artifact using the selected agent.
+6. Validate output for safety, structure, and rendering support.
+7. Store message, resource, selected strategy, and metadata.
+8. Collect feedback and update future strategy context.
+\end{tcblisting}
+
+\section{Security Design}
+
+The security design protects both user data and generated content:
+\begin{itemize}[leftmargin=1.2cm]
+\item \textbf{Authentication:} Supabase sessions identify signed-in users before private routes are accessed.
+\item \textbf{Authorization:} Ownership checks ensure that users can access only their own conversations, resources, documents, and feedback.
+\item \textbf{Rate limiting:} Expensive routes such as chat, simulation, visualization, voice, and generation APIs are limited to control misuse and cost.
+\item \textbf{Safe rendering:} Generated visual artifacts are validated or rendered in controlled viewers before display.
+\item \textbf{Backend-only secrets:} Provider keys are stored on the backend and are never exposed to the browser.
+\end{itemize}
+
+\section{Design Rationale}
+
+React was selected for the frontend because it supports reusable components, state-driven rendering, and a responsive single-page application structure. Vite was selected for fast development builds and simple frontend tooling. Node.js and Express were selected for the backend because they provide lightweight routing, middleware composition, streaming support, and easy integration with JavaScript-based services.
+
+Supabase was selected because it combines authentication, PostgreSQL-backed persistence, storage, and row-level security concepts in one platform. Server-Sent Events were selected for chat streaming because they allow the browser to receive incremental text and structured events over a simple HTTP connection. This is suitable for educational responses because learners can begin reading while the response is still being generated.
+
+The agent-based architecture was selected because different learning tasks require different specialized behavior. A single general response generator is not enough for a platform that supports explanations, RAG, quizzes, flashcards, simulations, image generation, video generation, 3D visualization, validation, and feedback adaptation.
+
+\section{Design Summary}
+
+The design of VisuaLearn emphasizes modularity, adaptability, reliability, and usability. The architecture separates interface, application routing, intelligence, generation modules, validation, and data persistence. The detailed workflow and diagrams show how learner queries move through context building, adaptive strategy selection, generation, validation, storage, and feedback so that the platform can support both natural conversation and structured learning.

@@ -14,7 +14,7 @@ const FALLBACK_ALERT_THRESHOLD = parseFloat(process.env.BANDIT_FALLBACK_THRESHOL
  */
 export const ACTION_REQUIREMENTS = {
   visual_widget: {
-    description: 'Must include a widget/visualization',
+    description: 'Must include a declarative renderer visual spec',
     mustHave: ['tool_use'],
     toolName: 'show_widget',
     mustNotBe: ['text_only'],

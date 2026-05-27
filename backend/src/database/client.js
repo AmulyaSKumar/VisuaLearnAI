@@ -161,13 +161,19 @@ export async function updateUserProfile(userId, updates) {
  * @param {string} title - Conversation title
  * @returns {Promise<Object>} Created conversation
  */
-export async function createConversation(userId, title) {
+export async function createConversation(userId, title, metadata = {}) {
+  const conversationMetadata = {
+    mode: 'chat',
+    ...metadata,
+  };
+
   try {
     const { data, error } = await supabase
       .from('conversations')
       .insert({
         user_id: userId,
         title,
+        metadata: conversationMetadata,
       })
       .select()
       .single();

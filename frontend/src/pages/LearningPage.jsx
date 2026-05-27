@@ -5,8 +5,6 @@ import { usePersona } from "../contexts/PersonaContext";
 import { getConversationMessages, supabase, updateAssistantMessageContent } from "../lib/supabase";
 import { useLearningContent } from "../hooks/useLearningContent";
 import { useLearningResources, RESOURCE_TYPES } from "../hooks/useLearningResources";
-import { use3DWidget } from "../hooks/use3DWidget";
-import { should3DVisualize } from "../utils/detect3D";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
 import InputBar from "../components/InputBar";
@@ -17,8 +15,8 @@ import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
 import EngagingLoader from "../components/learning/EngagingLoader";
-import WidgetFrame from "../components/WidgetFrame";
 import { exportToNotion, getNotionStatus } from "../services/notionService";
+import { SIMULATION_CONFIG } from "../config/simulationConfig";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -27,7 +25,6 @@ const TAB_LABELS = {
   quiz: 'Quiz',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
-  visualization: '3D View',
 };
 
 const NOTION_ARTIFACT_LABELS = {
@@ -36,15 +33,7 @@ const NOTION_ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
-  visualization: '3D View',
 };
-
-// Depth levels for content complexity
-const DEPTH_LEVELS = [
-  { id: 'simple', label: 'Simple', description: 'Easy explanations, no jargon' },
-  { id: 'balanced', label: 'Balanced', description: 'Mix of simple and technical' },
-  { id: 'deep', label: 'Technical', description: 'Full detail, industry terms' },
-];
 
 const TOPIC_STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'can', 'explain', 'for', 'full', 'fully', 'form',
@@ -108,7 +97,6 @@ function LearningPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [readCards, setReadCards] = useState(new Set());
-  const [showDepthDropdown, setShowDepthDropdown] = useState(false);
   // Only Learn tab by default, other tabs appear when user requests them
   const [, setVisibleTabs] = useState(['learn']);
   const [loadingTabs, setLoadingTabs] = useState(new Set()); // Per-tab loading state
@@ -136,7 +124,6 @@ function LearningPageContent() {
   // Learning Intelligence context
   const {
     depthLevel,
-    setDepthLevel,
     updateConceptMastery,
     recordQuizResult,
     getConceptStatus,
@@ -198,15 +185,6 @@ function LearningPageContent() {
     saveResource,
   } = useLearningResources(conversationId, accessToken);
 
-  const {
-    isLoading: is3DGenerating,
-    skipReason: visualizationSkipReason,
-    generate3D,
-  } = use3DWidget(accessToken);
-
-  // State for 3D regeneration
-  const [isRegenerating3D, setIsRegenerating3D] = useState(false);
-
   // NEW: State for content expansion (progressive disclosure)
   const [isExpandingContent, setIsExpandingContent] = useState(false);
   const [showNotionExport, setShowNotionExport] = useState(false);
@@ -257,7 +235,6 @@ function LearningPageContent() {
   const [localSimulationDetection, setLocalSimulationDetection] = useState(null);
   const simulationDetection = localSimulationDetection || hookSimulationDetection;
   const [simulationAutoShown, setSimulationAutoShown] = useState(false);
-  const [visualizationHintChecked, setVisualizationHintChecked] = useState(false);
 
   // Ref to track if detection is in progress (prevent duplicate calls)
   const detectionInProgressRef = useRef(false);
@@ -299,7 +276,7 @@ function LearningPageContent() {
       const response = await fetch(`${API_BASE}/api/simulation/detect`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query })
+          body: JSON.stringify({ query })
       });
 
       console.log('[LearningPage] Detection response status:', response.status);
@@ -337,6 +314,7 @@ function LearningPageContent() {
   // Handle simulation detection - show tab and auto-activate when supported
   useEffect(() => {
     if (!simulationDetection?.supported || simulationAutoShown) return;
+    if (!simulationDetection.explicit) return;
 
     const { confidence } = simulationDetection;
     console.log('[LearningPage] Simulation detection:', {
@@ -345,34 +323,19 @@ function LearningPageContent() {
       confidence,
     });
 
-    // Show simulation tab whenever supported (any confidence level)
+    // Show simulation tab only for explicit visualize/simulation requests.
     setVisibleTabs(prev => {
       if (prev.includes('simulation')) return prev;
       return [...prev, 'simulation'];
     });
 
-    // Auto-switch to simulation tab for high confidence detections
-    if (confidence > 0.6) {
+    // Auto-switch only for explicit high-confidence visualization requests.
+    if (confidence > SIMULATION_CONFIG.AUTO_RENDER_THRESHOLD) {
       setActiveTab('simulation');
     }
 
     setSimulationAutoShown(true);
   }, [simulationDetection, simulationAutoShown]);
-
-  // Show a dedicated 3D tab when the query is spatial enough for visualization.
-  useEffect(() => {
-    if (!userQuery || visualizationHintChecked) return;
-
-    const detection = should3DVisualize(userQuery);
-    if (detection.use3D) {
-      setVisibleTabs(prev => {
-        if (prev.includes('visualization')) return prev;
-        return [...prev, 'visualization'];
-      });
-    }
-
-    setVisualizationHintChecked(true);
-  }, [userQuery, visualizationHintChecked]);
 
   // Sync visible tabs with persisted resource types from database
   // This ensures tabs persist across page reloads
@@ -412,18 +375,10 @@ function LearningPageContent() {
           newTabs.add('simulation');
           newLoaded.add('simulation');
           break;
-        case RESOURCE_TYPES.VISUALIZATION:
-          newTabs.add('visualization');
-          newLoaded.add('visualization');
-          break;
         default:
           break;
       }
     });
-
-    if (userQuery && should3DVisualize(userQuery).use3D) {
-      newTabs.add('visualization');
-    }
 
     console.log('[LearningPage] Setting visible tabs:', [...newTabs]);
     setVisibleTabs([...newTabs]);
@@ -478,11 +433,6 @@ function LearningPageContent() {
                 merged.simulationDetection = resource.content.detection;
               }
               break;
-            case RESOURCE_TYPES.VISUALIZATION:
-              if (resource.content.widget) {
-                merged.visualizationWidget = resource.content.widget;
-              }
-              break;
             default:
               break;
           }
@@ -511,8 +461,6 @@ function LearningPageContent() {
     });
     return normalized;
   }, [rawContent]);
-
-  const visualizationWidget = rawContent?.visualizationWidget || null;
 
   const conversationTurns = useMemo(() => {
     const turns = [];
@@ -556,10 +504,9 @@ function LearningPageContent() {
     if (learningContent?.quiz?.length) artifacts.push('quiz');
     if (learningContent?.flashcards?.length) artifacts.push('flashcards');
     if (learningContent?.mind_map) artifacts.push('mindmap');
-    if (simulationDetection?.supported) artifacts.push('simulation');
-    if (visualizationWidget) artifacts.push('visualization');
+    if (simulationDetection?.supported && simulationDetection?.explicit) artifacts.push('simulation');
     return artifacts;
-  }, [learningContent, simulationDetection, visualizationWidget]);
+  }, [learningContent, simulationDetection]);
 
   // Load conversation and messages
   // Wait for persisted resources to be loaded first to avoid unnecessary API calls
@@ -581,7 +528,6 @@ function LearningPageContent() {
       localSimulationDetectionRef.current = null; // Also reset the ref
       detectionInProgressRef.current = false; // Reset in-progress flag
       setSimulationAutoShown(false);
-      setVisualizationHintChecked(false);
       clearContentRef.current(); // Use ref to avoid infinite loop
       setStoredContent(null);
       setDocumentId(null);
@@ -602,6 +548,10 @@ function LearningPageContent() {
           .single();
 
         if (convError) throw convError;
+        if (convData?.metadata?.mode !== 'learning') {
+          navigate(`/chat/${conversationId}`, { replace: true });
+          return;
+        }
         setConversation(convData);
 
         // Load messages
@@ -733,7 +683,6 @@ function LearningPageContent() {
       'flashcards': RESOURCE_TYPES.FLASHCARDS,
       'mindmap': RESOURCE_TYPES.MINDMAP,
       'simulation': RESOURCE_TYPES.SIMULATION,
-      'visualization': RESOURCE_TYPES.VISUALIZATION,
     };
 
     // Check if content exists in persisted resources (from database)
@@ -756,8 +705,6 @@ function LearningPageContent() {
           return Array.isArray(currentContent?.quiz) && currentContent.quiz.length > 0;
         case 'mindmap':
           return currentContent?.mind_map?.branches && Array.isArray(currentContent.mind_map.branches) && currentContent.mind_map.branches.length > 0;
-        case 'visualization':
-          return !!currentContent?.visualizationWidget;
         default:
           return false;
       }
@@ -772,33 +719,6 @@ function LearningPageContent() {
     setLoadingTabs(prev => new Set([...prev, tabId]));
 
     try {
-      if (tabId === 'visualization') {
-        const assistantMessage = messages.find(m => m.role === 'assistant');
-        const assistantContext = assistantMessage?.content || assistantMessage?.text || '';
-        const widget = await generate3D(userQuery, assistantContext);
-
-        if (!widget) {
-          throw new Error(visualizationSkipReason || '3D visualization was skipped for this topic');
-        }
-
-        const merged = {
-          ...(storedContentRef.current || {}),
-          visualizationWidget: widget,
-        };
-
-        setStoredContent(merged);
-        setLoadedTabs(prev => new Set([...prev, 'visualization']));
-
-        await saveResource(
-          RESOURCE_TYPES.VISUALIZATION,
-          userQuery || conversation?.title || '3D visualization',
-          { widget },
-          assistantMessage?.id || null
-        );
-
-        return;
-      }
-
       const apiContentType = (tabId === 'flashcards' || tabId === 'mindmap')
         ? 'flashcards-mindmap'
         : tabId;
@@ -900,7 +820,7 @@ function LearningPageContent() {
         return next;
       });
     }
-  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId, documentId, hasResource, conversation, messages, generate3D, saveResource, visualizationSkipReason]);
+  }, [loadingTabs, loadedTabs, userQuery, userId, accessToken, depthLevel, conversationId, documentId, hasResource, conversation, saveResource]);
   // Note: fetchTabContent removed from deps - using fetchTabContentRef to avoid infinite loops
 
   const handleReadCard = (cardId) => {
@@ -1058,53 +978,6 @@ function LearningPageContent() {
     }
   }, [userQuery, isExpandingContent, userId, accessToken, depthLevel, conversationId]);
 
-  // Handle 3D visualization regeneration
-  const handleRegenerate3D = useCallback(async () => {
-    if (!userQuery || isRegenerating3D) return;
-
-    setIsRegenerating3D(true);
-    console.log('[LearningPage] Regenerating 3D visualization...');
-
-    try {
-      const assistantMessage = messages.find(m => m.role === 'assistant');
-      const assistantContext = assistantMessage?.content || assistantMessage?.text || '';
-
-      // Generate new 3D widget
-      const newWidget = await generate3D(userQuery, assistantContext);
-
-      if (!newWidget) {
-        console.warn('[LearningPage] 3D regeneration returned null:', visualizationSkipReason);
-        return;
-      }
-
-      console.log('[LearningPage] 3D regeneration successful:', {
-        id: newWidget.id,
-        title: newWidget.title,
-      });
-
-      // Update local state
-      const merged = {
-        ...(storedContentRef.current || {}),
-        visualizationWidget: newWidget,
-      };
-      setStoredContent(merged);
-
-      // Save to database (will upsert existing resource)
-      await saveResource(
-        RESOURCE_TYPES.VISUALIZATION,
-        userQuery || conversation?.title || '3D visualization',
-        { widget: newWidget },
-        assistantMessage?.id || null
-      );
-
-      console.log('[LearningPage] 3D regeneration saved to database');
-    } catch (err) {
-      console.error('[LearningPage] 3D regeneration failed:', err);
-    } finally {
-      setIsRegenerating3D(false);
-    }
-  }, [userQuery, isRegenerating3D, messages, generate3D, visualizationSkipReason, saveResource, conversation?.title]);
-
   const readChatStream = useCallback(async (response) => {
     if (!response.ok || !response.body) {
       const payload = await response.json().catch(() => ({}));
@@ -1177,7 +1050,6 @@ function LearningPageContent() {
     setLocalSimulationDetection(null);
     localSimulationDetectionRef.current = null;
     setSimulationAutoShown(false);
-    setVisualizationHintChecked(false);
     clearContentRef.current();
     setStoredContent(null);
     setFactCheck(null);
@@ -1236,7 +1108,6 @@ function LearningPageContent() {
           personaId: defaultPersona?.id,
           documentId,
           webSearch: webSearchEnabled && !documentId,
-          skip3D: true,
         }),
       });
 
@@ -1419,7 +1290,7 @@ function LearningPageContent() {
             'Content-Type': 'application/json',
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({ query, requestedArtifact: 'simulation' }),
         });
 
         const detection = await response.json().catch(() => null);
@@ -1895,73 +1766,6 @@ function LearningPageContent() {
           </>
         );
 
-      case 'visualization':
-        return (
-          <>
-            <BackButton />
-            {visualizationWidget ? (
-              <div className="max-w-4xl mx-auto space-y-4">
-                {/* Header with Regenerate button */}
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-foreground">
-                    3D Visualization
-                  </h2>
-                  <button
-                    onClick={handleRegenerate3D}
-                    disabled={isRegenerating3D || is3DGenerating}
-                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isRegenerating3D ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Regenerating...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Regenerate
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* 3D Widget */}
-                <WidgetFrame widget={visualizationWidget} onInteraction={handleInteraction} />
-
-                {/* Metadata */}
-                {visualizationWidget.topic && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Topic: {visualizationWidget.topic}
-                  </p>
-                )}
-              </div>
-            ) : is3DGenerating ? (
-              <EngagingLoader tabType="visualization" topic={learningContent?.topic || userQuery || conversation?.title} />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <p className="text-muted-foreground mb-2">No 3D visualization available</p>
-                {visualizationSkipReason && (
-                  <p className="text-xs text-muted-foreground mb-4">{visualizationSkipReason}</p>
-                )}
-                <button
-                  onClick={handleRegenerate3D}
-                  disabled={isRegenerating3D}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {isRegenerating3D ? 'Generating...' : 'Generate 3D View'}
-                </button>
-              </div>
-            )}
-          </>
-        );
-
       default:
         return null;
     }
@@ -1996,42 +1800,6 @@ function LearningPageContent() {
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {/* Depth Level Toggle */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowDepthDropdown(!showDepthDropdown)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-                >
-                  <span className="hidden text-muted-foreground sm:inline">Depth:</span>
-                  <span className="font-medium text-foreground capitalize">{depthLevel}</span>
-                </button>
-
-                {showDepthDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowDepthDropdown(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-md shadow-lg z-20 py-1">
-                      {DEPTH_LEVELS.map((level) => (
-                        <button
-                          key={level.id}
-                          onClick={() => {
-                            setDepthLevel(level.id);
-                            setShowDepthDropdown(false);
-                          }}
-                          className={`w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors ${
-                            depthLevel === level.id ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          {level.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
               {/* Stats Badge */}
               {stats.studyStreak > 0 && (
                 <span className="hidden sm:inline px-2.5 py-1.5 text-xs font-medium text-muted-foreground border border-border rounded-md">
@@ -2103,7 +1871,7 @@ function LearningPageContent() {
       </div>
 
       <div className="flex-shrink-0 border-t border-border bg-background/95 px-3 py-3 backdrop-blur sm:px-6">
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-4xl space-y-3">
           <InputBar
             onSend={handleFollowUp}
             inputDisabled={isFollowUpLoading || isLoading || isLearningContentLoading}

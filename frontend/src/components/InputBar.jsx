@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSpeechToText } from "../hooks/useSpeechToText";
 
 const PLACEHOLDERS = [
   "How does machine learning work?",
@@ -15,6 +16,7 @@ export default function InputBar({
   onSend,
   inputDisabled = false,
   webSearchEnabled = false,
+  selectedTools = [],
   onToggleWebSearch,
   onDocumentUpload,
   onGenerateArtifact,
@@ -24,6 +26,21 @@ export default function InputBar({
   const [showPlaceholder, setShowPlaceholder] = useState(true);
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef(null);
+  const dictationBaseRef = useRef("");
+  const {
+    isListening,
+    isSupported: isSpeechSupported,
+    transcript,
+    interimTranscript,
+    startListening,
+    stopListening,
+    clearTranscript,
+  } = useSpeechToText({
+    continuous: true,
+    interimResults: true,
+    silenceTimeoutMs: 3000,
+    onError: (message) => console.warn("Speech-to-text error:", message),
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -50,10 +67,20 @@ export default function InputBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showTools]);
 
+  useEffect(() => {
+    if (!isListening && !transcript && !interimTranscript) return;
+    const parts = [dictationBaseRef.current, transcript, interimTranscript]
+      .map(part => String(part || "").trim())
+      .filter(Boolean);
+    setInput(parts.join(" ").replace(/\s+/g, " "));
+  }, [interimTranscript, isListening, transcript]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!input.trim() || inputDisabled) return;
 
+    stopListening();
+    clearTranscript();
     onSend(input);
     setInput("");
   };
@@ -66,6 +93,9 @@ export default function InputBar({
   };
 
   const handleClear = () => {
+    stopListening();
+    clearTranscript();
+    dictationBaseRef.current = "";
     setInput("");
   };
 
@@ -85,25 +115,32 @@ export default function InputBar({
     onGenerateArtifact?.(action);
   };
 
+  const handleToggleSpeech = () => {
+    if (!isSpeechSupported || inputDisabled) return;
+    if (isListening) {
+      stopListening();
+      return;
+    }
+    dictationBaseRef.current = input.trim();
+    clearTranscript();
+    startListening();
+  };
+
+  const handleInputChange = (event) => {
+    setInput(event.target.value);
+    if (isListening) {
+      dictationBaseRef.current = event.target.value;
+      clearTranscript();
+    }
+  };
+
   return (
     <div className="w-full">
       <form
         onSubmit={handleSubmit}
         className="w-full relative z-20 flex items-center neu-pressed rounded-xl overflow-visible"
       >
-        <input
-          type="text"
-          value={displayText}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={showPlaceholder ? PLACEHOLDERS[placeholderIndex] : ""}
-          disabled={inputDisabled}
-          className={`flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm sm:text-[15px] py-4 sm:py-5 px-5 text-foreground placeholder:text-muted-foreground disabled:opacity-50 transition-opacity ${
-            showPlaceholder ? "placeholder:opacity-100" : "placeholder:opacity-0"
-          }`}
-        />
-
-        <div className="flex items-center gap-2 pr-3">
+        <div className="flex items-center gap-2 pl-3">
           {hasTools && (
             <div className="relative" ref={toolsRef}>
               <button
@@ -120,7 +157,7 @@ export default function InputBar({
               </button>
 
               {showTools && (
-                <div className="absolute bottom-full right-0 z-[100] mb-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                <div className="absolute bottom-full left-0 z-[100] mb-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-xl">
                   {onToggleWebSearch && (
                     <button
                       type="button"
@@ -167,6 +204,71 @@ export default function InputBar({
             </div>
           )}
 
+          {isSpeechSupported && (
+            <button
+              type="button"
+              onClick={handleToggleSpeech}
+              disabled={inputDisabled}
+              className={`h-10 min-h-[40px] rounded-xl border px-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+                isListening
+                  ? "animate-pulse border-primary/50 bg-primary/15 text-primary"
+                  : "border-border bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              title={isListening ? "Stop listening" : "Start speech input"}
+              aria-label={isListening ? "Stop listening" : "Start speech input"}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <path d="M12 19v3" />
+                </svg>
+                {isListening && <span className="hidden sm:inline">Listening...</span>}
+              </span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-3 py-2">
+          {selectedTools.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {selectedTools.map((tool) => (
+                <span
+                  key={tool.id}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                >
+                  {tool.icon && <span aria-hidden="true">{tool.icon}</span>}
+                  <span className="truncate">{tool.label}</span>
+                  {tool.onRemove && (
+                    <button
+                      type="button"
+                      onClick={tool.onRemove}
+                      className="-mr-1 grid h-5 w-5 place-items-center rounded-full text-primary/70 hover:bg-primary/10 hover:text-primary"
+                      aria-label={`Remove ${tool.label}`}
+                      title={`Remove ${tool.label}`}
+                    >
+                      x
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <input
+            type="text"
+            value={displayText}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder={showPlaceholder ? PLACEHOLDERS[placeholderIndex] : ""}
+            disabled={inputDisabled}
+            className={`min-w-0 bg-transparent border-none focus:outline-none focus:ring-0 text-sm sm:text-[15px] py-2 text-foreground placeholder:text-muted-foreground disabled:opacity-50 transition-opacity ${
+              showPlaceholder ? "placeholder:opacity-100" : "placeholder:opacity-0"
+            }`}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 pr-3">
           {displayText && (
             <button
               type="button"

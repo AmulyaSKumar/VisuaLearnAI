@@ -1,24 +1,50 @@
 /**
- * AI-only adaptive simulation API.
+ * Sandboxed simulation API.
  *
- * All runtime simulation output is generated through the agent pipeline in
- * simulation/adaptive-engine.js. Predefined generator registries and static
- * topic routing are intentionally not imported here.
+ * Runtime simulation output is produced by simulation/sandbox-engine.js.
+ * Old predefined renderer registries and adaptive renderer files are not used.
  */
 import { Router } from 'express';
-import { requireAuth } from '../../middleware/authMiddleware.js';
 import { rateLimitSimulation } from '../../middleware/rateLimitMiddleware.js';
 import {
-  generateAdaptiveSimulation,
-  recordSimulationFeedback,
-  topicUnderstandingAgent,
-} from '../../simulation/adaptive-engine.js';
+  detectSandboxSimulationSupport,
+  generateSandboxSimulation,
+} from '../../simulation/sandbox-engine.js';
+import {
+  LearningOrchestratorDecision,
+} from '../../services/learningOrchestratorDecision.js';
 
 const router = Router();
 
 function getUserId(req) {
   return req.body?.userId || req.user?.id || req.user?.userId || null;
 }
+
+/**
+ * POST /api/simulation/debug
+ * Console-first sandbox simulation engine.
+ */
+router.post('/debug', rateLimitSimulation, async (req, res) => {
+  try {
+    const { query, options = {} } = req.body;
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({
+        success: false,
+        supported: false,
+        error: 'query is required and must be a string',
+      });
+    }
+
+    const result = await generateSandboxSimulation(query, options);
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      supported: false,
+      error: error.message || 'Sandbox simulation debug failed',
+    });
+  }
+});
 
 /**
  * POST /api/simulation/detect
@@ -35,16 +61,32 @@ router.post('/detect', rateLimitSimulation, async (req, res) => {
       });
     }
 
-    const topicUnderstanding = await topicUnderstandingAgent(query);
+    const decision = LearningOrchestratorDecision({
+      query,
+      mode: req.body.mode || 'chat',
+      conversationState: req.body.conversationState || {},
+      requestedArtifact: req.body.requestedArtifact || null,
+    });
+    const support = detectSandboxSimulationSupport(decision.activeTopic || query, {
+      explicitQuery: query,
+      requestedArtifact: req.body.requestedArtifact || null,
+    });
+
     return res.json({
       success: true,
-      supported: topicUnderstanding.supported !== false,
-      topic: topicUnderstanding.topic,
-      domain: topicUnderstanding.domain,
-      complexity: topicUnderstanding.complexity,
-      educationalIntent: topicUnderstanding.educationalIntent,
-      simulationType: topicUnderstanding.simulationType,
-      confidence: topicUnderstanding.confidence,
+      supported: support.supported,
+      topic: support.topic,
+      family: support.family,
+      domain: support.domain,
+      complexity: support.complexity,
+      educationalIntent: support.reason,
+      simulationType: support.simulationType,
+      confidence: support.confidence,
+      requiresSandbox: support.requiresSandbox,
+      explicit: support.explicit,
+      reason: support.reason,
+      plan: support.plan,
+      decision,
     });
   } catch (error) {
     return res.status(500).json({
@@ -57,16 +99,11 @@ router.post('/detect', rateLimitSimulation, async (req, res) => {
 
 /**
  * POST /api/simulation/generate
- * Full adaptive simulation pipeline.
+ * Compatibility alias for the sandbox engine.
  */
-router.post('/generate', requireAuth, rateLimitSimulation, async (req, res) => {
+router.post('/generate', rateLimitSimulation, async (req, res) => {
   try {
-    const {
-      query,
-      conversationId = null,
-      previousSimulationId = null,
-      feedbackContext = null,
-    } = req.body;
+    const { query, options = {} } = req.body;
 
     if (!query || typeof query !== 'string') {
       return res.status(400).json({
@@ -75,11 +112,11 @@ router.post('/generate', requireAuth, rateLimitSimulation, async (req, res) => {
       });
     }
 
-    const result = await generateAdaptiveSimulation(query, {
+    const result = await generateSandboxSimulation(query, {
+      ...options,
       userId: getUserId(req),
-      conversationId,
-      previousSimulationId,
-      feedbackContext,
+      conversationId: req.body.conversationId || options.conversationId || null,
+      decision: req.body.decision || options.decision || null,
     });
 
     return res.json(result);
@@ -93,11 +130,11 @@ router.post('/generate', requireAuth, rateLimitSimulation, async (req, res) => {
 
 /**
  * POST /api/simulation/feedback
- * Store simulation-specific feedback for future adaptation.
+ * Compatibility no-op. The sandbox debug flow does not mutate model state.
  */
-router.post('/feedback', requireAuth, rateLimitSimulation, async (req, res) => {
+router.post('/feedback', rateLimitSimulation, async (req, res) => {
   try {
-    const { simulationId, type, score = null, reason = null } = req.body;
+    const { simulationId, type } = req.body;
     if (!simulationId || typeof simulationId !== 'string') {
       return res.status(400).json({ success: false, error: 'simulationId is required' });
     }
@@ -109,15 +146,7 @@ router.post('/feedback', requireAuth, rateLimitSimulation, async (req, res) => {
       });
     }
 
-    await recordSimulationFeedback({
-      simulationId,
-      userId: getUserId(req),
-      type,
-      score,
-      reason,
-    });
-
-    return res.json({ success: true });
+    return res.json({ success: true, stored: false, message: 'Sandbox feedback is accepted but not persisted.' });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -128,9 +157,9 @@ router.post('/feedback', requireAuth, rateLimitSimulation, async (req, res) => {
 
 /**
  * Compatibility wrapper for old POST /api/simulation callers.
- * It still runs the AI-only pipeline and never uses predefined generators.
+ * It still runs the sandbox engine and never uses predefined generators.
  */
-router.post('/', requireAuth, rateLimitSimulation, async (req, res) => {
+router.post('/', rateLimitSimulation, async (req, res) => {
   try {
     const query = req.body.query || req.body.topic;
     if (!query || typeof query !== 'string') {
@@ -140,10 +169,10 @@ router.post('/', requireAuth, rateLimitSimulation, async (req, res) => {
       });
     }
 
-    const result = await generateAdaptiveSimulation(query, {
+    const result = await generateSandboxSimulation(query, {
       userId: getUserId(req),
       conversationId: req.body.conversationId || null,
-      feedbackContext: req.body.feedbackContext || null,
+      decision: req.body.decision || null,
     });
 
     return res.json(result);

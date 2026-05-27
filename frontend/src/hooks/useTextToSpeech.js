@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { cleanTextForSpeech } from '../utils/cleanTextForSpeech';
 
 /**
  * Hook for Text-to-Speech using Web Speech API
@@ -21,6 +22,7 @@ export default function useTextToSpeech(options = {}) {
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [voices, setVoices] = useState([]);
   const [currentVoice, setCurrentVoice] = useState(null);
   const [error, setError] = useState(null);
@@ -86,11 +88,15 @@ export default function useTextToSpeech(options = {}) {
   const speak = useCallback((text) => {
     if (!synthRef.current || !text) return;
 
+    const speechText = cleanTextForSpeech(text);
+    if (!speechText) return;
+
     // Cancel any current speech
     synthRef.current.cancel();
     setError(null);
+    setIsLoading(true);
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = language;
     utterance.rate = Math.max(0.1, Math.min(10, rate));
     utterance.pitch = Math.max(0, Math.min(2, pitch));
@@ -101,6 +107,7 @@ export default function useTextToSpeech(options = {}) {
     }
 
     utterance.onstart = () => {
+      setIsLoading(false);
       setIsSpeaking(true);
       setIsPaused(false);
     };
@@ -108,16 +115,19 @@ export default function useTextToSpeech(options = {}) {
     utterance.onend = () => {
       setIsSpeaking(false);
       setIsPaused(false);
+      setIsLoading(false);
     };
 
     utterance.onerror = (event) => {
       if (event.error === 'canceled' || event.error === 'interrupted') {
         // Not an error, just user action
+        setIsLoading(false);
         return;
       }
       setError(`Speech error: ${event.error}`);
       setIsSpeaking(false);
       setIsPaused(false);
+      setIsLoading(false);
     };
 
     utterance.onpause = () => {
@@ -152,6 +162,7 @@ export default function useTextToSpeech(options = {}) {
       synthRef.current.cancel();
       setIsSpeaking(false);
       setIsPaused(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -179,6 +190,7 @@ export default function useTextToSpeech(options = {}) {
   return {
     isSpeaking,
     isPaused,
+    isLoading,
     isSupported,
     voices,
     currentVoice,

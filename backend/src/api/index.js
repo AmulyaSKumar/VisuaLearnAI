@@ -12,10 +12,10 @@ import feedbackRoutes from './feedback/routes.js';
 import learningContentRoutes from './learning/index.js';
 import ttsRoutes from './tts/routes.js';
 import documentRoutes from './documents/routes.js';
-import simulationRoutes from './simulation/routes.js';
-import visualizationRoutes from './visualization/index.js';
 import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
+import realtimeRoutes from './realtime/routes.js';
+import simulationRoutes from './simulation/routes.js';
 import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
@@ -190,14 +190,6 @@ export function registerRoutes(app) {
   router.use('/documents', requireAuth, documentRoutes);
 
   /**
-   * Simulation API
-   * POST /api/simulation/detect - Topic Understanding Agent
-   * POST /api/simulation/generate - AI-only adaptive simulation pipeline
-   * POST /api/simulation/feedback - Simulation-specific feedback
-   */
-  router.use('/simulation', simulationRoutes);
-
-  /**
    * Notion Export API
    * GET /api/notion/connect - Start Notion OAuth
    * GET /api/notion/callback - Notion OAuth callback
@@ -205,17 +197,11 @@ export function registerRoutes(app) {
    * DELETE /api/notion/disconnect - Remove Notion connection
    * POST /api/notion/export - Export structured learning resources
    *
-   * Keep this before broad protected mounts such as visualizationRoutes.
+   * Keep this before broad protected mounts.
    * OAuth callbacks are browser redirects and cannot include an Authorization header.
    */
   router.use('/notion', notionCallbackRoutes);
   router.use('/notion', requireAuth, notionRoutes);
-
-  /**
-   * 3D Visualization API - Protected
-   * POST /api/generate-3d - Generate 3D widget separately from chat
-   */
-  router.use('/', requireAuth, visualizationRoutes);
 
   /**
    * Learning Resources API - Protected
@@ -238,6 +224,23 @@ export function registerRoutes(app) {
    * POST /api/personas/:id/set-default - Set as default persona
    */
   router.use('/personas', requireAuth, personaRoutes);
+
+  /**
+   * Realtime Conversation API - Protected
+   * GET /api/realtime/status - Report backend-only Azure realtime configuration status
+   * POST /api/realtime/session - Create/rebuild a realtime conversation session
+   * PATCH /api/realtime/session/:sessionId - Refresh injected context
+   * POST /api/realtime/session/:sessionId/text - Text fallback turn through realtime context
+   */
+  router.use('/realtime', requireAuth, realtimeRoutes);
+
+  /**
+   * Simulation API
+   * POST /api/simulation/debug - Console-first sandbox simulation engine
+   * POST /api/simulation/detect - Topic simulation support detection
+   * POST /api/simulation/generate - Compatibility alias for sandbox generation
+   */
+  router.use('/simulation', simulationRoutes);
 
   /**
    * Admin API - Requires admin user
@@ -366,12 +369,10 @@ export function registerRoutes(app) {
         'POST /api/chat',
         'POST /api/tool-result',
         'POST /api/learning-content',
-        'POST /api/simulation',
+        'POST /api/simulation/debug',
         'POST /api/simulation/detect',
         'POST /api/simulation/generate',
         'POST /api/simulation/feedback',
-        'GET /api/simulation/types',
-        'POST /api/generate-3d',
         'POST /api/tts',
         'POST /api/plan',
         'POST /api/generate-assets',
@@ -380,6 +381,9 @@ export function registerRoutes(app) {
         'POST /api/personas',
         'GET /api/personas/default',
         'POST /api/personas/:id/set-default',
+        'POST /api/realtime/session',
+        'GET /api/realtime/status',
+        'POST /api/realtime/session/:sessionId/text',
         'GET /api/usage/:userId',
         'GET /api/progress/:userId',
         'GET /api/health'

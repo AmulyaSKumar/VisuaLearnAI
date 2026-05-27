@@ -2,14 +2,10 @@ import { useState, useEffect } from 'react';
 import MindMapView from './learning/MindMapView';
 import FlashcardsView from './learning/FlashcardsView';
 import QuizView from './learning/QuizView';
-import InteractiveText from './learning/InteractiveText';
-import LearningPathView from './learning/LearningPathView';
 import ConceptsView from './learning/ConceptsView';
 import SimulationView from './learning/SimulationView';
 
 const TABS = [
-  { id: 'text', label: 'Explanation', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { id: 'audio', label: 'Audio', icon: 'M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z' },
   { id: 'simulation', label: 'Simulation', icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'mindmap', label: 'Mind Map', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
   { id: 'flashcards', label: 'Flashcards', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
@@ -17,19 +13,29 @@ const TABS = [
   { id: 'concepts', label: 'Concepts', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' },
 ];
 
-export default function LearningWorkspace({ content, isLoading, userId, onInteraction, accessToken, initialTab = 'text' }) {
-  const [activeTab, setActiveTab] = useState(initialTab || 'text');
-  const [mode, setMode] = useState('balanced'); // simple, balanced, technical
-  const visibleTabs = TABS.filter(tab => {
+const SINGLE_ARTIFACT_TABS = new Set(['simulation', 'mindmap', 'flashcards', 'quiz']);
+
+export default function LearningWorkspace({ content, isLoading, userId, onInteraction, accessToken, initialTab = 'quiz' }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'quiz');
+  const requestedSingleTab = SINGLE_ARTIFACT_TABS.has(initialTab) ? initialTab : null;
+  const availableTabs = TABS.filter(tab => {
     if (tab.id === 'simulation') return !!content?.simulationDetection?.supported;
     if (tab.id === 'mindmap') return !!(content?.mindmap || content?.mind_map);
     if (tab.id === 'flashcards') return Array.isArray(content?.flashcards) && content.flashcards.length > 0;
     if (tab.id === 'quiz') return Array.isArray(content?.quiz) && content.quiz.length > 0;
     if (tab.id === 'concepts') return Array.isArray(content?.concepts) && content.concepts.length > 0;
-    if (tab.id === 'audio') return !!content?.summary;
-    return true;
+    return false;
   });
-  const selectedTab = visibleTabs.some(tab => tab.id === activeTab) ? activeTab : 'text';
+  const visibleTabs = requestedSingleTab
+    ? availableTabs.filter(tab => tab.id === requestedSingleTab)
+    : availableTabs;
+  const selectedTab = visibleTabs.some(tab => tab.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id;
+
+  useEffect(() => {
+    setActiveTab(initialTab || 'quiz');
+  }, [initialTab]);
 
   // Track tab changes
   useEffect(() => {
@@ -63,23 +69,6 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
 
   const renderTabContent = () => {
     switch (selectedTab) {
-      case 'text':
-        return (
-          <InteractiveText
-            content={content}
-            mode={mode}
-            userId={userId}
-          />
-        );
-      case 'audio':
-        return (
-          <InteractiveText
-            content={content}
-            mode={mode}
-            userId={userId}
-            audioMode={true}
-          />
-        );
       case 'simulation':
         return (
           <SimulationView
@@ -125,48 +114,12 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
     }
   };
 
+  if (!selectedTab) return null;
+
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">{content.title || content.topic}</h3>
-              <p className="text-xs text-muted-foreground">{content.summary?.slice(0, 80)}...</p>
-            </div>
-          </div>
-
-          {/* Mode Switcher */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
-            {['simple', 'balanced', 'technical'].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  mode === m
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {m.charAt(0).toUpperCase() + m.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Learning Path */}
-        {content.learningPath && (
-          <LearningPathView learningPath={content.learningPath} compact={true} />
-        )}
-      </div>
-
       {/* Tabs */}
+      {visibleTabs.length > 1 && (
       <div className="border-b border-border bg-muted/20 overflow-x-auto">
         <div className="flex px-2 py-1 gap-1 min-w-max">
           {visibleTabs.map((tab) => (
@@ -187,6 +140,7 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
           ))}
         </div>
       </div>
+      )}
 
       {/* Content Area */}
       <div className="p-4 min-h-[300px] max-h-[600px] overflow-y-auto">

@@ -1,65 +1,81 @@
 \chapter{Fundamentals and Literature Survey}
 
-The development of VisuaLearn AI is based on concepts from intelligent tutoring systems, adaptive learning, learner modelling, educational visualization, simulation-based learning, structured revision, and reliable full-stack software design. This chapter explains the fundamentals required to understand the project and surveys related work that influenced the system architecture.
+The development of VisuaLearn is based on concepts from intelligent tutoring systems, adaptive learning, learner modelling, educational visualization, simulation-based learning, structured revision, and reliable full-stack software design. This chapter separates the theoretical fundamentals from the literature survey so that the project can be understood as both a software system and a research-motivated educational tool.
 
-\section[Intelligent Tutoring Systems]{\textbf{Intelligent Tutoring Systems}}
-An Intelligent Tutoring System is a software system that provides instruction, feedback, and support to learners. Such systems usually contain a domain model, a learner model, a tutoring model, and an interface model. The domain model represents the subject knowledge. The learner model stores the student's current understanding. The tutoring model decides the next instructional action. The interface model presents the response to the learner. Personalized tutoring has long been considered valuable in education \cite{Bloom1984}, and meta-analytic studies have reported positive learning outcomes for intelligent tutoring systems \cite{Ma2014}.
+\section[Fundamentals]{\textbf{Fundamentals}}
 
-VisuaLearn AI follows the same educational principle but implements it in a modern web-based form. The domain content is generated dynamically for different topics. The learner model is represented using conversation history, resource history, quiz results, engagement signals, and adaptive context. The tutoring model selects teaching strategies such as visual explanation, guided steps, quiz mode, Socratic questioning, or remediation. The interface model is implemented as a learning workspace with tabs, cards, simulations, and voice controls.
+\subsection[Intelligent Tutoring Systems]{\textbf{Intelligent Tutoring Systems}}
 
-\section[Adaptive Learning]{\textbf{Adaptive Learning}}
-Adaptive learning is the process of modifying instruction based on learner needs. A learner who answers correctly may be ready for a harder example, while a learner who repeatedly fails may need remediation. A learner who spends more time on a topic may need a slower explanation, and a learner who quickly completes content may prefer a concise response. Learner modelling methods such as knowledge tracing show the importance of estimating learner mastery over time \cite{Corbett1994}.
+An Intelligent Tutoring System (ITS) is a software system that provides instruction, feedback, and support to learners. Such systems usually contain a domain model, a learner model, a tutoring model, and an interface model. The domain model represents subject knowledge. The learner model stores the student's current understanding. The tutoring model decides the instructional action. The interface model presents the response to the learner.
+
+VisuaLearn follows the same educational principle but implements it in a modern web-based form. The domain content is generated dynamically for different topics. The learner model is represented using conversation history, resource history, quiz results, engagement signals, and adaptive context. The tutoring model selects teaching strategies such as visual explanation, guided steps, quiz mode, Socratic questioning, or remediation.
+
+\subsection[Adaptive Learning]{\textbf{Adaptive Learning}}
+
+Adaptive learning modifies instruction based on learner needs. A learner who answers correctly may be ready for a harder example, while a learner who repeatedly fails may need remediation. A learner who spends more time on a topic may need a slower explanation, and a learner who quickly completes content may prefer a concise response.
 
 In this project, adaptation is performed at the response level. The system does not only decide what topic should come next; it also decides how the current topic should be taught. The adaptive layer uses context features such as cognitive state, engagement level, topic status, performance trend, confidence, topic difficulty, previous failures, and response time. These features help the system select a suitable teaching mode.
 
-\section[Learner Context and Feedback]{\textbf{Learner Context and Feedback}}
-Learner context refers to information that helps the system understand the learner's current state. In VisuaLearn AI, context is built from multiple signals. Quiz correctness indicates understanding. Completion indicates whether the learner engaged with the resource. Response time can indicate difficulty or hesitation. Topic status represents whether the topic is new, weak, neutral, or strong. Previous failures indicate whether remediation is required.
+\subsection[Educational Visualization and Simulation]{\textbf{Educational Visualization and Simulation}}
 
-Feedback is collected after the learner interacts with the output. For example, when a learner answers a quiz question, the result becomes a correctness signal. When a learner uses a simulation or completes a learning artifact, it becomes an engagement or completion signal. These signals form a feedback loop for future personalization.
+Educational visualization represents abstract ideas using diagrams, charts, animations, and interactive components. It is useful when learners need to understand structure, movement, sequence, or relationships. In computer science, visual learning helps explain algorithms, data structures, recursion, memory, and state transitions.
 
-\section[Educational Visualization]{\textbf{Educational Visualization}}
-Educational visualization represents abstract ideas using diagrams, charts, animations, and interactive components. It is useful when learners need to understand structure, movement, sequence, or relationships. In computer science, visual learning helps explain algorithms, data structures, recursion, memory, and state transitions. Visualization also supports cognitive load reduction by making hidden relationships easier to inspect \cite{Sweller1988}.
+Simulation-based learning is useful for processes that can be represented as a sequence of states. Sorting algorithms can be shown through comparisons and swaps. Graph traversal can be shown through visited nodes and queues. CPU scheduling can be shown through timelines and process queues. This supports active learning because the learner observes the process rather than only reading about it.
 
-VisuaLearn AI includes visual widgets and mind maps. Mind maps show concept relationships and help learners organize information. Visual widgets support spatial and dynamic explanation. For suitable topics, the platform also supports three-dimensional representations. Device capability checks are used so that complex visuals are rendered only when the device can handle them.
+\subsection[Structured Revision]{\textbf{Structured Revision}}
 
-\section[Simulation-Based Learning]{\textbf{Simulation-Based Learning}}
-Simulation-based learning is useful for processes that can be represented as a sequence of states. Algorithms are a strong example. Sorting algorithms can be shown through comparisons and swaps. Graph traversal can be shown through visited nodes and queues. Stack and queue operations can be shown through push, pop, enqueue, and dequeue actions.
+Learning does not end with understanding an explanation. Students need revision and practice to retain concepts. Flashcards support recall. Quizzes support self-assessment. Mind maps support conceptual organization. Examples support transfer of learning to new situations. VisuaLearn generates these revision artifacts from the learning session so that a single query can lead to notes, examples, flashcards, quizzes, simulations, and saved resources.
 
-The simulation module in VisuaLearn AI detects whether a topic can be simulated. If suitable, a generator produces structured steps. The frontend displays the steps with playback controls, allowing the learner to move forward, backward, pause, and inspect intermediate states. This approach supports active learning because the learner can observe the process rather than only read about it.
+\section[Literature Survey]{\textbf{Literature Survey}}
 
-\section[Structured Revision]{\textbf{Structured Revision}}
-Learning does not end with understanding an explanation. Students need revision and practice to retain concepts. Flashcards support recall. Quizzes support self-assessment. Mind maps support conceptual organization. Examples support transfer of learning to new situations.
+Bloom \cite{Bloom1984} showed that individualized tutoring can produce substantially stronger learning outcomes than conventional classroom-only instruction. The limitation of human tutoring is scalability: one-to-one tutoring is difficult to provide continuously to every learner. This motivates software systems that approximate personalized guidance.
 
-VisuaLearn AI automatically generates revision artifacts from the learning session. This reduces manual effort for the learner. A single query can lead to notes, examples, flashcards, and quizzes, all linked to the same conversation. The learner can return later and revise from the saved resources.
+VanLehn \cite{VanLehn2011} reviewed the relative effectiveness of human tutoring, intelligent tutoring systems, and other tutoring systems. The study showed that tutoring effectiveness depends on the granularity and quality of interaction. This is relevant to VisuaLearn because the platform attempts response-level adaptation rather than only course-level sequencing.
 
-\section[Safe Rendering and Reliability]{\textbf{Safe Rendering and Reliability}}
-Interactive learning content must be rendered safely. Generated visual components may contain broken code, invalid structure, or unsupported behavior. A reliable platform must validate output before displaying it and provide fallback responses when something fails.
+Ma et al. \cite{Ma2014} conducted a meta-analysis of intelligent tutoring systems and learning outcomes. Their work supports the claim that ITS-style personalization can improve learning when learner state is modeled. However, many ITS implementations are domain-specific and do not naturally support open-ended learner questions, generated visual artifacts, or multimodal revision resources.
 
-VisuaLearn AI uses safe rendering for generated widgets, structured content validation, fallback messages, authentication checks, rate limiting, logging, and isolated rendering frames. These measures reduce the chance that one failed component affects the complete learning session.
+Mayer \cite{Mayer2009} and Sweller \cite{Sweller1988} provide the theoretical foundation for combining verbal and visual explanation while controlling cognitive load. Their work is directly relevant to visual explanations, simulations, and step-by-step breakdowns. The limitation is that these theories do not by themselves define a deployable AI learning platform.
 
-\section[Literature Survey Summary]{\textbf{Literature Survey Summary}}
-\begin{longtable}{p{0.25\textwidth}p{0.34\textwidth}p{0.32\textwidth}}
-\caption{Summary of Literature and Relevance}\\
+Kasneci et al. \cite{Kasneci2023} discuss opportunities and challenges of large language models in education. LLMs can generate flexible explanations and respond to natural-language questions, but educational systems must handle hallucination, over-reliance, feedback quality, and learner safety. VisuaLearn addresses this through backend orchestration, validation, feedback, and persistent learning history.
+
+Recent AI-in-education reviews also emphasize that AI systems should support personalization, feedback, and responsible deployment rather than act as isolated answer generators \cite{Chen2020}. This supports the project goal of building an integrated learning platform with authentication, storage, adaptive routing, and safe rendering.
+
+\section[Literature Comparison Table]{\textbf{Literature Comparison Table}}
+
+\begin{longtable}{p{0.22\textwidth}p{0.13\textwidth}p{0.11\textwidth}p{0.10\textwidth}p{0.11\textwidth}p{0.13\textwidth}}
+\caption{Comparison of Existing Work with VisuaLearn}\\
 \toprule
-\textbf{Area} & \textbf{Observation from Literature} & \textbf{Relevance to VisuaLearn AI}\\
+\textbf{Existing Work} & \textbf{Adaptive} & \textbf{Visual} & \textbf{Sim.} & \textbf{Revision} & \textbf{Personal.}\\
 \midrule
-Intelligent tutoring & Personalized instruction improves learning when learner state is considered. & The system tracks context and selects teaching strategies.\\
-Adaptive learning & Learner performance and engagement can guide instruction. & Feedback and quiz signals support response-level adaptation.\\
-Educational visualization & Diagrams and animations reduce cognitive load for abstract topics. & Mind maps, visual widgets, and spatial views support conceptual clarity.\\
-Simulation learning & Step-by-step state changes improve understanding of algorithms. & Simulation generators produce deterministic learning steps.\\
-Revision systems & Flashcards and quizzes improve recall and self-assessment. & Revision artifacts are generated and stored with each session.\\
-Reliable software design & Generated content must be validated before display. & Safe rendering, fallback handling, and logging improve stability.\\
+Bloom tutoring model \cite{Bloom1984} & Yes & No & No & Partial & High\\
+Traditional ITS \cite{VanLehn2011,Ma2014} & Yes & Partial & Partial & Partial & Yes\\
+Adaptive hypermedia \cite{Brusilovsky2007} & Yes & Partial & No & Partial & Yes\\
+Multimedia learning systems \cite{Mayer2009} & No & Yes & Partial & No & No\\
+LLM-based tutoring \cite{Kasneci2023} & Partial & Partial & No & Partial & Partial\\
+VisuaLearn AI & Yes & Yes & Yes & Yes & Yes\\
 \bottomrule
 \end{longtable}
 
 \section[Research Gap]{\textbf{Research Gap}}
-The survey identifies the following gaps:
+
+Existing systems commonly focus on isolated educational tasks such as tutoring, quizzes, visualization, or content delivery. Very few systems integrate adaptive teaching, simulations, generated revision material, multimodal interaction, document-based learning, and learner-context modeling within a single environment. Additionally, limited attention has been given to safe rendering and persistence of dynamically generated educational artifacts.
+
+The major gaps identified from the literature are:
 \begin{itemize}[leftmargin=1.2cm]
-	\item Many systems provide explanations but do not generate a complete set of learning artifacts.
-	\item Visualization and simulation are usually separate tools rather than part of the tutoring flow.
-	\item Revision content is often manually created by the learner.
-	\item Learner context is not always used to decide the teaching format.
-	\item Safe rendering of generated interactive learning content is not always addressed.
+\item Many systems provide explanations but do not generate a complete set of learning artifacts.
+\item Visualization and simulation are often separate tools rather than part of the tutoring flow.
+\item Revision content is usually manually created by the learner.
+\item Learner context is not always used to decide the teaching format for each response.
+\item Safe rendering of generated interactive learning content is not consistently addressed.
+\item LLM-based learning tools often lack persistent learning history, structured evaluation, and adaptive feedback loops.
 \end{itemize}
 
-VisuaLearn AI addresses these gaps by integrating explanation, visualization, simulation, revision, voice interaction, persistence, and adaptive teaching into one platform.
+\section[Proposed Solution]{\textbf{Proposed Solution}}
+
+VisuaLearn addresses the identified research gaps through a unified adaptive learning architecture that combines conversational AI, visualization, simulations, revision generation, learner modeling, document-based learning, feedback, and persistent learning history. Unlike systems that provide only a chatbot response or a separate visualization tool, the proposed system supports multiple teaching strategies and dynamically selects the most suitable learning mode based on learner context.
+
+The platform also treats generated learning content as a managed artifact. Responses, visual widgets, simulations, quizzes, flashcards, and learning resources are stored with the learner session. This supports continuity, revision, and future adaptation. Safety mechanisms such as authentication, route protection, validation, fallback handling, and logging are included so that generated content can be used more reliably.
+
+\section[Summary]{\textbf{Summary}}
+
+The literature supports the value of personalized instruction, visual learning, adaptive feedback, and structured revision. However, the reviewed work also shows that many systems treat these capabilities separately. VisuaLearn is positioned as an integrated AI learning platform that brings these features into a single workflow and prepares the system for usability and learning-effectiveness evaluation.

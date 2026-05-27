@@ -16,6 +16,7 @@ import { supabase } from './database/client.js';
 import { agentRegistry } from './agents/index.js';
 import { scheduleDailyReset } from './services/costTracker.js';
 import { cache } from './services/cache.js';
+import { attachRealtimeAudioProxy } from './services/realtime/audioProxy.js';
 
 // Initialize Express app
 const app = express();
@@ -60,6 +61,8 @@ const server = http.createServer((req, res) => {
   // Everything else goes through Express (including /api/chat and /api/tool-result)
   app(req, res);
 });
+
+attachRealtimeAudioProxy(server);
 
 const PORT = config.port;
 

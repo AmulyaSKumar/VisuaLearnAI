@@ -3,9 +3,7 @@ import { useSSEStream } from "./useSSEStream";
 import { useAssetStream } from "./useAssetStream";
 import { useLearningPlan } from "./useLearningPlan";
 import { useLearningContent } from "./useLearningContent";
-import { use3DWidget } from "./use3DWidget";
 import { usePersona } from "../contexts/PersonaContext";
-import { should3DVisualize, getDeviceCapabilities } from "../utils/detect3D";
 import {
   supabase,
   createConversation,
@@ -18,6 +16,10 @@ import {
   generateConversationTitle,
   shouldAutoGenerateConversationTitle,
 } from "../utils/conversationActions";
+
+const CHAT_ARTIFACTS_WITH_LEARNING_AGENTS = new Set(["quiz", "flashcards", "mindmap"]);
+const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
+const SUPPRESS_ASSET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
 
 /**
  * useChat hook with Supabase message persistence and behavior tracking
@@ -50,9 +52,6 @@ export function useChat(
 
   // Get current persona from context
   const { defaultPersona } = usePersona();
-
-  // 3D widget generation (separate from chat)
-  const { widget: widget3D, isLoading: is3DLoading, skipReason: skip3DReason, generate3D } = use3DWidget(accessToken);
 
   // Track current conversation ID (may be created on first message)
   const conversationIdRef = useRef(conversationId);
@@ -87,9 +86,13 @@ export function useChat(
           role: msg.role,
           content: msg.content,
           text: msg.content, // SSE uses 'text', DB uses 'content'
+          metadata: msg.metadata || {},
           widgets: msg.metadata?.widgets || [],
           images: msg.metadata?.images || [],
           factCheck: msg.metadata?.factCheck || null,
+          topic: msg.metadata?.activeTopic || msg.metadata?.decision?.activeTopic || null,
+          suggestedActions: msg.metadata?.suggestedActions || [],
+          adaptiveExplanation: msg.metadata?.adaptiveExplanation || null,
           createdAt: msg.created_at,
         }));
         setMessages(uiMessages);
@@ -146,9 +149,22 @@ export function useChat(
   }, [onConversationUpdated, userId]);
 
   const sendMessage = useCallback(async (text, preferences = {}) => {
-    if (!preferences.requestedArtifact) {
-      clearContent();
-    }
+    clearContent();
+
+    const conversationState = [...messages]
+      .slice()
+      .reverse()
+      .map(message => message.metadata?.conversationState || {
+        activeTopic: message.metadata?.activeTopic || message.metadata?.decision?.activeTopic || null,
+        lastArtifact: message.metadata?.decision?.artifacts?.[0] || null,
+        mode: message.metadata?.decision?.mode || null,
+      })
+      .find(state => state?.activeTopic || state?.lastArtifact || state?.mode) || {
+        activeTopic: null,
+        subTopic: null,
+        lastArtifact: null,
+        mode: preferences.mode || "chat",
+      };
 
     const userMsg = { id: Date.now().toString(), role: "user", content: text, text };
     const newContext = [...messages, userMsg];
@@ -180,7 +196,9 @@ export function useChat(
     try {
       // 1. Create conversation if not exists
       if (!activeConversationId && userId) {
-        const newConv = await createConversation(userId, DEFAULT_CONVERSATION_TITLE);
+        const newConv = await createConversation(userId, DEFAULT_CONVERSATION_TITLE, {
+          mode: preferences.mode === "learning" ? "learning" : "chat",
+        });
         activeConversationId = newConv.id;
         conversationIdRef.current = activeConversationId;
         createdConversation = newConv;
@@ -212,44 +230,35 @@ export function useChat(
       // Note: Learning content is fetched by LearningPage when user navigates there
       // This prevents duplicate fetches and race conditions between hook instances
 
-      // Check if 3D visualization is appropriate for this query
-      const allowInlineSimulation = preferences.requestedArtifact === 'simulation' || preferences.requestedArtifact === 'learn';
-      const detection3D = allowInlineSimulation ? should3DVisualize(text) : { use3D: false, score: 0, reason: 'normal chat mode' };
-      const deviceCaps = getDeviceCapabilities();
-      const needs3D = detection3D.use3D && deviceCaps.canRender3D;
-
-      // Console logging for 3D detection
-      console.log('[3D Detection]', {
-        query: text.slice(0, 50) + (text.length > 50 ? '...' : ''),
-        score: detection3D.score,
-        use3D: detection3D.use3D,
-        reason: detection3D.reason,
-        deviceCanRender: deviceCaps.canRender3D,
-        will3DGenerate: needs3D,
-      });
-
       // 3. Start streaming response with personalization data
-      // Use skip3D if 3D will be generated separately
       await startStream(
         newContext,
         () => {},
         async (finalMsgs) => {
+          const isArtifactOnlyRequest = ARTIFACT_ONLY_RESPONSES.has(preferences.requestedArtifact);
+          const suppressAssets = SUPPRESS_ASSET_ARTIFACTS.has(preferences.requestedArtifact);
           // Attach any streamed images and fact-checks to the final message
           let enrichedMsgs = finalMsgs.map(msg => ({
             ...msg,
-            images: assets.images,
-            factCheck: assets.factCheck,
+            text: isArtifactOnlyRequest ? "" : (msg.text || msg.content || ""),
+            content: isArtifactOnlyRequest ? "" : (msg.content || msg.text || ""),
+            images: suppressAssets ? [] : assets.images,
+            factCheck: suppressAssets ? null : assets.factCheck,
+            suggestedActions: msg.metadata?.suggestedActions || [],
+            adaptiveExplanation: msg.metadata?.adaptiveExplanation || null,
           }));
 
           // 4. Save assistant message(s) to DB
+          const savedAssistantMessages = [];
           for (const msg of enrichedMsgs) {
             const metadata = {
               widgets: msg.widgets || [],
-              images: msg.images || [],
+              images: suppressAssets ? [] : (msg.images || []),
               factCheck: msg.factCheck || null,
               documentId: preferences.documentId || null,
               webSearch: !!preferences.webSearch,
-              requestedArtifact: preferences.requestedArtifact || null,
+              ...(msg.metadata || {}),
+              requestedArtifact: preferences.requestedArtifact || msg.metadata?.requestedArtifact || null,
             };
             const savedMsg = await saveMessage(
               activeConversationId,
@@ -259,6 +268,7 @@ export function useChat(
             );
             if (savedMsg) {
               msg.id = savedMsg.id;
+              savedAssistantMessages.push({ ...savedMsg, metadata });
             }
           }
 
@@ -270,77 +280,52 @@ export function useChat(
           setMessages([...newContext, ...enrichedMsgs]);
           setIsStreaming(false);
 
-          if (preferences.requestedArtifact && userId) {
-            await generateLearningContent(
+          const explicitArtifact = preferences.requestedArtifact
+            || enrichedMsgs.find(msg => msg.metadata?.decision?.artifacts?.length)?.metadata?.decision?.artifacts?.[0]
+            || null;
+
+          const shouldGenerateLearningArtifact = explicitArtifact
+            && userId
+            && (
+              preferences.mode === "learning"
+              || CHAT_ARTIFACTS_WITH_LEARNING_AGENTS.has(explicitArtifact)
+            );
+
+          if (shouldGenerateLearningArtifact) {
+            const generatedLearningContent = await generateLearningContent(
               text,
               userId,
               true,
               accessToken,
-              { requestedArtifact: preferences.requestedArtifact },
+              { requestedArtifact: explicitArtifact },
               {
                 conversationId: activeConversationId,
                 documentId: preferences.documentId || null,
                 webSearch: !!preferences.webSearch,
               },
             );
-          }
 
-          // 5. Generate 3D widget separately if needed
-          if (needs3D && enrichedMsgs.length > 0) {
-            console.log('[3D Generation] Starting 3D widget generation...');
-            const assistantText = enrichedMsgs[0]?.text || enrichedMsgs[0]?.content || '';
-            const widget3DResult = await generate3D(text, assistantText);
-
-            // Add 3D widget to the message if generated
-            if (widget3DResult) {
-              console.log('[3D Generation] ✓ 3D widget generated!', {
-                id: widget3DResult.id,
-                title: widget3DResult.title,
-                codeLength: widget3DResult.code?.length || 0,
-              });
-
-              // Get the first message's DB id for update
-              const firstMsgId = enrichedMsgs[0]?.id;
-
-              enrichedMsgs = enrichedMsgs.map((msg, idx) => {
-                if (idx === 0) {
-                  return {
-                    ...msg,
-                    widgets: [...(msg.widgets || []), widget3DResult],
-                  };
-                }
-                return msg;
-              });
-              setMessages([...newContext, ...enrichedMsgs]);
-
-              // Persist 3D widget to DB so it survives refresh
-              if (firstMsgId) {
-                const updatedWidgets = enrichedMsgs[0]?.widgets || [];
-                try {
-                  const { error: updateError } = await supabase
-                    .from("messages")
-                    .update({
-                      metadata: {
-                        widgets: updatedWidgets,
-                        images: enrichedMsgs[0]?.images || [],
-                        factCheck: enrichedMsgs[0]?.factCheck || null,
-                      },
-                    })
-                    .eq("id", firstMsgId);
-
-                  if (updateError) {
-                    console.warn('[3D Generation] Failed to persist widget to DB:', updateError.message);
-                  } else {
-                    console.log('[3D Generation] ✓ Widget persisted to DB');
+            const latestSavedAssistant = savedAssistantMessages[savedAssistantMessages.length - 1];
+            if (generatedLearningContent && latestSavedAssistant?.id) {
+              const nextMetadata = {
+                ...(latestSavedAssistant.metadata || {}),
+                learningContent: generatedLearningContent,
+              };
+              setMessages(currentMessages => currentMessages.map(message => (
+                message.id === latestSavedAssistant.id
+                  ? {
+                    ...message,
+                    metadata: nextMetadata,
                   }
-                } catch (dbErr) {
-                  console.warn('[3D Generation] DB update error:', dbErr.message);
-                }
-              }
-            } else {
-              console.log('[3D Generation] ✗ No 3D widget returned (see use3DWidget logs above for reason)');
+                  : message
+              )));
+              await supabase
+                .from("messages")
+                .update({ metadata: nextMetadata })
+                .eq("id", latestSavedAssistant.id);
             }
           }
+
         },
         {
           userId,
@@ -348,10 +333,11 @@ export function useChat(
           preferences,
           accessToken,
           conversationId: activeConversationId,
-          skip3D: !allowInlineSimulation || needs3D,
           personaId: defaultPersona?.id,
           documentId: preferences.documentId || null,
           webSearch: !!preferences.webSearch,
+          mode: preferences.mode || "chat",
+          conversationState,
         }
       );
     } catch (error) {
@@ -370,7 +356,6 @@ export function useChat(
     assets,
     clearContent,
     defaultPersona,
-    generate3D,
     generateLearningContent,
     messages,
     onConversationCreated,
@@ -428,9 +413,5 @@ export function useChat(
     isLearningContentLoading,
     generateLearningContent,
     trackInteraction,
-    // 3D widget generation (separate from chat)
-    widget3D,
-    is3DLoading,
-    skip3DReason,  // Reason why 3D was skipped (for debugging/UI)
   };
 }

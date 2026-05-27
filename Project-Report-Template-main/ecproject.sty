@@ -291,18 +291,18 @@
 
 \ifIDP
   \begin{tikzpicture}[remember picture, overlay]
-    \node[anchor=south east,inner sep=0, fill=white] (image) at ($(current page.south east) + (-0.8in,0.8in)$) {\fbox{\qrcode[hyperlink,height=1.75cm]{\@qrurl}}};
+    \node[anchor=south east,inner sep=0, fill=white] (image) at ($(current page.south east) + (-0.95in,0.95in)$) {\fbox{\qrcode[hyperlink,height=1.75cm]{\@qrurl}}};
   \end{tikzpicture}
 \else
   \begin{tikzpicture}[remember picture, overlay]
-    \node[anchor=north east,inner sep=0, fill=white] (image) at ($(current page.north east) + (-0.15in,-0.15in)$) {\fbox{\qrcode[hyperlink,height=1.75cm]{\@qrurl}}};
+    \node[anchor=south east,inner sep=0, fill=white] (image) at ($(current page.south east) + (-0.95in,0.95in)$) {\fbox{\qrcode[hyperlink,height=1.75cm]{\@qrurl}}};
   \end{tikzpicture}
 \fi
 
 \begin{center}
-\vspace{-1cm}
-{\includegraphics[width=1\textwidth]{Figures/RV_newLogo}\par}
-\vspace{1cm}
+\vspace{-1.15cm}
+{\includegraphics[width=0.72\textwidth]{Figures/RV_newLogo}\par}
+\vspace{0.35cm}
 %\ifINT{\Large\itshape Summer Internship Report\par on\par}\fi %Intern
 {\huge\bfseries\@title\unskip\strut\par \global\titlelines=\the\prevgraf}% To count the number of lines used in the title - to adjust the spacing of title page
 \setcounter{numtitlelines}{\the\titlelines}
@@ -310,12 +310,12 @@
 {\Large\itshape \ifINT \vspace{0.5cm} An Internship \else\ifMinor A Minor Project \else \ifDTL A Design Thinking Lab \else \ifIDP An Interdisciplinary Project \else A Major Project \fi\fi\fi\fi  Report\;(\@subCode)\unskip\strut\par}
 % \fi
 \vspace{0.25cm}
-{\Large\bfseries \vspace{0.5cm} Submitted by,\unskip\strut\par}
+{\Large\bfseries \vspace{0.25cm} Submitted by,\unskip\strut\par}
 \end{center}
 \fi % Draft
 
 {\noindent\large\bfseries\@stuNameA\unskip\strut}\hfill{\large\bfseries\@stuUSNA\unskip\strut\par}
-\ifIDP\vspace{0.125cm}\else\vspace{0.25cm}\fi
+\ifIDP\vspace{0.125cm}\else\vspace{0.15cm}\fi
 % Ver 3.9:
 %\ifINT
 %\vspace{0.5cm}
@@ -324,9 +324,9 @@
 \vspace{0.5cm}
 \else
 {\noindent\large\bfseries\@stuNameB\unskip\strut}\hfill{\large\bfseries\@stuUSNB\unskip\strut\par}
-\ifIDP\vspace{0.125cm}\else\vspace{0.25cm}\fi
+\ifIDP\vspace{0.125cm}\else\vspace{0.15cm}\fi
 {\noindent\large\bfseries\@stuNameC\unskip\strut}\hfill{\large\bfseries\@stuUSNC\unskip\strut\par}
-\ifIDP\vspace{0.125cm}\else\vspace{0.25cm}\fi
+\ifIDP\vspace{0.125cm}\else\vspace{0.15cm}\fi
 {\noindent\large\bfseries\@stuNameD\unskip\strut}\hfill{\large\bfseries\@stuUSND\unskip\strut\par}
 % Ver 3.8: 
 \ifIDP
@@ -367,7 +367,7 @@
 		{\vspace{0.5cm}}
 	\fi
 \else
-\vspace{1cm}
+\vspace{0.65cm}
 \fi
 \fi
 
@@ -436,8 +436,8 @@
   }\fi%\ifIDP
 \fi%\ifDTL
 \fi%\ifINT
-\par.
-\ifINT\vspace{3cm}\else\ifIDP\vspace{1cm}\else\ifGuideNameCUsed\vspace{1cm}\else\vspace{3cm}\fi\fi\fi
+\par
+\ifINT\vspace{0.75cm}\else\ifIDP\vspace{0.55cm}\else\ifGuideNameCUsed\vspace{0.55cm}\else\vspace{0.65cm}\fi\fi\fi
 \begin{center}% May be try use \vbox cmd for equal spacing, but I need to know the better location (lower)
 {\large\bfseries In partial fulfillment of the requirements for the degree of \par}
 \vspace{0.25cm}

@@ -5,7 +5,6 @@
  * @module pipeline/asset-pipeline
  */
 
-import { VisualIntelligenceAgent } from '../agents/visual-intelligence.js';
 import { ImageGeneratorAgent } from '../agents/image-generator.js';
 import { FactCheckerAgent } from '../agents/fact-checker.js';
 import { logger } from '../utils/logger.js';
@@ -16,7 +15,6 @@ import { logger } from '../utils/logger.js';
  */
 export class AssetPipeline {
   constructor() {
-    this.visualAgent = new VisualIntelligenceAgent();
     this.imageAgent = new ImageGeneratorAgent();
     this.factChecker = new FactCheckerAgent();
   }
@@ -45,37 +43,7 @@ export class AssetPipeline {
         steps: input.plan?.steps?.length,
       });
 
-      // Generate widgets in parallel but stream results as they complete
       const tasks = [];
-
-      // Task 1: Generate visual widgets
-      tasks.push(
-        this._generateWidgetsTask(input, context)
-          .then(widgets => {
-            widgets.forEach(widget => {
-              assetCount++;
-              onAsset({
-                type: 'widget',
-                asset: widget,
-                progress: `Generated widget ${assetCount}`,
-              });
-              logger.debug('Asset Pipeline: Widget generated', {
-                widgetId: widget.id,
-                vizType: widget.type,
-              });
-            });
-            return widgets;
-          })
-          .catch(error => {
-            logger.error('Asset Pipeline: Widget generation failed', { error: error.message });
-            onError({
-              type: 'widget',
-              error: error.message,
-            });
-          })
-      );
-
-      // Task 2: Generate images (Day 4)
       tasks.push(
         this._generateImagesTask(input, context)
           .then(images => {
@@ -101,7 +69,7 @@ export class AssetPipeline {
           })
       );
 
-      // Task 3: Fact checking (async, doesn't block)
+      // Fact checking (async, doesn't block)
       tasks.push(
         this._validateClaimsTask(input, context)
           .then(verification => {
@@ -153,25 +121,6 @@ export class AssetPipeline {
         error: error.message,
       });
 
-      throw error;
-    }
-  }
-
-  /**
-   * Generate widgets task
-   * Can run in parallel with other tasks
-   */
-  async _generateWidgetsTask(input, context) {
-    try {
-      const result = await this.visualAgent.run(input, context);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Widget generation failed');
-      }
-
-      return result.result.widgets || [];
-    } catch (error) {
-      logger.error('Asset Pipeline: Widget task failed', { error: error.message });
       throw error;
     }
   }

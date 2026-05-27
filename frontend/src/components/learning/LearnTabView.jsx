@@ -4,6 +4,7 @@ import ListenButton from './ListenButton';
 import QuickExplainView from './QuickExplainView';
 import ConceptualView from './ConceptualView';
 import CodingHelpView from './CodingHelpView';
+import { SIMULATION_CONFIG } from '../../config/simulationConfig';
 
 // ============================================
 // PROFESSIONAL CONTENT BLOCK LABELS
@@ -1044,14 +1045,14 @@ export default function LearnTabView({
 
   const allCompleted = keyIdeas.length > 0 && readCards.size >= keyIdeas.length;
 
-  // Simulation hint logic: show for medium confidence (0.5-0.8)
+  // Simulation hint logic: show for medium confidence from shared config.
   const showSimulationHint = simulationDetection?.supported &&
-    simulationDetection.confidence >= 0.5 &&
-    simulationDetection.confidence < 0.8;
+    simulationDetection.confidence >= SIMULATION_CONFIG.SUGGEST_THRESHOLD &&
+    simulationDetection.confidence < SIMULATION_CONFIG.AUTO_RENDER_THRESHOLD;
 
-  // Simulation available banner: show for high confidence (>0.8) auto-shown tabs
+  // Simulation available banner: show for high confidence auto-shown tabs.
   const showSimulationAvailable = simulationDetection?.supported &&
-    simulationDetection.confidence >= 0.8;
+    simulationDetection.confidence >= SIMULATION_CONFIG.AUTO_RENDER_THRESHOLD;
 
   // ============================================
   // MODE-AWARE RENDERING

@@ -344,8 +344,12 @@ export async function getUserConversations(userId) {
 /**
  * Create conversation
  */
-export async function createConversation(userId, title) {
+export async function createConversation(userId, title, metadata = {}) {
   const normalizedTitle = normalizeConversationTitle(title) || DEFAULT_CONVERSATION_TITLE;
+  const conversationMetadata = {
+    mode: 'chat',
+    ...metadata,
+  };
 
   try {
     const { data, error } = await supabase
@@ -353,6 +357,7 @@ export async function createConversation(userId, title) {
       .insert({
         user_id: userId,
         title: normalizedTitle,
+        metadata: conversationMetadata,
       })
       .select()
       .single();

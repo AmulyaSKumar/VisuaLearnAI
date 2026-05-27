@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePersona } from '../contexts/PersonaContext';
 import { createConversation, deleteConversation, supabase, updateConversation } from '../lib/supabase';
@@ -11,6 +11,7 @@ import {
   generateConversationTitle,
   shouldAutoGenerateConversationTitle,
 } from '../utils/conversationActions';
+import { sanitizeAssistantResponse } from '../utils/sanitizeAssistantResponse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -23,6 +24,8 @@ const ARTIFACT_LABELS = {
   summarize: 'Document Summary',
 };
 
+const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
+
 const artifactToContentType = (artifact) => {
   if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === 'summarize') return 'learn';
   if (artifact === 'quiz') return 'quiz';
@@ -30,10 +33,21 @@ const artifactToContentType = (artifact) => {
   return 'learn';
 };
 
+function inferExplicitArtifact(text) {
+  const value = String(text || '');
+  if (/\b(quiz|test me|ask me questions|practice questions|question me)\b/i.test(value)) return 'quiz';
+  if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
+  if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
+  if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
+  return null;
+}
+
 export default function NewChatPage({ onConversationCreated = null, onConversationUpdated = null }) {
   const { user, session } = useAuth();
   const { defaultPersona } = usePersona();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isLearningMode = new URLSearchParams(location.search).get('mode') === 'learning';
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
@@ -51,6 +65,48 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   } = useDocuments();
 
   const selectedDocument = documents.find(d => d.id === selectedDocumentId);
+  const selectedInputTools = useMemo(() => {
+    const tools = [];
+
+    if (isLearningMode) {
+      tools.push({
+        id: 'learning-mode',
+        label: 'Learning Mode',
+      });
+    }
+
+    if (webSearchEnabled && !selectedDocumentId) {
+      tools.push({
+        id: 'web-search',
+        label: 'Web search',
+        onRemove: () => setWebSearchEnabled(false),
+      });
+    }
+
+    if (selectedDocument) {
+      tools.push({
+        id: 'document',
+        label: `Document: ${selectedDocument.filename}`,
+        onRemove: () => setSelectedDocumentId(null),
+      });
+    } else if (showDocuments) {
+      tools.push({
+        id: 'upload-document',
+        label: 'Upload document',
+        onRemove: () => setShowDocuments(false),
+      });
+    }
+
+    if (pendingArtifact) {
+      tools.push({
+        id: `artifact-${pendingArtifact}`,
+        label: ARTIFACT_LABELS[pendingArtifact] || pendingArtifact,
+        onRemove: () => setPendingArtifact(null),
+      });
+    }
+
+    return tools;
+  }, [isLearningMode, pendingArtifact, selectedDocument, selectedDocumentId, showDocuments, webSearchEnabled]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -131,12 +187,15 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
     let conversation = null;
     let savedFirstMessage = false;
     const activeDocumentId = selectedDocumentId;
-    const requestedArtifact = pendingArtifact;
+    const requestedArtifact = pendingArtifact || (isLearningMode ? 'learn' : inferExplicitArtifact(text));
+    const isArtifactOnlyResponse = ARTIFACT_ONLY_RESPONSES.has(requestedArtifact);
     const useWebSearch = webSearchEnabled && !activeDocumentId;
 
     try {
       // 1. Create conversation only when the first message is actually being sent
-      conversation = await createConversation(user.id, DEFAULT_CONVERSATION_TITLE);
+      conversation = await createConversation(user.id, DEFAULT_CONVERSATION_TITLE, {
+        mode: isLearningMode ? 'learning' : 'chat',
+      });
 
       // 2. Save user message
       const { error: msgError } = await supabase
@@ -172,9 +231,15 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           conversationId: conversation.id,
           documentId: activeDocumentId,
           webSearch: useWebSearch,
-          skip3D: !requestedArtifact,
           learningAction: requestedArtifact || null,
-          preferences: { requestedArtifact },
+          preferences: { requestedArtifact, mode: isLearningMode ? 'learning' : 'chat' },
+          mode: isLearningMode ? 'learning' : 'chat',
+          conversationState: {
+            activeTopic: null,
+            subTopic: null,
+            lastArtifact: null,
+            mode: isLearningMode ? 'learning' : 'chat',
+          },
         })
       });
 
@@ -187,6 +252,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let orchestrationMetadata = {};
 
       while (true) {
         const { done, value } = await reader.read();
@@ -205,8 +271,17 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               continue;
             }
 
-            if (data.type === 'text_delta') {
+            if (data.type === 'text_delta' && !isArtifactOnlyResponse) {
               fullText += data.text;
+            } else if (data.type === 'orchestration_decision') {
+              orchestrationMetadata = {
+                decision: data.decision || null,
+                activeTopic: data.activeTopic || data.decision?.activeTopic || null,
+                conversationState: data.conversationState || data.decision?.conversationState || null,
+                suggestedActions: data.suggestedActions || [],
+                adaptiveExplanation: data.adaptiveExplanation || null,
+                responseKind: data.responseKind || null,
+              };
             } else if (data.type === 'error') {
               throw new Error(data.error || 'Failed to generate response');
             }
@@ -215,17 +290,20 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       }
 
       // 4. Generate learning content only when the user explicitly selected a learning action.
+      fullText = sanitizeAssistantResponse(fullText);
       let learningContent = null;
       let factCheck = null;
-      if (requestedArtifact) try {
+      const effectiveArtifact = requestedArtifact;
+      const shouldGenerateLearningArtifact = Boolean(effectiveArtifact && (isLearningMode || pendingArtifact));
+      if (shouldGenerateLearningArtifact) try {
         const lcHeaders = { 'Content-Type': 'application/json' };
         if (accessToken) {
           lcHeaders['Authorization'] = `Bearer ${accessToken}`;
         }
 
-        const learningQuery = requestedArtifact === 'summarize'
+        const learningQuery = effectiveArtifact === 'summarize'
           ? 'Summarize the uploaded document'
-          : text;
+          : orchestrationMetadata.activeTopic || text;
 
         const lcResponse = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
@@ -233,10 +311,11 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           body: JSON.stringify({
             query: learningQuery,
             userId: user.id,
-            contentType: artifactToContentType(requestedArtifact),
+            contentType: artifactToContentType(effectiveArtifact),
             conversationId: conversation.id,
             documentId: activeDocumentId,
             webSearch: useWebSearch,
+            preferences: { mode: isLearningMode ? 'learning' : 'chat' },
           })
         });
         if (lcResponse.ok) {
@@ -261,9 +340,10 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             metadata: {
               documentId: activeDocumentId,
               webSearch: useWebSearch,
-              requestedArtifact,
+              requestedArtifact: effectiveArtifact || null,
               learningContent,
-              factCheck
+              factCheck,
+              ...orchestrationMetadata,
             }
           });
       }
@@ -280,7 +360,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       setSelectedDocumentId(null);
       setPendingArtifact(null);
       setWebSearchEnabled(false);
-      navigate(requestedArtifact ? `/learn/${conversation.id}` : `/chat/${conversation.id}`);
+      navigate((isLearningMode || shouldGenerateLearningArtifact) ? `/learn/${conversation.id}` : `/chat/${conversation.id}`);
 
     } catch (err) {
       if (user && conversation?.id && !savedFirstMessage) {
@@ -309,9 +389,13 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">What do you want to learn?</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+            {isLearningMode ? 'Explore a topic deeply' : 'What do you want to know?'}
+          </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Ask any question and get an interactive learning experience
+            {isLearningMode
+              ? 'Start with Learn, then move through quiz, flashcards, mind map, simulation, and 3D.'
+              : 'Ask a question for a concise answer. Visuals appear only when requested or clearly useful.'}
           </p>
         </div>
 
@@ -331,29 +415,8 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           </div>
         ) : (
           <>
-            {(webSearchEnabled || selectedDocument || pendingArtifact || showDocuments || uploadProgress) && (
+            {(showDocuments || uploadProgress) && (
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-                  {webSearchEnabled && !selectedDocumentId && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                      Web search on
-                      <button type="button" onClick={() => setWebSearchEnabled(false)} className="text-primary/70 hover:text-primary">x</button>
-                    </span>
-                  )}
-                  {selectedDocument && (
-                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                      <span className="truncate">Document: {selectedDocument.filename}</span>
-                      <button type="button" onClick={() => setSelectedDocumentId(null)} className="text-primary/70 hover:text-primary">x</button>
-                    </span>
-                  )}
-                  {pendingArtifact && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-primary">
-                      Generate {ARTIFACT_LABELS[pendingArtifact] || pendingArtifact}
-                      <button type="button" onClick={() => setPendingArtifact(null)} className="text-primary/70 hover:text-primary">x</button>
-                    </span>
-                  )}
-                </div>
-
                 {(showDocuments || uploadProgress) && (
                   <div className="flex justify-center">
                     <DocumentUpload
@@ -372,6 +435,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               onSend={handleSendMessage}
               inputDisabled={isLoading}
               webSearchEnabled={webSearchEnabled}
+              selectedTools={selectedInputTools}
               onToggleWebSearch={() => {
                 setWebSearchEnabled(prev => {
                   const next = !prev;
