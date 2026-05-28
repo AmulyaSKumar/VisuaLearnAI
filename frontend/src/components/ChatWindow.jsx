@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useChat } from "../hooks/useChat";
 import { useLearningState } from "../hooks/useLearningState";
 import { useBehaviorTracking } from "../hooks/useBehaviorTracking";
@@ -13,8 +13,10 @@ import LearningPlanInput from "./LearningPlanInput";
 import LearningStatePanel from "./LearningStatePanel";
 import SessionSummary from "./SessionSummary";
 import PersonaBadge from "./PersonaBadge";
+import SaveToNotionButton from "./SaveToNotionButton";
 import { useDocuments } from "../hooks/useDocuments";
 import { supabase } from "../lib/supabase";
+import { shouldAttemptVisual3D } from "../utils/visual3d";
 
 const ARTIFACT_TABS = {
   learn: 'text',
@@ -22,6 +24,7 @@ const ARTIFACT_TABS = {
   flashcards: 'flashcards',
   mindmap: 'mindmap',
   simulation: 'simulation',
+  '3d_scene': '3d',
   summarize: 'text',
 };
 
@@ -31,6 +34,7 @@ const ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  '3d_scene': '3D Visualization',
   summarize: 'Document Summary',
 };
 
@@ -43,6 +47,7 @@ function inferExplicitArtifact(text) {
   if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
   if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
   if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
+  if (shouldAttemptVisual3D(value)) return '3d_scene';
   return null;
 }
 
@@ -386,17 +391,19 @@ export default function ChatWindow({
             {/* Active Persona Badge */}
             {defaultPersona && <PersonaBadge persona={defaultPersona} />}
 
-            {isLearningConversation && (
-              <Link
-                to="/dashboard"
-                className="flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 min-h-[36px] min-w-[36px] text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 20V10M12 20V4M6 20v-6" />
-                </svg>
-                <span className="hidden sm:inline">Dashboard</span>
-              </Link>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate("/chat/new")}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              aria-label="New chat"
+              title="New chat"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 15 15" fill="none">
+                <path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <SaveToNotionButton mode="chat" scope="conversation" />
 
             {/* Session Summary Button */}
             {isLearningConversation && messages.length > 2 && (

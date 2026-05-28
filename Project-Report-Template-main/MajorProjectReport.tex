@@ -1,4 +1,4 @@
-\documentclass[12pt,twoside,a4paper]{book} % This style for A4 format.
+\documentclass[12pt,oneside,a4paper]{book} % This style for A4 format.
 
 \input{./AuxFiles/Packages}
 
@@ -135,20 +135,18 @@
 		\input{./CoverPages/Abstract}
 		
 	\end{spacing}
-	\newpage
+	\clearpage
 	\pagestyle{fplain}
 	\begin{spacing}{1.5}
 		\tableofcontents	
 	\end{spacing}
-	\newpage
+	\clearpage
 	\begin{spacing}{1.5}
-		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listfigurename}
 		\listoffigures	
 	\end{spacing}
-	\newpage
+	\clearpage
 	\begin{spacing}{1.5}
-		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listtablename}
 		\listoftables	
 	\end{spacing}

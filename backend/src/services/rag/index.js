@@ -18,6 +18,42 @@ const CHUNK_CONFIG = {
 // Approximate tokens (4 chars ≈ 1 token)
 const estimateTokens = (text) => Math.ceil(text.length / 4);
 
+export function buildEmbeddingRequestUrl(endpoint, deployment, apiVersion) {
+  if (!endpoint) {
+    return null;
+  }
+
+  const trimmedEndpoint = endpoint.trim();
+  const parsed = new URL(trimmedEndpoint);
+
+  if (parsed.pathname.includes('/openai/deployments/') && parsed.pathname.endsWith('/embeddings')) {
+    if (!parsed.searchParams.has('api-version')) {
+      parsed.searchParams.set('api-version', apiVersion);
+    }
+    return parsed.toString();
+  }
+
+  const basePath = parsed.pathname.replace(/\/+$/, '');
+  parsed.pathname = `${basePath}/openai/deployments/${encodeURIComponent(deployment)}/embeddings`;
+  parsed.search = '';
+  parsed.searchParams.set('api-version', apiVersion);
+  return parsed.toString();
+}
+
+export function isEmbeddingConfigured() {
+  return Boolean(config.azure.embeddingEndpoint && config.azure.embeddingApiKey);
+}
+
+function hasStoredEmbedding(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 2;
+  }
+  return Boolean(value);
+}
+
 /**
  * Create a new document record
  */
@@ -167,17 +203,29 @@ function getOverlapText(text, targetTokens) {
  */
 export async function generateEmbedding(text) {
   try {
-    // Use Azure OpenAI for embeddings (ada-002)
-    const azureEndpoint = config.azure.endpoint;
-    const azureKey = config.azure.apiKey;
-    const embeddingDeployment = process.env.AZURE_EMBEDDING_DEPLOYMENT || process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002';
+    const azureEndpoint = config.azure.embeddingEndpoint;
+    const azureKey = config.azure.embeddingApiKey;
+    const embeddingDeployment = config.azure.embeddingDeployment;
+    const embeddingApiVersion = config.azure.embeddingApiVersion;
+    const embeddingModel = config.azure.embeddingModel;
 
     if (!azureEndpoint || !azureKey) {
-      logger.warn('Azure OpenAI not configured, skipping embedding generation');
+      logger.warn({
+        hasEndpoint: Boolean(azureEndpoint),
+        hasKey: Boolean(azureKey),
+      }, 'Azure embedding configuration incomplete, skipping embedding generation');
       return null;
     }
 
-    const response = await fetch(`${azureEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=2024-02-01`, {
+    const embeddingUrl = buildEmbeddingRequestUrl(azureEndpoint, embeddingDeployment, embeddingApiVersion);
+    logger.debug({
+      deployment: embeddingDeployment,
+      apiVersion: embeddingApiVersion,
+      model: embeddingModel,
+      endpointMode: azureEndpoint.includes('/openai/deployments/') ? 'full-url' : 'resource-url',
+    }, 'Generating Azure embedding');
+
+    const response = await fetch(embeddingUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -185,6 +233,7 @@ export async function generateEmbedding(text) {
       },
       body: JSON.stringify({
         input: text.slice(0, 8000), // Max input length
+        model: embeddingModel,
       }),
     });
 
@@ -194,7 +243,11 @@ export async function generateEmbedding(text) {
     }
 
     const data = await response.json();
-    return data.data[0].embedding;
+    const embedding = data?.data?.[0]?.embedding;
+    if (!Array.isArray(embedding) || embedding.length === 0) {
+      throw new Error('Embedding API response did not include a valid embedding vector');
+    }
+    return embedding;
   } catch (error) {
     logger.warn({ error: error.message }, 'Failed to generate embedding, falling back to keyword-only indexing');
     return null;
@@ -253,6 +306,88 @@ export async function storeChunks(documentId, chunks) {
 }
 
 /**
+ * Backfill embeddings for older indexed documents whose chunks were stored
+ * before the embedding deployment was configured.
+ */
+export async function backfillMissingEmbeddings(documentId, { limit = 200 } = {}) {
+  if (!isEmbeddingConfigured()) {
+    logger.warn({ documentId }, 'Azure embedding configuration incomplete, skipping embedding backfill');
+    return {
+      total: 0,
+      missing: 0,
+      updated: 0,
+      skipped: 0,
+      reason: 'embedding_not_configured',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('document_chunks')
+    .select('id, text, chunk_index, embedding')
+    .eq('document_id', documentId)
+    .order('chunk_index', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    logger.warn({ error, documentId }, 'Failed to inspect document chunk embeddings');
+    throw error;
+  }
+
+  const chunks = data || [];
+  const missing = chunks.filter(chunk => !hasStoredEmbedding(chunk.embedding));
+
+  if (missing.length === 0) {
+    return {
+      total: chunks.length,
+      missing: 0,
+      updated: 0,
+      skipped: 0,
+      reason: null,
+    };
+  }
+
+  logger.info({
+    documentId,
+    total: chunks.length,
+    missing: missing.length,
+  }, 'Backfilling missing document chunk embeddings');
+
+  let updated = 0;
+  let skipped = 0;
+
+  for (const chunk of missing) {
+    const embedding = await generateEmbedding(chunk.text);
+    if (!embedding) {
+      skipped += 1;
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from('document_chunks')
+      .update({ embedding })
+      .eq('id', chunk.id);
+
+    if (updateError) {
+      logger.warn({ error: updateError, documentId, chunkId: chunk.id }, 'Failed to update chunk embedding');
+      skipped += 1;
+      continue;
+    }
+
+    updated += 1;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  logger.info({ documentId, updated, skipped, missing: missing.length }, 'Embedding backfill complete');
+  return {
+    total: chunks.length,
+    missing: missing.length,
+    updated,
+    skipped,
+    reason: skipped > 0 ? 'partial_backfill' : null,
+  };
+}
+
+/**
  * Expand query with related terms for better retrieval
  * Helps with "sorting" matching "bubble sort" etc.
  */
@@ -286,6 +421,10 @@ function expandQuery(query) {
  */
 export async function retrieveChunks(documentId, query, limit = 5, threshold = 0.5) {
   try {
+    await backfillMissingEmbeddings(documentId, { limit: 200 }).catch(error => {
+      logger.warn({ error: error.message, documentId }, 'Embedding backfill skipped before retrieval');
+    });
+
     // Expand query for better matching
     const expandedQuery = expandQuery(query);
     logger.info({ documentId, original: query, expanded: expandedQuery.slice(0, 100) }, 'Query expanded');
@@ -499,6 +638,8 @@ export default {
   getUserDocuments,
   splitTextIntoChunks,
   generateEmbedding,
+  isEmbeddingConfigured,
+  backfillMissingEmbeddings,
   storeChunks,
   retrieveChunks,
   formatChunksAsContext,

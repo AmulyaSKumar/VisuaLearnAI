@@ -2,15 +2,23 @@ const MAX_RICH_TEXT_LENGTH = 1900;
 
 const ARTIFACT_LABELS = {
   learn: 'Learning Notes',
+  text: 'Assistant Response',
+  notes: 'Notes',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  comparison: 'Comparison',
+  code: 'Code Walkthrough',
+  visual3d: '3D Visualization',
+  transcript: 'Conversation Transcript',
 };
 
-export function buildLearningDocument({ conversation, resources, artifactTypes }) {
+export function buildLearningDocument({ conversation, resources, artifactTypes, messages = [] }) {
   const resourceMap = new Map(resources.map(resource => [resource.resource_type, resource]));
-  const selected = artifactTypes.filter(type => resourceMap.has(type));
+  const selectedResources = artifactTypes.filter(type => resourceMap.has(type));
+  const includeTranscript = artifactTypes.includes('transcript') && Array.isArray(messages) && messages.length > 0;
+  const selected = includeTranscript ? [...selectedResources, 'transcript'] : selectedResources;
 
   if (selected.length === 0) {
     return null;
@@ -18,7 +26,8 @@ export function buildLearningDocument({ conversation, resources, artifactTypes }
 
   const learn = resourceMap.get('learn')?.content || {};
   const title = learn.title || conversation?.title || learn.topic || 'Learning Notes';
-  const topic = learn.topic || resourceMap.get(selected[0])?.topic || conversation?.title || title;
+  const firstResource = selectedResources[0] ? resourceMap.get(selectedResources[0]) : null;
+  const topic = learn.topic || firstResource?.topic || conversation?.title || title;
 
   return {
     title,
@@ -26,10 +35,71 @@ export function buildLearningDocument({ conversation, resources, artifactTypes }
     conversationId: conversation.id,
     artifactTypes: selected,
     resources: resourceMap,
+    messages,
+  };
+}
+
+export function buildConversationDocument({
+  conversation,
+  messages = [],
+  blockTypes = [],
+  blockIds = [],
+  messageId = null,
+  scope = 'conversation',
+}) {
+  const turns = [];
+  const selectedBlockTypes = new Set((blockTypes || []).filter(Boolean));
+  const selectedBlockIds = new Set((blockIds || []).filter(Boolean));
+  let latestUserPrompt = '';
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      latestUserPrompt = message.content || message.text || '';
+      continue;
+    }
+
+    if (message.role !== 'assistant') continue;
+    if (messageId && String(message.id) !== String(messageId)) continue;
+
+    const blocks = extractMessageBlocks(message, latestUserPrompt)
+      .filter(block => !selectedBlockTypes.size || selectedBlockTypes.has(block.type))
+      .filter(block => !selectedBlockIds.size || selectedBlockIds.has(block.id));
+
+    if (!blocks.length) continue;
+
+    turns.push({
+      messageId: message.id,
+      userPrompt: latestUserPrompt,
+      assistantResponse: message.content || message.text || '',
+      timestamp: message.created_at || message.timestamp || null,
+      blocks,
+    });
+  }
+
+  if (!turns.length) return null;
+
+  const artifactTypes = [...new Set(turns.flatMap(turn => turn.blocks.map(block => block.type)))];
+  const firstBlock = turns[0]?.blocks?.[0];
+  const title = scope === 'response'
+    ? firstBlock?.title || conversation?.title || 'VisuaLearn Response'
+    : conversation?.title || 'VisuaLearn Conversation';
+
+  return {
+    kind: 'conversation',
+    title,
+    topic: conversation?.title || firstBlock?.metadata?.topic || title,
+    conversationId: conversation.id,
+    scope,
+    artifactTypes,
+    turns,
   };
 }
 
 export function documentToNotionBlocks(document, { mindmapFileUploadId = null } = {}) {
+  if (document.kind === 'conversation') {
+    return conversationDocumentToNotionBlocks(document);
+  }
+
   const blocks = [
     heading(1, document.title),
     paragraph(`Topic: ${document.topic}`),
@@ -39,6 +109,12 @@ export function documentToNotionBlocks(document, { mindmapFileUploadId = null } 
 
   for (const artifactType of document.artifactTypes) {
     const resource = document.resources.get(artifactType);
+
+    if (artifactType === 'transcript') {
+      blocks.push(...transcriptBlocks(document.messages));
+      continue;
+    }
+
     if (!resource?.content) continue;
 
     if (artifactType === 'learn') {
@@ -193,6 +269,260 @@ function simulationBlocks(content) {
     paragraph(`Domain: ${text(detection.domain, 'Not specified')}`),
     paragraph(`Simulation type: ${text(detection.simulationType, 'Not specified')}`),
     paragraph(`Intent: ${text(detection.educationalIntent, 'Not specified')}`),
+  ];
+}
+
+function conversationDocumentToNotionBlocks(document) {
+  const blocks = [
+    heading(1, document.title),
+    paragraph(`Export type: ${document.scope === 'response' ? 'Single response' : 'Normal chat conversation'}`),
+    paragraph(`Exported from VisuaLearn on ${new Date().toLocaleString('en-US')}.`),
+    divider(),
+  ];
+
+  for (const [index, turn] of document.turns.entries()) {
+    blocks.push(heading(2, `Response ${index + 1}`));
+    if (turn.userPrompt) {
+      blocks.push(callout(`User prompt: ${turn.userPrompt}`));
+    }
+    if (turn.timestamp) {
+      blocks.push(paragraph(`Time: ${new Date(turn.timestamp).toLocaleString('en-US')}`));
+    }
+
+    for (const block of turn.blocks) {
+      blocks.push(...contentBlockToNotionBlocks(block));
+    }
+  }
+
+  return blocks.filter(Boolean);
+}
+
+function contentBlockToNotionBlocks(block) {
+  if (!block) return [];
+
+  if (block.type === 'text' || block.type === 'notes') {
+    return [
+      heading(3, block.title || 'Assistant Response'),
+      ...paragraphs(block.content),
+    ];
+  }
+
+  if (block.type === 'learn') {
+    return learningBlocks(block.content || {});
+  }
+
+  if (block.type === 'quiz') {
+    return quizBlocks(block.content || {});
+  }
+
+  if (block.type === 'flashcards') {
+    return flashcardBlocks(block.content || {});
+  }
+
+  if (block.type === 'mindmap') {
+    return mindmapBlocks(block.content || {});
+  }
+
+  if (block.type === 'simulation' || block.type === 'visual3d') {
+    return simulationBlocks(block.content || {});
+  }
+
+  if (block.type === 'comparison') {
+    return comparisonBlocks(block);
+  }
+
+  if (block.type === 'code') {
+    return [
+      heading(3, block.title || 'Code Walkthrough'),
+      codeBlock(text(block.content?.code || block.content), block.content?.language || 'plain text'),
+      ...(block.content?.explanation ? paragraphs(block.content.explanation) : []),
+    ];
+  }
+
+  return [
+    heading(3, block.title || ARTIFACT_LABELS[block.type] || 'Learning Content'),
+    ...paragraphs(block.content),
+  ];
+}
+
+function extractMessageBlocks(message, sourcePrompt = '') {
+  const metadata = message.metadata || {};
+  if (Array.isArray(metadata.generatedBlocks) && metadata.generatedBlocks.length > 0) {
+    return metadata.generatedBlocks.map((block, index) => ({
+      id: block.id || block.blockId || `block_${message.id || index}_${block.type || 'content'}`,
+      blockId: block.blockId || block.id || `block_${message.id || index}_${block.type || 'content'}`,
+      type: block.type || 'text',
+      title: block.title || titleForBlock(block.type || 'text', block.metadata?.topic || sourcePrompt),
+      content: block.content ?? '',
+      timestamp: block.timestamp || message.created_at || new Date().toISOString(),
+      sourcePrompt: block.sourcePrompt || sourcePrompt,
+      metadata: block.metadata || {},
+    }));
+  }
+
+  const learningContent = metadata.learningContent || {};
+  const blocks = [];
+  const messageId = String(message.id || Date.now());
+  const timestamp = message.created_at || message.timestamp || new Date().toISOString();
+  const topic = metadata.activeTopic || metadata.decision?.activeTopic || metadata.topic || message.topic || sourcePrompt;
+  const assistantText = text(message.content || message.text);
+
+  if (assistantText) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'text',
+      title: titleForBlock('text', topic),
+      content: assistantText,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (learningContent.summary || Array.isArray(learningContent.key_ideas)) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'learn',
+      title: titleForBlock('learn', topic),
+      content: learningContent,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (hasQuiz(learningContent)) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'quiz',
+      title: titleForBlock('quiz', topic),
+      content: learningContent,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (hasFlashcards(learningContent)) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'flashcards',
+      title: titleForBlock('flashcards', topic),
+      content: learningContent,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (learningContent.mind_map || learningContent.mindmap) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'mindmap',
+      title: titleForBlock('mindmap', topic),
+      content: learningContent,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (metadata.requestedArtifact === 'simulation' || metadata.decision?.simulation?.needed || learningContent.simulation) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'simulation',
+      title: titleForBlock('simulation', topic),
+      content: learningContent.simulation || metadata.decision?.simulationSupport || metadata.decision || { topic },
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (metadata.visual3d) {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'visual3d',
+      title: titleForBlock('visual3d', topic),
+      content: metadata.visual3d,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  return dedupeBlocks(blocks);
+}
+
+function contentBlock({ messageId, type, title, content, timestamp, sourcePrompt, metadata = {} }) {
+  return {
+    id: `block_${messageId}_${type}`,
+    blockId: `block_${messageId}_${type}`,
+    type,
+    title,
+    content,
+    timestamp,
+    sourcePrompt,
+    metadata,
+  };
+}
+
+function hasQuiz(content = {}) {
+  const questions = Array.isArray(content.quiz) ? content.quiz : content.quiz?.questions;
+  return Array.isArray(questions) && questions.length > 0;
+}
+
+function hasFlashcards(content = {}) {
+  const cards = Array.isArray(content.flashcards) ? content.flashcards : content.cards;
+  return Array.isArray(cards) && cards.length > 0;
+}
+
+function dedupeBlocks(blocks) {
+  const seen = new Set();
+  return blocks.filter(block => {
+    const key = `${block.id}:${block.type}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function titleForBlock(type, topic) {
+  const label = ARTIFACT_LABELS[type] || 'Learning Content';
+  const cleanTopic = text(topic).trim();
+  return cleanTopic ? `${cleanTopic} ${label}` : label;
+}
+
+function comparisonBlocks(block) {
+  const content = block.content || {};
+  const items = Array.isArray(content.items) ? content.items : [];
+  const blocks = [heading(3, block.title || 'Comparison')];
+
+  if (!items.length) {
+    blocks.push(...paragraphs(content));
+    return blocks;
+  }
+
+  for (const item of items) {
+    blocks.push(bullet(`${text(item.name || item.title, 'Item')}: ${text(item.description || item.value)}`));
+  }
+
+  return blocks;
+}
+
+function transcriptBlocks(messages = []) {
+  const visibleMessages = messages
+    .filter(message => ['user', 'assistant'].includes(message.role) && text(message.content))
+    .slice(-40);
+
+  if (!visibleMessages.length) return [];
+
+  return [
+    heading(2, 'Conversation Transcript'),
+    ...visibleMessages.map((message, index) => toggle(
+      `${index + 1}. ${message.role === 'user' ? 'User' : 'Assistant'}`,
+      paragraphs(message.content),
+    )),
   ];
 }
 

@@ -52,6 +52,26 @@ if (!realtimeStatus.configured) {
   console.warn('Realtime configuration incomplete', { missing: realtimeStatus.missing });
 }
 
+function getUrlHost(value) {
+  try {
+    return value ? new URL(value).host : null;
+  } catch {
+    return null;
+  }
+}
+
+const embeddingEndpoint =
+  process.env.AZURE_EMBEDDING_ENDPOINT ||
+  process.env.AZURE_OPENAI_EMBEDDING_ENDPOINT ||
+  process.env.AZURE_OPENAI_ENDPOINT;
+const embeddingEndpointHost = getUrlHost(embeddingEndpoint);
+const chatEndpointHost = getUrlHost(process.env.AZURE_OPENAI_ENDPOINT);
+const canReuseChatKeyForEmbeddings = Boolean(
+  embeddingEndpointHost &&
+  chatEndpointHost &&
+  embeddingEndpointHost === chatEndpointHost
+);
+
 /**
  * Environment configuration object
  */
@@ -74,6 +94,14 @@ export const config = {
     apiKey: process.env.AZURE_OPENAI_API_KEY,
     apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
     chatDeployment: process.env.AZURE_OPENAI_DEPLOYMENT,
+    embeddingEndpoint,
+    embeddingApiKey:
+      process.env.AZURE_EMBEDDING_API_KEY ||
+      process.env.AZURE_OPENAI_EMBEDDING_API_KEY ||
+      (canReuseChatKeyForEmbeddings ? process.env.AZURE_OPENAI_API_KEY : undefined),
+    embeddingApiVersion: process.env.AZURE_EMBEDDING_API_VERSION || process.env.AZURE_OPENAI_EMBEDDING_API_VERSION || '2023-05-15',
+    embeddingDeployment: process.env.AZURE_EMBEDDING_DEPLOYMENT || process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002',
+    embeddingModel: process.env.AZURE_EMBEDDING_MODEL || process.env.AZURE_OPENAI_EMBEDDING_MODEL || 'text-embedding-ada-002',
     imageEndpoint: process.env.AZURE_IMAGE_ENDPOINT,
     imageApiVersion: process.env.AZURE_IMAGE_API_VERSION || '2024-02-01',
     ttsModel: process.env.AZURE_TTS_MODEL,

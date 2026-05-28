@@ -568,7 +568,7 @@ Use a slower, repair-focused explanation before advancing.`,
 }
 
 /**
- * Get system metrics for monitoring dashboard
+ * Get system metrics for monitoring and diagnostics
  */
 export function getBanditMetrics() {
   return {
@@ -579,7 +579,7 @@ export function getBanditMetrics() {
 }
 
 /**
- * Get time series data for dashboard visualization
+ * Get time series data for monitoring and diagnostics
  */
 export function getBanditTimeSeries(bucketMs = 60000) {
   return evaluationMetrics.getTimeSeries(bucketMs);

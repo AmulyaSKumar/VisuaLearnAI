@@ -3,6 +3,9 @@ import { detectSandboxSimulationSupport } from '../simulation/sandbox-engine.js'
 
 const EXPLICIT_SIMULATION_PATTERN = /\b(simulate|simulation|visuali[sz]e|show\s+(?:me\s+)?(?:an?\s+)?(?:animation|visual|interactive)|animate|animation|interactive)\b/i;
 const EXPLICIT_3D_PATTERN = /\b(3d|three[-\s]?d|spatial|in\s+3d|three dimensional)\b/i;
+const VISUAL_3D_TOPIC_PATTERN = /\b(universe|solar system|planet|star|galaxy|black hole|gravity|pendulum|wave|force|field|dna|cell|molecule|protein|neural networks?|network|recursion|api flow|tcp)\b/i;
+const VISUAL_REQUEST_PATTERN = /\b(visuali[sz]e|show|build|render|create|model|demonstrate)\b/i;
+const ALGORITHM_TOPIC_PATTERN = /\b(bubble|quick|merge|insertion|selection|heap)\s+sort\b|\b(binary search|dijkstra|dfs|bfs|algorithm|data structure)\b/i;
 const QUIZ_PATTERN = /\b(quiz|test me|ask me questions|practice questions|question me)\b/i;
 const FLASHCARD_PATTERN = /\b(flashcards?|cards?|revise with cards)\b/i;
 const MINDMAP_PATTERN = /\b(mind\s?map|concept map|map this)\b/i;
@@ -80,15 +83,24 @@ function resolveTopic(query, conversationState = {}) {
   return extracted || activeTopic || null;
 }
 
-function simulationScore(query, topic, explicitSimulation, explicit3D) {
+function simulationScore(query, topic, explicitSimulation) {
   const target = `${query || ''} ${topic || ''}`;
-  if (explicitSimulation || explicit3D) return 0.96;
+  if (explicitSimulation) return 0.96;
   if (HIGH_VALUE_SIMULATION_PATTERNS.some(pattern => pattern.test(target))) return 0.95;
   if (DEFINITION_ONLY_PATTERN.test(query) && LOW_VISUAL_VALUE_PATTERN.test(target)) return 0.22;
   if (DEFINITION_ONLY_PATTERN.test(query)) return 0.42;
   if (MEDIUM_VALUE_SIMULATION_PATTERNS.some(pattern => pattern.test(target))) return 0.62;
   if (/\b(explain|how does|how do|why does)\b/i.test(query) && /\b(sort|search|algorithm|cycle|process|flow|network)\b/i.test(target)) return 0.86;
   return 0.28;
+}
+
+function shouldRequestScene3D(query, topic, requestedArtifact) {
+  const target = `${query || ''} ${topic || ''}`;
+  if (requestedArtifact === '3d_scene') return true;
+  if (EXPLICIT_3D_PATTERN.test(target)) return true;
+  if (!VISUAL_REQUEST_PATTERN.test(query || '')) return false;
+  if (ALGORITHM_TOPIC_PATTERN.test(target) && !EXPLICIT_3D_PATTERN.test(target)) return false;
+  return VISUAL_3D_TOPIC_PATTERN.test(target);
 }
 
 function artifactList(query, requestedArtifact = null) {
@@ -106,7 +118,6 @@ function artifactList(query, requestedArtifact = null) {
 export function buildConversationState({ query, previousState = {}, decision = null } = {}) {
   const activeTopic = cleanTopic(decision?.activeTopic) || resolveTopic(query, previousState);
   const lastArtifact = decision?.artifacts?.[0]
-    || (decision?.scene3D?.needed ? '3d_scene' : null)
     || (decision?.simulation?.needed ? 'simulation' : null)
     || previousState.lastArtifact
     || null;
@@ -129,28 +140,30 @@ export function LearningOrchestratorDecision({
   const normalizedMode = mode === 'learning' ? 'learning' : 'chat';
   const text = String(query || '');
   const activeTopic = resolveTopic(text, conversationState);
-  const explicit3D = EXPLICIT_3D_PATTERN.test(text);
-  const explicitSimulation = EXPLICIT_SIMULATION_PATTERN.test(text) || requestedArtifact === 'simulation';
+  const scene3DRequested = shouldRequestScene3D(text, activeTopic, requestedArtifact);
+  const explicit3D = EXPLICIT_3D_PATTERN.test(text) || requestedArtifact === '3d_scene';
+  const explicitSimulation = (EXPLICIT_SIMULATION_PATTERN.test(text) && !scene3DRequested) || requestedArtifact === 'simulation';
   const artifacts = artifactList(text, requestedArtifact);
-  const score = clamp01(simulationScore(text, activeTopic, explicitSimulation, explicit3D));
+  const score = clamp01(simulationScore(text, activeTopic, explicitSimulation));
   const autoRender = score > SIMULATION_CONFIG.AUTO_RENDER_THRESHOLD;
   const suggested = score > SIMULATION_CONFIG.SUGGEST_THRESHOLD && score <= SIMULATION_CONFIG.AUTO_RENDER_THRESHOLD;
-  const simulationNeeded = Boolean(explicitSimulation || explicit3D || (normalizedMode === 'learning' && requestedArtifact === 'simulation') || autoRender);
-  const scene3DNeeded = Boolean(explicit3D);
+  const simulationNeeded = Boolean(explicitSimulation || (normalizedMode === 'learning' && requestedArtifact === 'simulation') || autoRender);
 
   const decision = {
     mode: normalizedMode,
     simulation: {
       needed: simulationNeeded,
       confidence: score,
-      explicit: Boolean(explicitSimulation || explicit3D),
+      explicit: Boolean(explicitSimulation),
       suggested: !simulationNeeded && suggested,
       fallback: false,
     },
     scene3D: {
-      needed: scene3DNeeded,
-      confidence: explicit3D ? Math.max(score, 0.93) : Math.min(score, 0.45),
-      explicit: explicit3D,
+      needed: false,
+      confidence: scene3DRequested ? 0.93 : Math.min(score, 0.45),
+      explicit: scene3DRequested,
+      requested: scene3DRequested,
+      status: scene3DRequested ? 'visual3d_ready_for_frontend' : 'not_requested',
     },
     artifacts,
     activeTopic,

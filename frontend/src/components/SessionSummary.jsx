@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 
 /**
  * SessionSummary - Modal shown after a learning session
@@ -210,12 +209,6 @@ export default function SessionSummary({
 
         {/* Footer */}
         <div className="p-6 border-t border-border flex gap-3">
-          <Link
-            to="/dashboard"
-            className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg text-sm font-medium text-center hover:bg-muted/80 transition-colors"
-          >
-            View Full Dashboard
-          </Link>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"

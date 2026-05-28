@@ -10,7 +10,6 @@ import PersonaSelectionModal from "./components/PersonaSelectionModal";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import NewChatPage from "./pages/NewChatPage";
-import Dashboard from "./pages/Dashboard";
 import LearningPage from "./pages/LearningPage";
 import SettingsPage from "./pages/SettingsPage";
 import HomePage from "./pages/HomePage";
@@ -299,14 +298,6 @@ function AppContent() {
             element={
               <ProtectedRoute>
                 <LearningPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
               </ProtectedRoute>
             }
           />

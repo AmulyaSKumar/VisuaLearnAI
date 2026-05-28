@@ -16,6 +16,7 @@ import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
 import realtimeRoutes from './realtime/routes.js';
 import simulationRoutes from './simulation/routes.js';
+import visual3dRoutes from './visual3d/routes.js';
 import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
@@ -243,6 +244,14 @@ export function registerRoutes(app) {
   router.use('/simulation', simulationRoutes);
 
   /**
+   * Visual3D API
+   * POST /api/visual3d/generate - Generate a validated procedural 3D scene blueprint
+   * POST /api/visual3d/debug - Return topic analysis, tool outputs, validation, and trace logs
+   * GET /api/visual3d/examples - List supported debug examples and capabilities
+   */
+  router.use('/visual3d', visual3dRoutes);
+
+  /**
    * Admin API - Requires admin user
    */
 
@@ -373,6 +382,9 @@ export function registerRoutes(app) {
         'POST /api/simulation/detect',
         'POST /api/simulation/generate',
         'POST /api/simulation/feedback',
+        'POST /api/visual3d/generate',
+        'POST /api/visual3d/debug',
+        'GET /api/visual3d/examples',
         'POST /api/tts',
         'POST /api/plan',
         'POST /api/generate-assets',

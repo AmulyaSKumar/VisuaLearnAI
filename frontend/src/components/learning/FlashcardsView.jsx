@@ -1,11 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
   calculateSM2,
-  isDueForReview,
-  sortCardsByPriority,
-  getCardStatus,
   SM2_DEFAULTS,
 } from '../../utils/spacedRepetition';
 import {
@@ -62,23 +59,22 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setQuestion('');
-      setAnswer('');
-      setTopic('');
-    }
-  }, [isOpen]);
+  const handleClose = () => {
+    setQuestion('');
+    setAnswer('');
+    setTopic('');
+    onClose();
+  };
 
   const handleSave = () => {
     if (!question.trim() || !answer.trim()) return;
     onSave({ question: question.trim(), answer: answer.trim(), topic: topic.trim() });
-    onClose();
+    handleClose();
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
-      onClose();
+      handleClose();
     } else if (e.key === 'Enter' && e.ctrlKey) {
       handleSave();
     }
@@ -89,10 +85,10 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={handleKeyDown}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
       {/* Modal */}
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.98 }}
@@ -102,7 +98,7 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">New Flashcard</h3>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Close
@@ -140,7 +136,7 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-4 py-3 border-t border-border">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
@@ -153,7 +149,7 @@ function CreateFlashcardModal({ isOpen, onClose, onSave }) {
             Save
           </button>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }
@@ -170,7 +166,7 @@ function FlashcardCard({ card, onRate, isUserCard }) {
   };
 
   return (
-    <motion.div
+    <Motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="h-44 perspective-1000 cursor-pointer"
@@ -238,7 +234,7 @@ function FlashcardCard({ card, onRate, isUserCard }) {
           </div>
         </div>
       </div>
-    </motion.div>
+    </Motion.div>
   );
 }
 
@@ -587,7 +583,7 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
       {allCards.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <AnimatePresence>
-            {allCards.map((card, index) => (
+            {allCards.map((card) => (
               <FlashcardCard
                 key={card.id}
                 card={card}

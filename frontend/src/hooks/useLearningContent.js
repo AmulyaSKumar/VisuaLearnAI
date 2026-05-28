@@ -34,6 +34,8 @@ async function parseJsonResponse(response, fallbackMessage) {
  * - quiz: quiz questions (Quiz tab)
  */
 export function useLearningContent() {
+  const warnedUnauthenticatedTrackingRef = useRef(false);
+
   // Per-tab content storage
   const [contentByTab, setContentByTab] = useState({
     learn: null,
@@ -369,11 +371,19 @@ export function useLearningContent() {
   }, []);
 
   const trackInteraction = useCallback(async (userId, interactionType, data, accessToken = null) => {
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
+    if (!userId || !accessToken) {
+      if (!warnedUnauthenticatedTrackingRef.current) {
+        console.warn('Skipping interaction tracking: unauthenticated');
+        warnedUnauthenticatedTrackingRef.current = true;
       }
+      return { success: false, skipped: true, reason: 'unauthenticated' };
+    }
+
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      };
 
       const response = await fetch(`${API_BASE}/api/learning-content/track-interaction`, {
         method: 'POST',
@@ -383,10 +393,22 @@ export function useLearningContent() {
 
       if (!response.ok) {
         const payload = await parseJsonResponse(response, 'Failed to track learning interaction.');
-        throw new Error(payload?.error || 'Failed to track learning interaction');
+        const message = payload?.error || 'Failed to track learning interaction';
+        if (response.status === 401 || response.status === 403) {
+          if (!warnedUnauthenticatedTrackingRef.current) {
+            console.warn(`Skipping interaction tracking: ${message}`);
+            warnedUnauthenticatedTrackingRef.current = true;
+          }
+          return { success: false, skipped: true, reason: 'unauthorized' };
+        }
+        throw new Error(message);
       }
+
+      warnedUnauthenticatedTrackingRef.current = false;
+      return { success: true };
     } catch (err) {
       console.error('Track interaction error:', err);
+      return { success: false, error: err.message };
     }
   }, []);
 

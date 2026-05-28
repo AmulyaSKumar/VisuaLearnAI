@@ -194,6 +194,9 @@ export default function InputBar({
                       <button type="button" onClick={() => handleTool("simulation")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
                         Simulation
                       </button>
+                      <button type="button" onClick={() => handleTool("3d_scene")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
+                        3D Visualization
+                      </button>
                       <button type="button" onClick={() => handleTool("summarize")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
                         Summarize uploaded document
                       </button>

@@ -1,8 +1,13 @@
 import crypto from 'crypto';
 import { Client } from '@notionhq/client';
 import { config } from '../../config/environment.js';
-import { supabase, getConversationResources } from '../../database/client.js';
-import { buildLearningDocument, documentToNotionBlocks, artifactLabels } from './document.js';
+import { supabase, getConversationMessages, getConversationResources } from '../../database/client.js';
+import {
+  buildConversationDocument,
+  buildLearningDocument,
+  documentToNotionBlocks,
+  artifactLabels,
+} from './document.js';
 
 const NOTION_AUTH_URL = 'https://api.notion.com/v1/oauth/authorize';
 const DATABASE_TITLE = 'VisuaLearn Learning Library';
@@ -113,17 +118,48 @@ export async function disconnectNotion(userId) {
   }
 }
 
-export async function exportConversationToNotion({ userId, conversationId, artifactTypes, mindmapPngDataUrl }) {
+export async function exportConversationToNotion({
+  userId,
+  conversationId,
+  artifactTypes,
+  mindmapPngDataUrl,
+  mode = 'learning',
+  scope = null,
+  messageId = null,
+  blockTypes = [],
+  blockIds = [],
+}) {
   assertConfigured();
 
   const connection = await getConnection(userId);
   const conversation = await getOwnedConversation(userId, conversationId);
-  const resources = await getConversationResources(conversationId);
+  const [resources, messages] = await Promise.all([
+    getConversationResources(conversationId),
+    getConversationMessages(conversationId).catch(() => []),
+  ]);
   const selectedTypes = normalizeArtifactTypes(artifactTypes);
-  const document = buildLearningDocument({ conversation, resources, artifactTypes: selectedTypes });
+  const normalizedMode = mode === 'chat' ? 'chat' : 'learning';
+  const normalizedScope = scope || (normalizedMode === 'chat' ? 'conversation' : 'workspace');
+  const document = normalizedMode === 'chat'
+    ? buildConversationDocument({
+      conversation,
+      messages,
+      blockTypes,
+      blockIds,
+      messageId,
+      scope: normalizedScope,
+    })
+    : buildLearningDocument({
+      conversation,
+      resources,
+      artifactTypes: selectedTypes,
+      messages,
+    });
 
   if (!document) {
-    throw statusError(422, 'No selected learning artifacts exist for this conversation.');
+    throw statusError(422, normalizedMode === 'chat'
+      ? 'No matching response blocks exist for this chat export.'
+      : 'No selected learning artifacts exist for this conversation.');
   }
 
   const notion = createNotionClient(decrypt(connection.access_token_encrypted));
@@ -171,6 +207,13 @@ export async function exportConversationToNotion({ userId, conversationId, artif
       notion_page_id: page.id,
       notion_url: notionUrl,
       artifact_types: document.artifactTypes,
+      metadata: {
+        mode: normalizedMode,
+        scope: normalizedScope,
+        messageId,
+        blockTypes,
+        blockIds,
+      },
     });
 
   if (error) {
@@ -373,7 +416,7 @@ function richText(content) {
 }
 
 function normalizeArtifactTypes(artifactTypes) {
-  const allowed = new Set(['learn', 'quiz', 'flashcards', 'mindmap', 'simulation']);
+  const allowed = new Set(['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', 'transcript']);
   return [...new Set((artifactTypes || []).filter(type => allowed.has(type)))];
 }
 

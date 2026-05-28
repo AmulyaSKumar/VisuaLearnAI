@@ -16,6 +16,8 @@ import {
   generateConversationTitle,
   shouldAutoGenerateConversationTitle,
 } from "../utils/conversationActions";
+import { getMessageContentBlocks } from "../utils/contentBlocks";
+import { generateVisual3D, shouldAttemptVisual3D } from "../utils/visual3d";
 
 const CHAT_ARTIFACTS_WITH_LEARNING_AGENTS = new Set(["quiz", "flashcards", "mindmap"]);
 const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
@@ -248,6 +250,33 @@ export function useChat(
             adaptiveExplanation: msg.metadata?.adaptiveExplanation || null,
           }));
 
+          const shouldGenerateVisual3D = shouldAttemptVisual3D(
+            text,
+            preferences.requestedArtifact || enrichedMsgs[0]?.metadata?.requestedArtifact || null,
+          ) || enrichedMsgs.some(msg => msg.metadata?.decision?.scene3D?.requested);
+
+          let visual3d = null;
+          if (shouldGenerateVisual3D) {
+            visual3d = await generateVisual3D(
+              enrichedMsgs[0]?.metadata?.activeTopic || text,
+              accessToken,
+            ).catch(err => ({
+              topic: enrichedMsgs[0]?.metadata?.activeTopic || text,
+              unavailable: true,
+              error: err?.message || '3D is not available for this topic.',
+            }));
+
+            enrichedMsgs = enrichedMsgs.map((msg, index) => index === enrichedMsgs.length - 1
+              ? {
+                ...msg,
+                metadata: {
+                  ...(msg.metadata || {}),
+                  visual3d,
+                },
+              }
+              : msg);
+          }
+
           // 4. Save assistant message(s) to DB
           const savedAssistantMessages = [];
           for (const msg of enrichedMsgs) {
@@ -259,6 +288,7 @@ export function useChat(
               webSearch: !!preferences.webSearch,
               ...(msg.metadata || {}),
               requestedArtifact: preferences.requestedArtifact || msg.metadata?.requestedArtifact || null,
+              visual3d: msg.metadata?.visual3d || null,
             };
             const savedMsg = await saveMessage(
               activeConversationId,
@@ -307,9 +337,25 @@ export function useChat(
 
             const latestSavedAssistant = savedAssistantMessages[savedAssistantMessages.length - 1];
             if (generatedLearningContent && latestSavedAssistant?.id) {
-              const nextMetadata = {
+              const baseMetadata = {
                 ...(latestSavedAssistant.metadata || {}),
                 learningContent: generatedLearningContent,
+              };
+              const generatedBlocks = getMessageContentBlocks(
+                {
+                  id: latestSavedAssistant.id,
+                  role: "assistant",
+                  content: latestSavedAssistant.content || "",
+                  metadata: baseMetadata,
+                },
+                {
+                  role: "user",
+                  content: text,
+                },
+              );
+              const nextMetadata = {
+                ...baseMetadata,
+                generatedBlocks,
               };
               setMessages(currentMessages => currentMessages.map(message => (
                 message.id === latestSavedAssistant.id

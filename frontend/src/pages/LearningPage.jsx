@@ -7,16 +7,18 @@ import { useLearningContent } from "../hooks/useLearningContent";
 import { useLearningResources, RESOURCE_TYPES } from "../hooks/useLearningResources";
 import { normalizeLearningContent } from "../utils/normalizeLearningContent";
 import { LearningIntelligenceProvider, useLearningIntelligence } from "../contexts/LearningIntelligenceContext";
-import InputBar from "../components/InputBar";
 import MessageBubble from "../components/MessageBubble";
 import LearnTabView from "../components/learning/LearnTabView";
 import FlashcardsView from "../components/learning/FlashcardsView";
 import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
+import Visual3DView from "../components/visual3d/Visual3DView";
 import EngagingLoader from "../components/learning/EngagingLoader";
+import SaveToNotionButton from "../components/SaveToNotionButton";
 import { exportToNotion, getNotionStatus } from "../services/notionService";
 import { SIMULATION_CONFIG } from "../config/simulationConfig";
+import { shouldAttemptVisual3D } from "../utils/visual3d";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -25,6 +27,7 @@ const TAB_LABELS = {
   quiz: 'Quiz',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  '3d': '3D',
 };
 
 const NOTION_ARTIFACT_LABELS = {
@@ -33,6 +36,7 @@ const NOTION_ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  '3d': '3D Visualization',
 };
 
 const TOPIC_STOP_WORDS = new Set([
@@ -671,6 +675,10 @@ function LearningPageContent() {
       return;
     }
 
+    if (tabId === '3d') {
+      return;
+    }
+
     // Already loaded in memory?
     if (loadedTabs.has(tabId)) {
       return;
@@ -1261,6 +1269,7 @@ function LearningPageContent() {
     if (tabId === 'quiz') return Array.isArray(turnContent?.quiz) && turnContent.quiz.length > 0;
     if (tabId === 'flashcards') return Array.isArray(turnContent?.flashcards) && turnContent.flashcards.length > 0;
     if (tabId === 'mindmap') return !!turnContent?.mind_map;
+    if (tabId === '3d') return !!turnContent?.visual3d;
     return false;
   }, []);
 
@@ -1335,6 +1344,10 @@ function LearningPageContent() {
         });
       }
 
+      return;
+    }
+
+    if (tabId === '3d') {
       return;
     }
 
@@ -1457,7 +1470,10 @@ function LearningPageContent() {
               turnSimulationDetections[turnId] ||
               turn.assistant?.metadata?.simulationDetection ||
               (isLatest ? simulationDetection : null);
-            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation'];
+            const canOfferTurn3D = shouldAttemptVisual3D(userText, turn.assistant?.metadata?.requestedArtifact)
+              || Boolean(turn.assistant?.metadata?.decision?.scene3D?.requested)
+              || Boolean(turn.assistant?.metadata?.visual3d);
+            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', ...(canOfferTurn3D ? ['3d'] : [])];
 
             return (
               <div
@@ -1635,6 +1651,15 @@ function LearningPageContent() {
                                   : 'Click Simulation to check and open an interactive visual for this question.'}
                               </div>
                             )}
+
+                            {activeTurnTab === '3d' && (
+                              <Visual3DView
+                                topic={turnContent?.topic || userText || conversation?.title}
+                                accessToken={accessToken}
+                                visual3d={turn.assistant?.metadata?.visual3d || null}
+                                autoFetch
+                              />
+                            )}
                       </div>
                     )}
                   </div>
@@ -1766,6 +1791,19 @@ function LearningPageContent() {
           </>
         );
 
+      case '3d':
+        return (
+          <>
+            <BackButton />
+            <Visual3DView
+              topic={learningContent?.topic || userQuery || conversation?.title}
+              accessToken={accessToken}
+              visual3d={learningContent?.visual3d || null}
+              autoFetch
+            />
+          </>
+        );
+
       default:
         return null;
     }
@@ -1821,6 +1859,7 @@ function LearningPageContent() {
                   New convo
                 </span>
               </button>
+              <SaveToNotionButton mode="learning" scope="workspace" />
             </div>
           </div>
 
@@ -1866,27 +1905,7 @@ function LearningPageContent() {
             </div>
           )}
 
-          {messages.length > 0 ? renderConversationThread() : renderTabContent()}
-        </div>
-      </div>
-
-      <div className="flex-shrink-0 border-t border-border bg-background/95 px-3 py-3 backdrop-blur sm:px-6">
-        <div className="mx-auto max-w-4xl space-y-3">
-          <InputBar
-            onSend={handleFollowUp}
-            inputDisabled={isFollowUpLoading || isLoading || isLearningContentLoading}
-            webSearchEnabled={webSearchEnabled}
-            onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
-            onDocumentUpload={() => {
-              setTabErrors({ learn: 'Document upload is available from the new chat screen. Existing selected documents still work in this thread.' });
-            }}
-            onGenerateArtifact={(artifact) => {
-              if (artifact === 'quiz') handleOpenTab('quiz');
-              if (artifact === 'flashcards') handleOpenTab('flashcards');
-              if (artifact === 'mindmap') handleOpenTab('mindmap');
-              if (artifact === 'simulation') handleOpenTab('simulation');
-            }}
-          />
+          {renderTabContent()}
         </div>
       </div>
 

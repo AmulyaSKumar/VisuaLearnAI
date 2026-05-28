@@ -12,6 +12,7 @@ import {
   shouldAutoGenerateConversationTitle,
 } from '../utils/conversationActions';
 import { sanitizeAssistantResponse } from '../utils/sanitizeAssistantResponse';
+import { generateVisual3D, shouldAttemptVisual3D } from '../utils/visual3d';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -21,13 +22,14 @@ const ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  '3d_scene': '3D Visualization',
   summarize: 'Document Summary',
 };
 
 const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
 
 const artifactToContentType = (artifact) => {
-  if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === 'summarize') return 'learn';
+  if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === '3d_scene' || artifact === 'summarize') return 'learn';
   if (artifact === 'quiz') return 'quiz';
   if (artifact === 'flashcards' || artifact === 'mindmap') return 'flashcards-mindmap';
   return 'learn';
@@ -39,6 +41,7 @@ function inferExplicitArtifact(text) {
   if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
   if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
   if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
+  if (shouldAttemptVisual3D(value)) return '3d_scene';
   return null;
 }
 
@@ -293,8 +296,16 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       fullText = sanitizeAssistantResponse(fullText);
       let learningContent = null;
       let factCheck = null;
+      let visual3d = null;
       const effectiveArtifact = requestedArtifact;
-      const shouldGenerateLearningArtifact = Boolean(effectiveArtifact && (isLearningMode || pendingArtifact));
+      if (shouldAttemptVisual3D(text, effectiveArtifact)) {
+        visual3d = await generateVisual3D(orchestrationMetadata.activeTopic || text, accessToken).catch((err) => ({
+          topic: orchestrationMetadata.activeTopic || text,
+          unavailable: true,
+          error: err?.message || '3D is not available for this topic.',
+        }));
+      }
+      const shouldGenerateLearningArtifact = Boolean(effectiveArtifact && effectiveArtifact !== '3d_scene' && (isLearningMode || pendingArtifact));
       if (shouldGenerateLearningArtifact) try {
         const lcHeaders = { 'Content-Type': 'application/json' };
         if (accessToken) {
@@ -343,6 +354,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               requestedArtifact: effectiveArtifact || null,
               learningContent,
               factCheck,
+              visual3d,
               ...orchestrationMetadata,
             }
           });

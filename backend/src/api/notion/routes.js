@@ -54,13 +54,23 @@ router.delete('/disconnect', async (req, res) => {
 
 router.post('/export', async (req, res) => {
   try {
-    const { conversationId, artifactTypes, mindmapPngDataUrl } = req.body || {};
+    const {
+      conversationId,
+      artifactTypes,
+      mindmapPngDataUrl,
+      mode,
+      scope,
+      messageId,
+      blockTypes,
+      blockIds,
+    } = req.body || {};
 
     if (!conversationId) {
       return res.status(400).json({ error: 'conversationId is required' });
     }
 
-    if (!Array.isArray(artifactTypes) || artifactTypes.length === 0) {
+    const isChatExport = mode === 'chat';
+    if (!isChatExport && (!Array.isArray(artifactTypes) || artifactTypes.length === 0)) {
       return res.status(422).json({ error: 'Select at least one artifact to export.' });
     }
 
@@ -69,6 +79,11 @@ router.post('/export', async (req, res) => {
       conversationId,
       artifactTypes,
       mindmapPngDataUrl,
+      mode,
+      scope,
+      messageId,
+      blockTypes: Array.isArray(blockTypes) ? blockTypes : [],
+      blockIds: Array.isArray(blockIds) ? blockIds : [],
     });
 
     res.json({ success: true, ...result });
