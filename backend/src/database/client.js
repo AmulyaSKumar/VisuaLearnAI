@@ -817,21 +817,74 @@ export async function setDefaultPersona(userId, personaId) {
       throw new Error('Persona not found');
     }
 
+    const now = new Date().toISOString();
+
     const { data, error } = await supabase
       .from('user_profiles')
       .update({
         default_persona_id: personaId,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to set default persona: ${error.message}`);
     }
 
-    return data;
+    if (data) {
+      return data;
+    }
+
+    // Some deployed users can exist in auth before a user_profiles row is created.
+    // Create the missing profile here so setting a default persona remains idempotent.
+    const profileDefaults = {
+      id: userId,
+      learning_style: 'visual',
+      detected_styles: {
+        visual: 0.25,
+        auditory: 0.25,
+        reading: 0.25,
+        kinesthetic: 0.25,
+      },
+      preferred_language: 'en',
+      comprehension_level: 'intermediate',
+      pace_preference: 'normal',
+      default_persona_id: personaId,
+      updated_at: now,
+    };
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('user_profiles')
+      .insert(profileDefaults)
+      .select()
+      .single();
+
+    if (!insertError) {
+      return inserted;
+    }
+
+    // If another request created the profile between update and insert, retry the update.
+    if (insertError.code === '23505') {
+      const { data: retryData, error: retryError } = await supabase
+        .from('user_profiles')
+        .update({
+          default_persona_id: personaId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (retryError) {
+        throw new Error(`Failed to set default persona: ${retryError.message}`);
+      }
+
+      return retryData;
+    }
+
+    throw new Error(`Failed to create user profile for default persona: ${insertError.message}`);
   } catch (error) {
     console.error('Set default persona error:', error);
     throw error;
