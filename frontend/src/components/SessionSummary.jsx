@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://visualearnai-backend.onrender.com" : "http://localhost:3001");
+
 /**
  * SessionSummary - Modal shown after a learning session
  * Displays cognitive states encountered, improvement trend, and next steps
@@ -23,7 +25,7 @@ export default function SessionSummary({
   // Fetch latest metrics when modal opens
   useEffect(() => {
     if (isOpen && userId) {
-      fetch(`http://localhost:3001/api/user/${userId}/metrics`)
+      fetch(`${API_BASE}/api/user/${userId}/metrics`)
         .then(res => res.json())
         .then(data => setMetrics(data))
         .catch(err => console.error("Failed to fetch metrics:", err));

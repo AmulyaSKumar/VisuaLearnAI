@@ -248,7 +248,7 @@ function LearningPageContent() {
   }, [localSimulationDetection]);
 
   // API base URL
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
 
   // Run simulation detection for a query (used when loading from DB cache)
   const runSimulationDetection = useCallback(async (query) => {

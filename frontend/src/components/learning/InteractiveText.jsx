@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
+
 function safeText(value) {
   return String(value ?? '').replace(/[<>]/g, '').trim();
 }
@@ -118,7 +120,7 @@ export default function InteractiveText({ content, audioMode = false }) {
     setIsLoading(true);
     setAudioError('');
     try {
-      const res = await fetch('http://localhost:3001/api/tts', {
+      const res = await fetch(`${API_BASE}/api/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: currentParagraphText })

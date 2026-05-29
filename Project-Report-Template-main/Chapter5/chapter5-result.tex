@@ -1,69 +1,180 @@
 \chapter{Testing and Results}
 
-Testing was performed to verify that VisuaLearn AI satisfies its functional requirements, responds correctly to learner actions, stores learning resources, and remains usable across devices. The system contains several interacting modules, so testing was carried out at the frontend, backend, database, simulation, visualization, voice, and learning workflow levels.
+This chapter reports the testing and evaluation carried out for VisuaLearn AI. The work was examined through two complementary activities. The first activity checked whether the main software modules functioned correctly when used as part of a complete learning workflow. The second activity collected feedback from 30 participants after they used the platform for topic-based learning tasks. Together, these activities provided an initial view of system reliability, usability, learner perception, and the role of adaptive visual support in the application.
 
-\section[Testing Strategy]{\textbf{Testing Strategy}}
-The testing strategy included the following:
-\begin{itemize}[leftmargin=1.2cm]
-	\item Functional testing of login, chat, learning resources, simulation, visualization, and settings.
-	\item Backend route testing for valid and invalid requests.
-	\item Manual testing of complete learner workflows.
-	\item Simulation testing using deterministic algorithm examples.
-	\item Responsive testing on desktop and mobile screen sizes.
-	\item Error handling tests for missing input, unavailable resources, and rendering failures.
-	\item Persistence testing for conversations, messages, and learning resources.
-\end{itemize}
+\section[Evaluation Methodology]{\textbf{Evaluation Methodology}}
+The evaluation combined system validation with participant-based assessment. Functional testing covered authentication, conversation management, generation of learning resources, document-supported learning, simulation output, feedback submission, and data persistence. The participant assessment examined whether learners could use the platform to understand concepts, revise material, view visual explanations, and complete self-assessment activities.
 
-\section[Functional Test Cases]{\textbf{Functional Test Cases}}
-\begin{longtable}{p{1.1cm}p{4cm}p{5.3cm}p{2.3cm}}
-\caption{Functional Test Cases}\\
+The participant study followed a fixed sequence. Each participant selected one topic, completed a pre-learning activity, used VisuaLearn AI, and then completed a post-learning activity along with a feedback form. The selected topics were chosen because they represent different learning requirements. Some topics require conceptual clarity, some require procedural reasoning, and others benefit from visual explanation.
+
+\begin{table}[H]
+\centering
+\caption{Evaluation Methodology Summary}
+\begin{tabular}{p{5.4cm}p{6.2cm}}
 \toprule
-\textbf{ID} & \textbf{Scenario} & \textbf{Expected Result} & \textbf{Status}\\
+\textbf{Evaluation Aspect} & \textbf{Description}\\
 \midrule
-TC01 & User login & Valid user is authenticated and redirected to the application & Passed\\
-TC02 & New conversation & A new learning session is created and shown in recent sessions & Passed\\
-TC03 & Ask question & The system returns an educational response and stores it & Passed\\
-TC04 & Open learning workspace & Learning tabs and generated resources are displayed & Passed\\
-TC05 & Generate flashcards & Flashcards appear with question and answer structure & Passed\\
-TC06 & Generate quiz & Questions, options, and feedback are shown & Passed\\
-TC07 & Generate mind map & Concepts are organized as related nodes & Passed\\
-TC08 & Detect simulation topic & Suitable procedural topics open simulation workflow & Passed\\
-TC09 & Invalid input & A controlled error or fallback response is shown & Passed\\
-TC10 & Logout & User session is cleared securely & Passed\\
+Participants & 30 learners\\
+Evaluation mode & Guided user study with platform interaction\\
+Learning activities & Explanation, quiz, flashcards, mind map, simulation, and document-supported learning\\
+Evaluation topics & Transformer Attention, CPU Scheduling, Blockchain, Neural Networks, Deadlock Detection\\
+Feedback scale & 1 to 5 rating scale\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The purpose of this method was to obtain early evidence about usability and learning support. It was not designed as a large controlled educational experiment. For this reason, the findings are treated as preliminary project evaluation results.
+
+\section[System Validation Results]{\textbf{System Validation Results}}
+System validation was performed to check whether the major modules of VisuaLearn AI worked together without disrupting the learning flow. Table \ref{tab:functional-validation} lists the main test cases and their outcomes.
+
+\begin{longtable}{p{1.1cm}p{4cm}p{5.3cm}p{2.3cm}}
+\caption{System Validation Results}
+\label{tab:functional-validation}\\
+\toprule
+\textbf{ID} & \textbf{Component} & \textbf{Validation Metric} & \textbf{Outcome}\\
+\midrule
+TC01 & Authentication & Valid users can log in and access protected learning features & Passed\\
+TC02 & Conversation flow & New and existing learning sessions are created and retrieved & Passed\\
+TC03 & Chat response & Educational responses are generated and stored & Passed\\
+TC04 & Learning workspace & Learn, quiz, flashcard, mind map, and simulation content is displayed & Passed\\
+TC05 & Flashcards & Revision cards are generated with question-answer structure & Passed\\
+TC06 & Quiz & Questions and options are presented for self-assessment & Passed\\
+TC07 & Mind map & Related concepts are organized visually & Passed\\
+TC08 & Simulation & Procedural topics are rendered through step-based interaction & Passed\\
+TC09 & Document learning & Uploaded documents are available for learning context & Passed\\
+TC10 & Error handling & Controlled fallback responses are shown for invalid or unsupported actions & Passed\\
+TC11 & Logout & User session is cleared securely & Passed\\
 \bottomrule
 \end{longtable}
 
-\section[Learning Workflow Testing]{\textbf{Learning Workflow Testing}}
-The learning workflow was tested using topics from computer science, grammar, general science, and engineering. Example queries included merge sort, breadth-first search, parts of speech, machine learning, neural networks, selection sort, and how an engine works. These topics were selected because they require different learning formats.
+The validation results show that the implemented modules operated as a single learning environment. The system supported conversation, structured learning artifacts, and visual or simulation-based study tasks without interrupting the main user experience.
 
-Algorithmic topics were suitable for simulations and guided steps. Conceptual topics were suitable for explanations, examples, flashcards, and quizzes. Grammar topics were suitable for examples and assessment. This confirmed that the system can organize learning support based on topic type.
+\section[Participant Summary]{\textbf{Participant Summary}}
+A total of 30 participants took part in the preliminary evaluation. The selected topics covered both conceptual and procedural learning tasks. Algorithmic and operating-system topics were used to assess stepwise reasoning and simulation support. Conceptual topics were used to assess explanation quality, visual organization, and revision support.
 
-\section[Simulation Testing]{\textbf{Simulation Testing}}
-Simulation testing focused on state correctness. For sorting algorithms, the array state was checked after each comparison and swap. For graph traversal, the visited node order was inspected. For stack and queue topics, push, pop, enqueue, and dequeue operations were checked. For tree topics, node relationships and traversal order were verified.
+\begin{table}[H]
+\centering
+\caption{Distribution of Evaluation Topics}
+\begin{tabular}{p{7cm}c}
+\toprule
+\textbf{Topic} & \textbf{Participant Responses}\\
+\midrule
+CPU Scheduling (Round Robin) & 8\\
+Neural Networks & 7\\
+Blockchain & 5\\
+Deadlock Detection and Prevention & 5\\
+Transformer Attention & 5\\
+\bottomrule
+\end{tabular}
+\label{tab:topic-distribution}
+\end{table}
 
-The results showed that the simulation module works best for deterministic processes. For topics that do not have clear state transitions, the system avoids forcing simulation and instead provides structured explanations.
+The distribution in Table \ref{tab:topic-distribution} shows that the evaluation was not limited to one type of topic. This was useful because the platform is intended to support varied learning situations rather than a single fixed instructional pattern.
 
-\section[Visualization Testing]{\textbf{Visualization Testing}}
-Visualization testing verified whether generated visual components load safely and whether fallback messages appear when rendering is not possible. Device capability checks were used to avoid heavy visual rendering on unsupported devices. The isolated widget frame helped prevent invalid visual content from affecting the full application.
+\section[Learning Performance Analysis]{\textbf{Learning Performance Analysis}}
+Learning performance was reviewed through participant responses before and after using the platform. The analysis focused on conceptual clarity, ability to answer topic-specific questions, and use of generated artifacts during revision.
 
-\section[Responsive Testing]{\textbf{Responsive Testing}}
-The application was tested on desktop and mobile widths. The sidebar, chat input, learning content, flashcard cards, quiz view, simulation view, and settings page were checked for overflow and readability. Mobile improvements focused on keeping the main learning content visible, reducing unnecessary side content, and preventing persona or status labels from overflowing.
+\begin{table}[H]
+\centering
+\caption{Learning Performance Indicators}
+\begin{tabular}{p{5.8cm}p{5.8cm}}
+\toprule
+\textbf{Indicator} & \textbf{Observed Result}\\
+\midrule
+Conceptual understanding & Participants gave clearer post-learning explanations for selected topics.\\
+Revision support & AI-generated flashcards and quizzes were used for self-assessment activities.\\
+Visual understanding & Mind maps and simulations helped participants organize complex ideas.\\
+Procedural reasoning & Simulation-based topics supported step-by-step inspection of processes.\\
+Learning continuity & Saved conversations and generated resources supported later review.\\
+\bottomrule
+\end{tabular}
+\label{tab:learning-performance}
+\end{table}
 
-\section[Error Handling Testing]{\textbf{Error Handling Testing}}
-Error handling was tested by submitting incomplete requests, unavailable resources, unsuitable simulation topics, and rendering failures. The system returned controlled messages instead of exposing raw internal details. Fallback content helped preserve the learning flow even when one feature could not complete.
+Participants appeared to gain the most value when a topic required visual structure or a sequence of steps. This was observed in CPU scheduling, deadlock detection, transformer attention, and neural networks. These observations are useful for judging the current implementation, but they should be confirmed through a larger study with stronger experimental controls.
 
-\section[Observed Results]{\textbf{Observed Results}}
-The implementation produced the following results:
+\section[Feedback Analysis]{\textbf{Feedback Analysis}}
+Participant feedback was collected using a rating scale from 1 to 5. The form measured clarity, personalization, usefulness of visual support, engagement, usability, willingness to reuse the platform, and overall satisfaction.
+
+\begin{table}[H]
+\centering
+\caption{Participant Feedback Scores}
+\begin{tabular}{p{7.2cm}c}
+\toprule
+\textbf{Feedback Metric} & \textbf{Average Score}\\
+\midrule
+Content was easy to understand & 4.29 / 5\\
+The platform felt personalized & 4.65 / 5\\
+Visualizations or simulations helped learning & 4.65 / 5\\
+The learning experience was engaging & 4.65 / 5\\
+The platform was easy to use & 4.76 / 5\\
+Would use the platform again & 4.71 / 5\\
+Overall satisfaction & 4.53 / 5\\
+\bottomrule
+\end{tabular}
+\label{tab:feedback-scores}
+\end{table}
+
+The scores show a positive response across all measured areas. Ease of use received the highest average score, which means participants were generally able to work through the platform without major difficulty. Personalization, engagement, and visual support also received strong ratings. These results align with the aim of building an adaptive and interactive learning workspace.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[x=1.55cm,y=0.75cm]
+\draw[->] (0,0) -- (5.4,0) node[right]{Score};
+\draw[->] (0,0) -- (0,7.8);
+\foreach \x in {1,2,3,4,5} {
+  \draw (\x,0.08) -- (\x,-0.08) node[below]{\x};
+  \draw[gray!25] (\x,0) -- (\x,7.2);
+}
+\node[anchor=east] at (0,7) {\footnotesize Ease of Use};
+\node[anchor=east] at (0,6) {\footnotesize Use Again};
+\node[anchor=east] at (0,5) {\footnotesize Personalization};
+\node[anchor=east] at (0,4) {\footnotesize Visual Support};
+\node[anchor=east] at (0,3) {\footnotesize Engagement};
+\node[anchor=east] at (0,2) {\footnotesize Satisfaction};
+\node[anchor=east] at (0,1) {\footnotesize Clarity};
+\fill[black!65] (0,6.75) rectangle (4.76,7.25);
+\fill[black!58] (0,5.75) rectangle (4.71,6.25);
+\fill[black!52] (0,4.75) rectangle (4.65,5.25);
+\fill[black!52] (0,3.75) rectangle (4.65,4.25);
+\fill[black!52] (0,2.75) rectangle (4.65,3.25);
+\fill[black!45] (0,1.75) rectangle (4.53,2.25);
+\fill[black!38] (0,0.75) rectangle (4.29,1.25);
+\node[anchor=west] at (4.82,7) {\footnotesize 4.76};
+\node[anchor=west] at (4.77,6) {\footnotesize 4.71};
+\node[anchor=west] at (4.71,5) {\footnotesize 4.65};
+\node[anchor=west] at (4.71,4) {\footnotesize 4.65};
+\node[anchor=west] at (4.71,3) {\footnotesize 4.65};
+\node[anchor=west] at (4.59,2) {\footnotesize 4.53};
+\node[anchor=west] at (4.35,1) {\footnotesize 4.29};
+\end{tikzpicture}
+}
+\caption{Participant feedback score comparison}
+\label{fig:feedback-graph}
+\end{figure}
+
+Figure \ref{fig:feedback-graph} shows that most feedback categories were rated above 4.5 out of 5. This result reflects favorable participant perception of the platform. However, the figure should be read as evidence of short-term user response, not as proof of long-term learning improvement.
+
+\section[Discussion of Results]{\textbf{Discussion of Results}}
+The evaluation shows that VisuaLearn AI can function as an interactive learning support platform in a preliminary setting. Participants responded well to adaptive explanations, visual summaries, flashcards, quizzes, and simulations. The strongest feedback was related to usability and willingness to reuse the platform, which indicates that the interface and workflow were acceptable for learner interaction.
+
+The findings also show that topic type affects the usefulness of each learning mode. Procedural topics such as CPU scheduling and deadlock detection were better suited to simulation and guided stepwise explanation. Conceptual topics such as blockchain, neural networks, and transformer attention benefited from concise explanations, examples, visual summaries, and revision artifacts.
+
+There are limitations to the evaluation. The study involved 30 participants, which is appropriate for an initial project assessment but not enough for broad educational generalization. The interaction period was short, so the study did not measure long-term retention, classroom use, or performance across a wider learner population.
+
+\section[Observed Outcomes]{\textbf{Observed Outcomes}}
+The observed outcomes of the evaluation are summarized below:
 \begin{itemize}[leftmargin=1.2cm]
-	\item Learners can create and continue learning conversations.
-	\item Structured learning resources are generated and displayed in separate views.
-	\item Flashcards and quizzes support revision and self-assessment.
-	\item Mind maps organize related concepts visually.
-	\item Simulations support procedural understanding for algorithmic topics.
-	\item Voice interaction supports natural question asking and accessibility.
-	\item Persistent storage allows learners to revisit previous sessions.
-	\item Adaptive strategy selection supports more personalized response formats.
+	\item Participants used generated explanations, flashcards, and quizzes for revision and self-assessment.
+	\item Participants gave positive feedback on mind maps and simulations as visual learning aids.
+	\item Procedural topics were easier to inspect when guided steps or simulations were available.
+	\item Conceptual topics were supported through concise explanations, examples, and organized revision material.
+	\item Document-supported learning improved answer relevance when uploaded material was available.
+	\item Persistent learning history allowed earlier conversations and generated resources to be reviewed later.
+	\item Adaptive response selection contributed to a more personalized learning experience.
 \end{itemize}
 
 \section[Result Summary]{\textbf{Result Summary}}
-Testing confirmed that VisuaLearn AI functions as an integrated adaptive learning workspace. The system performs best when topics can be represented through structured explanation, practice, visualization, or simulation. The platform successfully demonstrates the project objective of moving beyond plain answer generation toward a reusable and interactive learning environment.
+The testing and evaluation show that VisuaLearn AI works as an integrated adaptive learning workspace. The system supports conversation, learning artifacts, document-based learning, simulations, feedback, and persistence. The preliminary study with 30 participants recorded positive responses for usability, personalization, visual learning support, and overall satisfaction. These results support the practical value of the implemented system, while further work is needed for larger participant groups, delayed retention testing, and more rigorous measurement of learning outcomes.

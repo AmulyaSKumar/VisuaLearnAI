@@ -301,8 +301,23 @@
 
 \begin{center}
 \vspace{-1.15cm}
-{\includegraphics[width=0.72\textwidth]{Figures/RV_newLogo}\par}
-\vspace{0.35cm}
+{\makebox[\textwidth][c]{%
+  \begin{minipage}[c]{0.17\textwidth}
+    \raggedright\includegraphics[width=0.95\linewidth]{Figures/RV_logoVec}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.46\textwidth}
+    \raggedright
+    {\Large\bfseries RV College of Engineering\textsuperscript{\small\textregistered}\par}
+    \vspace{0.08cm}
+    {\small Mysore Road, RV Vidyaniketan Post, Bengaluru - 560059, Karnataka, India\par}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.32\textwidth}
+    \raggedleft{\large\itshape Go, change the world\par}
+  \end{minipage}%
+}\par}
+\vspace{0.45cm}
 %\ifINT{\Large\itshape Summer Internship Report\par on\par}\fi %Intern
 {\huge\bfseries\@title\unskip\strut\par \global\titlelines=\the\prevgraf}% To count the number of lines used in the title - to adjust the spacing of title page
 \setcounter{numtitlelines}{\the\titlelines}

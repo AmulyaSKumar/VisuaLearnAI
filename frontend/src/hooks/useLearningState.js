@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://visualearnai-backend.onrender.com" : "http://localhost:3001");
+
 /**
  * useLearningState - Manages real-time learning state synchronization
  * Fetches and updates user profile, metrics, and cognitive state
@@ -18,7 +20,7 @@ export function useLearningState(userId) {
     if (!userId) return null;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/user/${userId}`);
+      const response = await fetch(`${API_BASE}/api/user/${userId}`);
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -35,7 +37,7 @@ export function useLearningState(userId) {
     if (!userId) return null;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/user/${userId}/metrics`);
+      const response = await fetch(`${API_BASE}/api/user/${userId}/metrics`);
       if (response.ok) {
         const data = await response.json();
         setMetrics(data);

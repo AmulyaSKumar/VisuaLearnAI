@@ -14,7 +14,7 @@ import {
 import { sanitizeAssistantResponse } from '../utils/sanitizeAssistantResponse';
 import { generateVisual3D, shouldAttemptVisual3D } from '../utils/visual3d';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
 
 const ARTIFACT_LABELS = {
   learn: 'Learn Deeply',

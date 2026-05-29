@@ -1,5 +1,7 @@
 import { useRef, useCallback, useEffect } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://visualearnai-backend.onrender.com" : "http://localhost:3001");
+
 /**
  * useBehaviorTracking - Tracks user behavior for personalization
  * Monitors: widget clicks, time spent per message, follow-up frequency
@@ -92,7 +94,7 @@ export function useBehaviorTracking(userId) {
     const data = getBehaviorData();
 
     try {
-      await fetch("http://localhost:3001/api/behavior", {
+      await fetch(`${API_BASE}/api/behavior`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

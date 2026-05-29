@@ -37,7 +37,7 @@ export async function generateVisual3D(topic, accessToken = null) {
   const requestedTopic = String(topic || '').trim();
   if (!requestedTopic) return null;
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
   const headers = { 'Content-Type': 'application/json' };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 

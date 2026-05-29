@@ -3,6 +3,7 @@ import { sanitizeAssistantResponse } from "../utils/sanitizeAssistantResponse";
 
 const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
 const SUPPRESS_WIDGET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://visualearnai-backend.onrender.com" : "http://localhost:3001");
 
 export function useSSEStream() {
   const [currentMessage, setCurrentMessage] = useState(null);
@@ -74,7 +75,7 @@ export function useSSEStream() {
       headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch("http://localhost:3001/api/chat", {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -278,7 +279,7 @@ export function useSSEStream() {
         headers["Authorization"] = `Bearer ${accessToken}`;
       }
 
-      const response = await fetch("http://localhost:3001/api/tool-result", {
+      const response = await fetch(`${API_BASE}/api/tool-result`, {
         method: "POST",
         headers,
         body: JSON.stringify({

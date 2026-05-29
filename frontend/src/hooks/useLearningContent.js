@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
 
 function artifactToContentType(artifact) {
   if (artifact === 'quiz') return 'quiz';
