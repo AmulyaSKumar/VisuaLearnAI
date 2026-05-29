@@ -87,7 +87,7 @@ export default function ChatWindow({
   } = useChat(conversationId || null, userId, onConversationCreated, onConversationUpdated, accessToken);
 
   // Learning state management
-  const learningState = useLearningState(userId);
+  const learningState = useLearningState(userId, accessToken);
 
   // Behavior tracking
   const behaviorTracking = useBehaviorTracking(userId);
@@ -535,6 +535,7 @@ export default function ChatWindow({
         onClose={() => setShowSessionSummary(false)}
         sessionData={sessionData}
         userId={userId}
+        accessToken={accessToken}
       />
     </div>
   );

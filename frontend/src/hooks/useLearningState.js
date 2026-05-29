@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https:
  * useLearningState - Manages real-time learning state synchronization
  * Fetches and updates user profile, metrics, and cognitive state
  */
-export function useLearningState(userId) {
+export function useLearningState(userId, accessToken = null) {
   const [profile, setProfile] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [cognitiveState, setCognitiveState] = useState("flow");
@@ -17,10 +17,14 @@ export function useLearningState(userId) {
 
   // Fetch user profile
   const fetchProfile = useCallback(async () => {
-    if (!userId) return null;
+    if (!userId || !accessToken) return null;
 
     try {
-      const response = await fetch(`${API_BASE}/api/user/${userId}`);
+      const response = await fetch(`${API_BASE}/api/user/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -30,14 +34,18 @@ export function useLearningState(userId) {
       console.error("Failed to fetch profile:", err);
     }
     return null;
-  }, [userId]);
+  }, [accessToken, userId]);
 
   // Fetch user metrics
   const fetchMetrics = useCallback(async () => {
-    if (!userId) return null;
+    if (!userId || !accessToken) return null;
 
     try {
-      const response = await fetch(`${API_BASE}/api/user/${userId}/metrics`);
+      const response = await fetch(`${API_BASE}/api/user/${userId}/metrics`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setMetrics(data);
@@ -47,7 +55,7 @@ export function useLearningState(userId) {
       console.error("Failed to fetch metrics:", err);
     }
     return null;
-  }, [userId]);
+  }, [accessToken, userId]);
 
   // Refresh all learning state data
   const refreshState = useCallback(async () => {
@@ -129,10 +137,10 @@ export function useLearningState(userId) {
 
   // Initial fetch on mount
   useEffect(() => {
-    if (userId) {
+    if (userId && accessToken) {
       refreshState();
     }
-  }, [userId, refreshState]);
+  }, [accessToken, userId, refreshState]);
 
   return {
     // State

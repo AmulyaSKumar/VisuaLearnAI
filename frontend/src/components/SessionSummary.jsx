@@ -11,6 +11,7 @@ export default function SessionSummary({
   onClose,
   sessionData = {},
   userId,
+  accessToken = null,
 }) {
   const [metrics, setMetrics] = useState(null);
 
@@ -24,13 +25,17 @@ export default function SessionSummary({
 
   // Fetch latest metrics when modal opens
   useEffect(() => {
-    if (isOpen && userId) {
-      fetch(`${API_BASE}/api/user/${userId}/metrics`)
+    if (isOpen && userId && accessToken) {
+      fetch(`${API_BASE}/api/user/${userId}/metrics`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
         .then(res => res.json())
         .then(data => setMetrics(data))
         .catch(err => console.error("Failed to fetch metrics:", err));
     }
-  }, [isOpen, userId]);
+  }, [accessToken, isOpen, userId]);
 
   if (!isOpen) return null;
 
