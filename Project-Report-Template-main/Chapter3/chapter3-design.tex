@@ -56,124 +56,16 @@ The system architecture follows the layered structure shown in Figure \ref{fig:a
 
 \begin{figure}[H]
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-layer/.style={draw, rounded corners, align=left, text width=12.9cm, minimum height=0.82cm, inner xsep=7pt, font=\small},
-small/.style={draw, rounded corners, align=center, minimum width=2.55cm, minimum height=0.6cm, font=\footnotesize},
-arrow/.style={-{Latex[length=2mm]}, line width=0.45pt},
-flowlabel/.style={font=\footnotesize, fill=white, inner sep=1pt}
-]
-\node[layer] (presentation) at (0,0) {\textbf{Presentation Layer:} Chat UI \quad | \quad Learn UI \quad | \quad Upload \quad | \quad Visual Viewer};
-
-\node[layer] (application) at (0,-1.18) {\textbf{Application Layer:} API Gateway \quad | \quad Router \quad | \quad Authentication \quad | \quad Session Manager};
-
-\node[layer] (intelligence) at (0,-2.36) {\textbf{Intelligence Layer:} Context Builder \quad | \quad Strategy Selector \quad | \quad Agent Orchestrator};
-
-\node at (-5.5,-3.54) [font=\small\bfseries, anchor=west] {Learning Agents};
-\node[small] (explain) at (-4.0,-4.18) {Explanation};
-\node[small] (quiz) at (-1.35,-4.18) {Quiz};
-\node[small] (flash) at (1.35,-4.18) {Flashcards};
-\node[small] (mind) at (4.0,-4.18) {Mind Map};
-
-\node at (-5.5,-5.08) [font=\small\bfseries, anchor=west] {Multimodal Agents};
-\node[small] (image) at (-4.8,-5.72) {Image};
-\node[small] (video) at (-1.6,-5.72) {Video};
-\node[small] (simulation) at (1.6,-5.72) {Simulation};
-\node[small] (visual) at (4.8,-5.72) {3D Visualization};
-
-\node[layer] (support) at (0,-6.95) {\textbf{Support Layer:} RAG Retrieval \quad | \quad Validation \quad | \quad Formatter \quad | \quad Safe Rendering};
-
-\node[layer] (data) at (0,-8.13) {\textbf{Data Layer:} Knowledge Base \quad | \quad Profiles \quad | \quad History \quad | \quad Logs \quad | \quad Feedback};
-
-\draw[arrow] (presentation) -- node[flowlabel,right]{request} (application);
-\draw[arrow] (application) -- node[flowlabel,right]{secured query} (intelligence);
-\draw[arrow] (intelligence) -- node[flowlabel,right]{selected action} (0,-3.55);
-\draw[arrow] (0,-6.05) -- node[flowlabel,right]{generated artifact} (support);
-\draw[arrow] (support) -- node[flowlabel,right]{store / retrieve} (data);
-\draw[arrow] (data.east) -- ++(0.75,0) |- node[pos=0.25,flowlabel,right]{personalized response} (presentation.east);
-\end{tikzpicture}
-}
+\includegraphics[width=\textwidth,height=0.72\textheight,keepaspectratio]{Chapter3/system}
 \caption{Detailed system architecture of VisuaLearn}
 \label{fig:architecture}
-\end{figure}
-
-\section{Use Case Diagram}
-
-\begin{figure}[H]
-\centering
-\resizebox{0.88\textwidth}{!}{%
-\begin{tikzpicture}[
-actor/.style={draw, circle, minimum size=0.6cm},
-usecase/.style={draw, ellipse, align=center, minimum width=3.9cm, minimum height=1.05cm},
-arrow/.style={line width=0.35pt}
-]
-\node[actor] (learnerHead) at (0,4) {};
-\draw (0,3.7) -- (0,2.7);
-\draw (-0.6,3.25) -- (0.6,3.25);
-\draw (0,2.7) -- (-0.45,2.0);
-\draw (0,2.7) -- (0.45,2.0);
-\node at (0,1.45) {Learner};
-\node[actor] (adminHead) at (12,4) {};
-\draw (12,3.7) -- (12,2.7);
-\draw (11.4,3.25) -- (12.6,3.25);
-\draw (12,2.7) -- (11.55,2.0);
-\draw (12,2.7) -- (12.45,2.0);
-\node at (12,1.45) {Admin};
-\node[usecase] (chat) at (4.7,5.7) {Ask\\Question};
-\node[usecase] (learn) at (4.7,4.35) {Generate Learn\\Content};
-\node[usecase] (sim) at (4.7,3.0) {Simulation /\\3D / Video};
-\node[usecase] (doc) at (4.7,1.65) {Upload and Query\\Documents};
-\node[usecase] (voice) at (8.9,5.7) {Voice Input /\\Output};
-\node[usecase] (feedback) at (8.9,4.35) {Submit\\Feedback};
-\node[usecase] (history) at (8.9,3.0) {Review\\History};
-\node[usecase] (monitor) at (8.9,1.65) {Monitor Logs\\and Settings};
-\draw[arrow] (0.6,3.7) -- (chat);
-\draw[arrow] (0.6,3.4) -- (learn);
-\draw[arrow] (0.6,3.1) -- (sim);
-\draw[arrow] (0.6,2.8) -- (doc);
-\draw[arrow] (0.6,2.5) -- (voice);
-\draw[arrow] (0.6,2.2) -- (feedback);
-\draw[arrow] (0.6,1.9) -- (history);
-\draw[arrow] (11.4,3.2) -- (monitor);
-\end{tikzpicture}
-}
-\caption{Use case diagram of VisuaLearn}
-\label{fig:use-case}
 \end{figure}
 
 \section{Sequence Diagram for Learning Flow}
 
 \begin{figure}[H]
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-lane/.style={draw, fill=gray!10, minimum width=2.2cm, minimum height=0.75cm, align=center, font=\small},
-arrow/.style={-{Latex[length=2mm]}, line width=0.35pt},
-dasharrow/.style={-{Latex[length=2mm]}, dashed, line width=0.35pt},
-font=\small
-]
-\foreach \x/\name in {0/User,2.4/Frontend,4.8/Backend,7.2/Personalization\\Engine,9.6/RAG\\Module,12.0/Content / Agent\\System,14.4/Database,16.8/Voice\\STT/TTS} {
-  \node[lane] (\x) at (\x,0) {\name};
-  \draw[gray!45] (\x,-0.4) -- (\x,-8.7);
-}
-\draw[arrow] (0,-1.0) -- node[above]{Enter query / voice input} (2.4,-1.0);
-\draw[arrow] (2.4,-1.6) -- node[above]{Convert speech to text} (16.8,-1.6);
-\draw[dasharrow] (16.8,-2.1) -- node[above]{Text input} (2.4,-2.1);
-\draw[arrow] (2.4,-2.7) -- node[above]{Send query + session data} (4.8,-2.7);
-\draw[arrow] (4.8,-3.3) -- node[above]{Fetch profile + history} (14.4,-3.3);
-\draw[dasharrow] (14.4,-3.8) -- node[above]{User data} (4.8,-3.8);
-\draw[arrow] (4.8,-4.4) -- node[above]{Retrieve relevant knowledge} (9.6,-4.4);
-\draw[dasharrow] (9.6,-4.9) -- node[above]{Context chunks} (4.8,-4.9);
-\draw[arrow] (4.8,-5.5) -- node[above]{Context + query} (7.2,-5.5);
-\draw[dasharrow] (7.2,-6.0) -- node[above]{Learning strategy} (4.8,-6.0);
-\draw[arrow] (4.8,-6.6) -- node[above]{Request content / visual / video} (12.0,-6.6);
-\draw[dasharrow] (12.0,-7.1) -- node[above]{Generated content} (4.8,-7.1);
-\draw[arrow] (4.8,-7.7) -- node[above]{Store logs + interaction} (14.4,-7.7);
-\draw[dasharrow] (4.8,-8.2) -- node[above]{Send final response} (2.4,-8.2);
-\draw[arrow] (2.4,-8.7) -- node[above]{Convert text to speech} (16.8,-8.7);
-\draw[dasharrow] (16.8,-9.2) -- node[above]{Audio output / display content} (0,-9.2);
-\end{tikzpicture}
-}
+\includegraphics[width=\textwidth]{Chapter3/sequence}
 \caption{Sequence diagram for adaptive learning flow}
 \label{fig:sequence-learning}
 \end{figure}
@@ -281,6 +173,33 @@ arrow/.style={-{Latex[length=2mm]}, line width=0.35pt}
 }
 \caption{Detailed data flow diagram}
 \label{fig:detailed-dfd}
+\end{figure}
+
+\subsection{DFD Level 0}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Chapter3/dfd0}
+\caption{DFD Level 0 for VisuaLearn}
+\label{fig:dfd-level-0}
+\end{figure}
+
+\subsection{DFD Level 1}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Chapter3/dfd1}
+\caption{DFD Level 1 for VisuaLearn}
+\label{fig:dfd-level-1}
+\end{figure}
+
+\subsection{DFD Level 2}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Chapter3/dfd2}
+\caption{DFD Level 2 for VisuaLearn}
+\label{fig:dfd-level-2}
 \end{figure}
 
 \section{API Flow Description}

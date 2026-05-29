@@ -21,7 +21,7 @@ Contextual Bandits in LLM-Based Tutoring Systems}
 \maketitle
 
 \begin{abstract}
-Large language model (LLM) tutors can generate explanations, examples, quizzes, and visual learning aids, but generation quality alone does not determine which pedagogical form is appropriate for a learner at a given turn. This paper presents a systems architecture for response-level pedagogical strategy selection in LLM-based tutoring. The system uses a LinUCB contextual bandit to select among six core response strategies: visual widget generation, guided step-by-step explanation, quiz-based checking, concise text explanation, Socratic questioning, and remediation. The context vector encodes eight measurable pre-generation features: cognitive state, engagement level, topic status, performance trend, confidence, topic difficulty, previous failures, and response time. Delayed interaction telemetry is mapped to correctness, engagement, completion, and retention reward components. The paper formalizes a closed-loop design that connects context extraction, bandit selection, prompt enforcement, delayed reward attribution, persistence, and baseline evaluation. It also reports a preliminary empirical evaluation with 25 matched participant sessions, where mean post-test score increased from 3.13/4 to 3.73/4. These results are interpreted cautiously because of the limited sample size and heuristic scoring of open-ended responses.
+Large language model (LLM) tutors can produce explanations, worked examples, quizzes, and visual aids, but a fluent answer is not always the right teaching move for a particular learner. This work studies response-level strategy selection for an LLM tutor. A LinUCB contextual bandit chooses among six response forms: visual widget generation, guided step-by-step explanation, quiz-based checking, concise text explanation, Socratic questioning, and remediation. The policy receives eight pre-generation features covering cognitive state, engagement level, topic status, performance trend, confidence, topic difficulty, previous failures, and response time. Interaction logs are later converted into correctness, engagement, completion, and retention reward signals. The architecture links context extraction, bandit selection, prompt enforcement, delayed reward attribution, persistence, and baseline evaluation. A preliminary evaluation with 25 matched participant sessions found that the mean score increased from 3.13/4 in the pre-test to 3.73/4 in the post-test. The result is treated as early evidence because the sample is limited and some open-ended answers were scored with a heuristic rubric.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -36,9 +36,9 @@ LLM-based tutors can produce fluent educational responses, but fluency does not 
 Can contextual bandits support practical response-level pedagogical strategy selection in LLM-based tutoring systems under sparse online feedback?
 \end{quote}
 
-The work is scoped as a systems contribution with preliminary empirical evidence. It does not claim definitive educational superiority. Its central claim is that a contextual bandit can serve as an auditable decision layer that selects the response form, records the decision context, checks whether the generated response follows the selected strategy, and attributes delayed learner feedback to the original action.
+This work is a systems contribution supported by a preliminary study. It does not argue that the system is educationally superior in a general sense. The claim is narrower: a contextual bandit can provide an auditable layer for choosing the next response form, storing the decision context, checking whether generation followed the chosen form, and assigning later learner feedback to the action that caused it.
 
-The paper makes three contributions. First, it frames response-level pedagogical strategy selection as distinct from curriculum sequencing, exercise recommendation, and feedback targeting. Prior educational bandit systems primarily choose what content, exercise, or feedback target should appear next; this work chooses how the next LLM response should be structured. Second, it presents a closed-loop architecture for integrating LinUCB selection with prompt enforcement and delayed reward attribution. Third, it specifies an evaluation protocol with operational metrics, learning metrics, baselines, ablations, and threats to validity.
+The contribution has three parts. First, response-level pedagogical strategy selection is separated from curriculum sequencing, exercise recommendation, and feedback targeting. Prior educational bandit systems usually decide which content item, exercise, or feedback target should appear next; here, the action decides the structure of the next LLM response. Second, the design connects LinUCB selection with prompt enforcement and delayed reward attribution. Third, the evaluation plan covers operational metrics, learning metrics, baselines, ablations, and threats to validity.
 
 Unlike prior educational bandit approaches that adapt curriculum sequencing or feedback targeting, this work performs response-level pedagogical adaptation where the action determines the structure of the generated response itself.
 
@@ -56,24 +56,24 @@ Recent work adds evidence for adaptive LLM tutoring and agentic learner modeling
 
 \section{Methodology and System Design}
 
-The method treats each tutoring turn as a strategy-selection problem. Before generation, the backend derives a learner context and selects one of six core pedagogical actions. The selected action is injected into the prompt as a response-format requirement and checked after generation. Fig.~\ref{fig:pipeline} summarizes the closed-loop pipeline.
+The method treats each tutoring turn as a strategy-selection problem. Before generation, the backend derives a learner context and selects one of six core pedagogical actions. The selected action is then added to the prompt as a response-format requirement and checked after generation. Fig.~\ref{fig:pipeline} gives the full loop.
 
-The action space is intentionally limited to six core strategies to reduce sparse-reward fragmentation. Expanding to eight or more actions would increase exploration cost before sufficient reward evidence exists. Table~\ref{tab:actions} lists the implemented actions. Analogy explanation and challenge mode are reserved as future action-space extensions after pilot data can support finer distinctions.
+The first version uses six actions rather than a larger menu of teaching moves. This keeps early reward data from being split across too many rarely chosen actions. More specialized actions, such as analogy explanation or challenge mode, are better added after pilot logs show enough examples for stable comparison. Table~\ref{tab:actions} lists the current actions.
 
 \begin{table}[htbp]
 \caption{Implemented Pedagogical Action Space}
 \label{tab:actions}
 \centering
-\begin{tabular}{p{0.32\linewidth}p{0.58\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.52\linewidth}}
 \toprule
-\textbf{Action} & \textbf{Intent} \\
+\textbf{Strategy} & \textbf{Tutor behavior} \\
 \midrule
-visual\_widget & Add a chart, diagram, or interactive widget. \\
-guided\_steps & Use incremental steps and checkpoints. \\
-quiz\_check & Include comprehension questions. \\
-text\_explanation & Provide concise prose without widgets. \\
-socratic\_questioning & Guide with questions before direct explanation. \\
-remediation & Repair a misconception using simpler restatement. \\
+visual\_widget & Add a compact visual aid when the topic benefits from spatial or process-based explanation. \\
+guided\_steps & Break the answer into ordered steps with short checkpoints. \\
+quiz\_check & Ask one or more questions to test the learner's understanding. \\
+text\_explanation & Give a direct prose answer without forcing a visual artifact. \\
+socratic\_questioning & Ask guiding questions before giving the full answer. \\
+remediation & Restate the concept in simpler terms after a likely misconception. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -139,13 +139,13 @@ The architecture consists of context extraction, LinUCB selection, prompt instru
 \end{tabular}
 \vspace{0.4em}
 
-\footnotesize Each row records an auditable trace: context version, selected action, enforcement status, delayed reward, and update outcome.
+\footnotesize The pipeline stores the context version, selected action, enforcement result, delayed reward, and policy update status for each turn.
 \end{minipage}}
-\caption{Closed-loop response-level adaptation pipeline. The policy selects a response strategy before generation; enforcement checks structural compliance; delayed telemetry is attributed to the original decision for update.}
+\caption{Response-level adaptation pipeline. Strategy selection occurs before generation, structural checks run after generation, and later telemetry is linked back to the original decision before the policy is updated.}
 \label{fig:pipeline}
 \end{figure*}
 
-Prompt enforcement is required because LLM output can violate policy intent. A quiz\_check decision may generate no question, and a visual\_widget decision may produce only prose. Enforcement checks minimal structural compliance rather than pedagogical correctness. The implemented checks require widget calls for visual\_widget, numbered or bulleted structure for guided\_steps, questions for quiz\_check, no forced widget for text\_explanation, at least two questions and no direct-answer marker before the first question for socratic\_questioning, and misconception language plus corrected simpler restatement for remediation. Fallback and enforcement-failure rates are logged as reliability signals.
+Prompt enforcement is needed because an LLM may ignore the selected teaching form. For example, a quiz\_check action can return prose without a question, and a visual\_widget action can omit the requested visual element. The checks are limited to structural compliance rather than judging teaching quality. The implemented checks require widget calls for visual\_widget, numbered or bulleted structure for guided\_steps, questions for quiz\_check, no forced widget for text\_explanation, at least two questions and no direct-answer marker before the first question for socratic\_questioning, and misconception language plus corrected simpler restatement for remediation. Fallback and enforcement-failure rates are logged as reliability signals.
 
 The reward model is
 \begin{equation}
@@ -215,17 +215,17 @@ User-level hashing && LinUCB, fixed, random, non-contextual && reward, gain, lat
 \multicolumn{7}{c}{$\downarrow$} \\
 \textbf{Ablations} & $\rightarrow$ & remove context features & $\rightarrow$ & remove enforcement & $\rightarrow$ & 4-action vs 6-action \\
 \multicolumn{7}{c}{$\downarrow$} \\
-\multicolumn{7}{c}{Claim boundary: preliminary learning improvement may be reported, but definitive superiority requires larger controlled studies.}
+\multicolumn{7}{c}{Claim boundary: the pilot can report initial learning trends, but stronger claims require larger controlled studies.}
 \end{tabular}
 \end{minipage}}
-\caption{Evaluation-design diagram. The figure specifies assignment, baseline conditions, metrics, ablations, and reporting requirements for cautious empirical interpretation.}
+\caption{Evaluation design used for the pilot and planned follow-up studies. The diagram lists assignment, policy conditions, metrics, ablations, and reporting requirements.}
 \label{fig:evaluation-design}
 \end{figure*}
 \FloatBarrier
 
 \subsection{Functional Validation}
 
-Functional validation checked whether the implemented tutoring loop preserves traceability from learner query to policy update. The validation covered context extraction, LinUCB action selection, prompt instruction injection, response enforcement, telemetry capture, delayed reward attribution, and persistence of decision logs. Table~\ref{tab:functional-tests} summarizes the primary checks.
+Functional validation focused on whether a tutoring turn could be traced from the learner query through to the policy update. The checks covered context extraction, LinUCB action selection, prompt instruction injection, response enforcement, telemetry capture, delayed reward attribution, and persistence of decision logs. Table~\ref{tab:functional-tests} summarizes the primary checks.
 
 \begin{table}[htbp]
 \caption{Functional Validation Results}
@@ -374,24 +374,24 @@ Overall satisfaction & \rule{0.95in}{5pt} & 4.50 \\
 
 \subsubsection{Discussion}
 
-The empirical results indicate three observed benefits: adaptive learning support, visualization-based explanation support, and learner engagement. However, the study has important limitations. The participant count remains modest, open-ended responses were scored using a reusable completeness heuristic rather than a manually validated grading rubric, and the evaluation duration was limited. Future work should conduct a larger study, introduce an automatic grading rubric validated against human scoring, and evaluate longitudinal retention over multiple learning sessions.
+The pilot is most useful as a check on whether the system can support adaptive responses, visual explanations, and continued learner interaction in one workflow. It is not yet a broad effectiveness study. The number of participants is still small, open-ended answers were scored with a reusable completeness rule rather than a human-validated rubric, and each learner used the system for a short period. The next study should increase the sample size, compare automatic scoring with human scoring, and measure retention across later sessions.
 
 \section{Threats to Validity and Limitations}
 
-Reward bias is the primary validity threat. Engagement can increase without comprehension, and heuristic weights may overvalue interaction volume. Telemetry sparsity can produce unstable reward estimates, especially when learners abandon responses before feedback is recorded. Policy collapse may occur if early rewards favor one action.
+Reward bias is the main validity threat. A learner may click, continue, or spend time in the interface for reasons other than understanding the concept. If the reward weights treat those signals too strongly, the policy may learn to favor activity rather than learning. Sparse telemetry can also make estimates unstable when learners leave before feedback is recorded. Early positive rewards for one action may push the policy toward that action too strongly.
 
 Exploration can expose struggling learners to unsuitable strategies. Context-feature limitations remain significant because cognitive state, confidence, and topic difficulty are inferred or configured rather than directly observed. Incorrect cognitive-state inference can route learners to unsuitable responses.
 
-Privacy and ethics risks arise from learner-state logging. All participant data were anonymized and collected with informed consent. The system should collect minimum necessary telemetry, anonymize exports, define retention limits, and restrict access to learner traces. Additional harms include incorrect tutoring advice, over-reliance on automated support, adaptation bias, and unequal treatment across learner groups. Conservative defaults should be used for vulnerable learner states, and educator review is required before high-stakes deployment. These limits reinforce the paper's central boundary: the reported results are preliminary and should not be interpreted as definitive evidence of educational superiority.
+Learner-state logging also raises privacy and ethics concerns. Participant data were collected with informed consent and anonymized before analysis. A deployed version should collect only necessary telemetry, anonymize exports, define retention limits, and restrict access to learner traces. Some responses may be wrong, some learners may rely on the tutor too heavily, and adaptation may work unevenly across learner groups. For that reason, vulnerable learner states should use conservative defaults, and educators should review the system before any high-stakes use. These constraints are why the reported results are presented as preliminary rather than as proof of educational superiority.
 
 \section{Discussion}
 
-The main contribution is a deployable structure for response-level adaptation. The system separates strategy selection from content generation, makes policy decisions inspectable, records delayed reward signals, and measures when LLM output fails to follow policy intent. This connection between adaptive policy learning and prompt-level response control is the paper's main systems contribution.
+The main contribution is the separation of response strategy selection from response generation. The system keeps policy decisions inspectable, stores delayed reward signals, and records cases where the LLM output does not match the intended strategy. This gives the tutor a measurable control layer between learner-state estimation and prompt-level generation.
 
-The principal weakness is the evidence bottleneck. The preliminary study shows an increase in post-test score and high learner ratings, but the sample is not large enough to establish generalizable educational effectiveness. The reward function is heuristic, and the context vector remains limited to features that can be measured before generation. The six-action policy is intentionally conservative under sparse feedback; analogy explanation and challenge mode are deferred until pilot data justify a larger action space.
+The main weakness is the amount of evidence available so far. The pilot shows a higher post-test mean and strong learner ratings, but the sample is not large enough to support broad claims about educational effectiveness. The reward function is still heuristic, and the context vector uses only features available before generation. The six-action policy is kept small because feedback is sparse; analogy explanation and challenge mode should be added only after pilot data can support a larger action space.
 
 \section{Conclusion}
 
-This paper addressed the problem of selecting the pedagogical form of an LLM tutor response under sparse online feedback. It presented a LinUCB-based architecture for six response-level strategies, eight-feature context extraction, prompt enforcement, delayed reward attribution, cold-start handling, latency logging, and baseline evaluation. The preliminary empirical findings show an increase in post-test score and high satisfaction ratings, with mean score increasing from 3.13/4 to 3.73/4 among 25 matched participant pairs. These findings should be interpreted cautiously because of the modest participant count, heuristic scoring, and limited evaluation duration. Future work should run larger controlled studies, calibrate reward weights against learning outcomes, and evaluate context, enforcement, and action-space ablations.
+This paper studied how an LLM tutor can choose the form of its next response when feedback is sparse and delayed. It presented a LinUCB-based architecture with six response-level strategies, an eight-feature context vector, prompt enforcement, delayed reward attribution, cold-start handling, latency logging, and baseline evaluation. In the pilot study, the mean score increased from 3.13/4 to 3.73/4 across 25 matched participant pairs, and satisfaction ratings were high. This should be read as pilot evidence, not a final learning claim, since the sample was small, open-ended answers were scored with a heuristic rubric, and the study covered a short usage period. The next stage should run a larger controlled study, tune reward weights against measured learning outcomes, and test the effect of context features, enforcement checks, and action-space size.
 
 \end{document}

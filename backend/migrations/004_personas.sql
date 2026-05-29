@@ -32,22 +32,62 @@ CREATE INDEX IF NOT EXISTS idx_personas_is_system ON personas(is_system);
 ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own personas and system personas
-CREATE POLICY "Users can read own and system personas"
-  ON personas FOR SELECT
-  USING (auth.uid() = user_id OR is_system = TRUE);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'personas'
+      AND policyname = 'Users can read own and system personas'
+  ) THEN
+    CREATE POLICY "Users can read own and system personas"
+      ON personas FOR SELECT
+      USING (auth.uid() = user_id OR is_system = TRUE);
+  END IF;
+END $$;
 
 -- Users can manage their own custom personas only
-CREATE POLICY "Users can insert own personas"
-  ON personas FOR INSERT
-  WITH CHECK (auth.uid() = user_id AND is_system = FALSE);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'personas'
+      AND policyname = 'Users can insert own personas'
+  ) THEN
+    CREATE POLICY "Users can insert own personas"
+      ON personas FOR INSERT
+      WITH CHECK (auth.uid() = user_id AND is_system = FALSE);
+  END IF;
+END $$;
 
-CREATE POLICY "Users can update own personas"
-  ON personas FOR UPDATE
-  USING (auth.uid() = user_id AND is_system = FALSE);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'personas'
+      AND policyname = 'Users can update own personas'
+  ) THEN
+    CREATE POLICY "Users can update own personas"
+      ON personas FOR UPDATE
+      USING (auth.uid() = user_id AND is_system = FALSE);
+  END IF;
+END $$;
 
-CREATE POLICY "Users can delete own personas"
-  ON personas FOR DELETE
-  USING (auth.uid() = user_id AND is_system = FALSE);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'personas'
+      AND policyname = 'Users can delete own personas'
+  ) THEN
+    CREATE POLICY "Users can delete own personas"
+      ON personas FOR DELETE
+      USING (auth.uid() = user_id AND is_system = FALSE);
+  END IF;
+END $$;
 
 -- ============================================
 -- ADD DEFAULT PERSONA TO USER PROFILES
@@ -71,7 +111,8 @@ ADD COLUMN IF NOT EXISTS persona_version INTEGER;
 -- ============================================
 
 -- Insert system personas (user_id is NULL for system personas)
-INSERT INTO personas (user_id, name, description, system_prompt_prefix, tone, verbosity, strength, rules, avoid_rules, example_responses, is_system) VALUES
+WITH seed_personas (user_id, name, description, system_prompt_prefix, tone, verbosity, strength, rules, avoid_rules, example_responses, is_system) AS (
+VALUES
 
 -- 1. Friendly Tutor (default)
 (NULL, 'Friendly Tutor', 'A warm, encouraging teacher who makes learning feel approachable and fun. Perfect for beginners and those who need extra support.',
@@ -118,7 +159,16 @@ TRUE),
 '[{"prompt": "Is this code okay?", "response": "Your implementation has three significant issues that require attention. First, the time complexity is O(n²) due to the nested loops, which will not scale. Second, you''re not handling the null case on line 15. Third, your variable naming (''x'', ''temp'') violates clean code principles. Let me explain each issue and the proper solutions."}]'::jsonb,
 TRUE)
 
-ON CONFLICT DO NOTHING;
+)
+INSERT INTO personas (user_id, name, description, system_prompt_prefix, tone, verbosity, strength, rules, avoid_rules, example_responses, is_system)
+SELECT user_id, name, description, system_prompt_prefix, tone, verbosity, strength, rules, avoid_rules, example_responses, is_system
+FROM seed_personas seed
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM personas existing
+  WHERE existing.is_system = TRUE
+    AND existing.name = seed.name
+);
 
 -- ============================================
 -- HELPER FUNCTION: GET DEFAULT SYSTEM PERSONA

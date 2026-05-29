@@ -54,22 +54,7 @@ The learning workflow begins when the learner submits a query. The system proces
 
 \begin{figure}[H]
 \centering
-\resizebox{0.95\textwidth}{!}{%
-\begin{tikzpicture}[node distance=1.2cm, every node/.style={draw, rounded corners, align=center, minimum width=2.9cm, minimum height=0.9cm}]
-\node (query) {Learner Query};
-\node[right of=query, xshift=2.7cm] (context) {Context Building};
-\node[right of=context, xshift=2.7cm] (strategy) {Strategy Selection};
-\node[right of=strategy, xshift=2.7cm] (artifact) {Learning Artifact};
-\node[right of=artifact, xshift=2.7cm] (feedback) {Feedback Storage};
-\node[below of=feedback, yshift=-0.2cm] (eval) {User Evaluation};
-\draw[->] (query) -- (context);
-\draw[->] (context) -- (strategy);
-\draw[->] (strategy) -- (artifact);
-\draw[->] (artifact) -- (feedback);
-\draw[->] (feedback) -- (eval);
-\draw[->] (feedback.south) .. controls +(0,-1.0) and +(0,-1.0) .. (context.south);
-\end{tikzpicture}
-}
+\includegraphics[width=0.95\textwidth]{Chapter1/1.1}
 \caption{High-level methodology and adaptive learning workflow}
 \label{fig:methodology}
 \end{figure}
