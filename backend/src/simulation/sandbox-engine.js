@@ -160,6 +160,19 @@ function inferTopic(query) {
       reason: 'Bubble sort can be shown with array bars and compare/swap steps.',
     };
   }
+  if (/\bheap\s*sort\b/.test(lower)) {
+    return {
+      topic: 'Heap Sort',
+      family: 'algorithm_sorting',
+      domain: 'algorithms',
+      complexity: 'intermediate',
+      supported: true,
+      confidence: 0.94,
+      simulationType: 'sandbox_simulation',
+      requiresSandbox: true,
+      reason: 'Heap sort benefits from showing heap construction, root swaps, and heapify steps.',
+    };
+  }
   if (/\bquick\s*sort\b/.test(lower)) {
     return {
       topic: 'Quick Sort',
@@ -385,6 +398,25 @@ export function planSandboxSimulation(query, topicUnderstanding = inferTopic(que
       requiresSandbox: false,
       defaultData: { array: [5, 2, 4, 1] },
       prompt: 'Generate a bubble sort sandbox with bars and adjacent compare/swap steps.',
+    };
+  }
+
+  if (topicUnderstanding.topic === 'Heap Sort') {
+    return {
+      components: ['array cells', 'binary heap view', 'root highlight', 'heap boundary', 'sorted suffix', 'step controls'],
+      interactions: ['play', 'previous', 'next', 'restart'],
+      animationFlow: [
+        'show initial array',
+        'heapify parent nodes from bottom to top',
+        'build a max heap',
+        'swap the root with the end of the heap',
+        'shrink the heap boundary and heapify again',
+        'show the sorted result',
+      ],
+      outputMode: 'sandbox_simulation',
+      requiresSandbox: true,
+      defaultData: { array: [4, 10, 3, 5, 1, 8] },
+      prompt: 'Generate a heap sort sandbox showing max-heap construction, root swaps, and the sorted suffix.',
     };
   }
 
@@ -679,6 +711,102 @@ function bubbleSortStates(input) {
     sortedIndices: values.map((_, index) => index),
   });
   return steps;
+}
+
+function heapSortStates(input) {
+  const values = [...input];
+  const steps = [{
+    id: 'step-1',
+    title: 'Start',
+    description: `Start with [${values.join(', ')}].`,
+    array: [...values],
+    compare: [],
+    swapped: false,
+    sortedIndices: [],
+    heapSize: values.length,
+  }];
+  let stepIndex = 2;
+
+  function pushStep(title, description, compare = [], swapped = false, heapSize = values.length) {
+    steps.push({
+      id: `step-${stepIndex}`,
+      title,
+      description,
+      array: [...values],
+      compare,
+      swapped,
+      sortedIndices: Array.from({ length: values.length - heapSize }, (_, offset) => heapSize + offset),
+      heapSize,
+    });
+    stepIndex += 1;
+  }
+
+  function heapify(heapSize, rootIndex) {
+    let largest = rootIndex;
+    const left = 2 * rootIndex + 1;
+    const right = 2 * rootIndex + 2;
+    const compared = [rootIndex];
+
+    if (left < heapSize) compared.push(left);
+    if (right < heapSize) compared.push(right);
+    pushStep(
+      `Heapify index ${rootIndex}`,
+      `Compare parent ${values[rootIndex]} with its children inside the heap boundary.`,
+      compared,
+      false,
+      heapSize,
+    );
+
+    if (left < heapSize && values[left] > values[largest]) largest = left;
+    if (right < heapSize && values[right] > values[largest]) largest = right;
+
+    if (largest !== rootIndex) {
+      const parentValue = values[rootIndex];
+      const childValue = values[largest];
+      [values[rootIndex], values[largest]] = [values[largest], values[rootIndex]];
+      pushStep(
+        `Move ${childValue} upward`,
+        `${childValue} is larger than ${parentValue}, so swap to restore the max heap.`,
+        [rootIndex, largest],
+        true,
+        heapSize,
+      );
+      heapify(heapSize, largest);
+    }
+  }
+
+  for (let index = Math.floor(values.length / 2) - 1; index >= 0; index -= 1) {
+    heapify(values.length, index);
+  }
+
+  pushStep('Max heap built', `The largest value ${values[0]} is at the root.`, [0], false, values.length);
+
+  for (let end = values.length - 1; end > 0; end -= 1) {
+    const root = values[0];
+    const boundary = values[end];
+    [values[0], values[end]] = [values[end], values[0]];
+    pushStep(
+      `Lock ${root}`,
+      `Swap root ${root} with ${boundary}; ${root} moves into the sorted suffix.`,
+      [0, end],
+      true,
+      end,
+    );
+    heapify(end, 0);
+  }
+
+  steps.push({
+    id: `step-${stepIndex}`,
+    title: 'Sorted',
+    description: `Final sorted array: [${values.join(', ')}].`,
+    array: [...values],
+    compare: [],
+    swapped: false,
+    sortedIndices: values.map((_, index) => index),
+    heapSize: 0,
+  });
+
+  return steps.slice(0, 80);
 }
 
 function quickSortStates(input) {
@@ -1488,6 +1616,50 @@ function makeBubbleSteps(input) {
   steps.push({ id: 'step-' + stepNumber, title: 'Sorted', description: 'Final sorted array: [' + values.join(', ') + '].', array: values.slice(), compare: [], swapped: false, sortedIndices: values.map((_, itemIndex) => itemIndex) });
   return steps.slice(0, 80);
 }
+function makeHeapSteps(input) {
+  const values = input.slice();
+  const steps = [{ id: 'step-1', title: 'Start', description: 'Start with [' + values.join(', ') + '].', array: values.slice(), compare: [], swapped: false, sortedIndices: [], heapSize: values.length }];
+  let stepNumber = 2;
+  function sortedSuffix(heapSize) {
+    return Array.from({ length: values.length - heapSize }, (_, offset) => heapSize + offset);
+  }
+  function addStep(title, description, compare, swapped, heapSize) {
+    steps.push({ id: 'step-' + stepNumber, title, description, array: values.slice(), compare: compare || [], swapped: !!swapped, sortedIndices: sortedSuffix(heapSize), heapSize });
+    stepNumber += 1;
+  }
+  function heapify(heapSize, rootIndex) {
+    if (steps.length > 76) return;
+    let largest = rootIndex;
+    const left = rootIndex * 2 + 1;
+    const right = rootIndex * 2 + 2;
+    const compared = [rootIndex];
+    if (left < heapSize) compared.push(left);
+    if (right < heapSize) compared.push(right);
+    addStep('Heapify index ' + rootIndex, 'Compare parent ' + values[rootIndex] + ' with its children inside the heap boundary.', compared, false, heapSize);
+    if (left < heapSize && values[left] > values[largest]) largest = left;
+    if (right < heapSize && values[right] > values[largest]) largest = right;
+    if (largest !== rootIndex) {
+      const parentValue = values[rootIndex];
+      const childValue = values[largest];
+      values[rootIndex] = childValue;
+      values[largest] = parentValue;
+      addStep('Move ' + childValue + ' upward', childValue + ' is larger than ' + parentValue + ', so swap to restore the max heap.', [rootIndex, largest], true, heapSize);
+      heapify(heapSize, largest);
+    }
+  }
+  for (let itemIndex = Math.floor(values.length / 2) - 1; itemIndex >= 0; itemIndex -= 1) heapify(values.length, itemIndex);
+  addStep('Max heap built', 'The largest value ' + values[0] + ' is at the root.', [0], false, values.length);
+  for (let end = values.length - 1; end > 0; end -= 1) {
+    const root = values[0];
+    const boundary = values[end];
+    values[0] = boundary;
+    values[end] = root;
+    addStep('Lock ' + root, 'Swap root ' + root + ' with ' + boundary + '; ' + root + ' moves into the sorted suffix.', [0, end], true, end);
+    heapify(end, 0);
+  }
+  steps.push({ id: 'step-' + stepNumber, title: 'Sorted', description: 'Final sorted array: [' + values.join(', ') + '].', array: values.slice(), compare: [], swapped: false, sortedIndices: values.map((_, itemIndex) => itemIndex), heapSize: 0 });
+  return steps.slice(0, 80);
+}
 function makeQuickSteps(input) {
   const values = input.slice();
   const steps = [{ id: 'step-1', title: 'Start', description: 'Start quick sort with [' + values.join(', ') + '].', array: values.slice(), compare: [], swapped: false, sortedIndices: [] }];
@@ -1600,7 +1772,7 @@ function makeBinarySteps(input, target) {
   return steps;
 }
 function rebuildFromInput() {
-  if (!['bubble', 'merge', 'quick', 'binary'].includes(SIM_STATE.variant)) return;
+  if (!['bubble', 'merge', 'quick', 'heap', 'binary'].includes(SIM_STATE.variant)) return;
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -1614,6 +1786,7 @@ function rebuildFromInput() {
   SIM_STATE.defaultData.array = values;
   if (SIM_STATE.variant === 'merge') SIM_STATE.steps = makeMergeSteps(values);
   else if (SIM_STATE.variant === 'quick') SIM_STATE.steps = makeQuickSteps(values);
+  else if (SIM_STATE.variant === 'heap') SIM_STATE.steps = makeHeapSteps(values);
   else if (SIM_STATE.variant === 'binary') {
     const target = Number(targetInput.value);
     SIM_STATE.defaultData.target = Number.isFinite(target) ? target : values[0];
@@ -1624,7 +1797,7 @@ function rebuildFromInput() {
   console.log('simulation_input_applied', { variant: SIM_STATE.variant, values });
 }
 function setupInputControls() {
-  if (!['bubble', 'merge', 'quick', 'binary'].includes(SIM_STATE.variant)) {
+  if (!['bubble', 'merge', 'quick', 'heap', 'binary'].includes(SIM_STATE.variant)) {
     dataInput.style.display = 'none';
     dataLabel.textContent = 'Generated simulation';
     inputStatus.textContent = '';
@@ -1651,6 +1824,7 @@ function keyConcept(step) {
     if (phase === 'merge') return 'Merge Sort combines already sorted pieces to build the final sorted array.';
     return 'A one-item array is already sorted, so recursion can start returning upward.';
   }
+  if (SIM_STATE.variant === 'heap') return 'A max heap keeps the largest remaining value at the root before locking it into the sorted suffix.';
   if (SIM_STATE.variant === 'physical') return 'The visual state changes because force, position, and energy change over time.';
   if (SIM_STATE.variant === 'math') return 'Each highlighted point connects an input value to the function output.';
   if (SIM_STATE.variant === 'network') return 'Communication is easier to understand when each message is shown in order.';
@@ -1906,6 +2080,16 @@ function buildFallbackBundle(topicUnderstanding, plan) {
     });
   }
 
+  if (topicUnderstanding.topic === 'Heap Sort') {
+    const array = plan.defaultData?.array || [4, 10, 3, 5, 1, 8];
+    return buildSandboxBundle({
+      title: 'Heap Sort',
+      steps: heapSortStates(array),
+      defaultData: { array },
+      variant: 'heap',
+    });
+  }
+
   if (topicUnderstanding.topic === 'Quick Sort') {
     const array = plan.defaultData?.array || [8, 3, 5, 1, 7, 2];
     return buildSandboxBundle({
@@ -2042,6 +2226,34 @@ function buildFallbackBundle(topicUnderstanding, plan) {
   return null;
 }
 
+function genericProcessStates(topic, plan = {}) {
+  const components = Array.isArray(plan.components) && plan.components.length
+    ? plan.components
+    : ['Idea', 'Process', 'Result'];
+  const flow = Array.isArray(plan.animationFlow) && plan.animationFlow.length
+    ? plan.animationFlow
+    : ['show the starting state', 'highlight the main transition', 'show the final state'];
+
+  return flow.slice(0, 8).map((item, index) => ({
+    id: `step-${index + 1}`,
+    title: index === 0 ? 'Start' : index === flow.length - 1 ? 'Result' : `Stage ${index + 1}`,
+    description: `${safeText(topic, 'This topic', 80)}: ${safeText(item, 'show the next state', 160)}.`,
+    stages: components,
+    activeIndex: Math.min(index, components.length - 1),
+    token: safeText(topic, 'simulation', 80),
+  }));
+}
+
+function buildGenericFallbackBundle(topicUnderstanding, plan) {
+  const title = safeText(topicUnderstanding?.topic || 'Simulation', 'Simulation', 100);
+  return buildSandboxBundle({
+    title,
+    steps: genericProcessStates(title, plan),
+    defaultData: plan?.defaultData || {},
+    variant: 'flow',
+  });
+}
+
 function normalizeSandboxBundle(raw, fallbackTitle = 'Simulation') {
   return {
     type: 'sandbox_simulation',
@@ -2088,7 +2300,8 @@ function validateAlgorithmFacts(bundle) {
   const isBubble = variant === 'bubble' || title.includes('bubble');
   const isMerge = variant === 'merge' || title.includes('merge sort');
   const isBinary = variant === 'binary' || title.includes('binary search');
-  if (!isBubble && !isMerge && !isBinary) return errors;
+  const isHeap = variant === 'heap' || title.includes('heap sort');
+  if (!isBubble && !isMerge && !isBinary && !isHeap) return errors;
 
   if (input.length < 2) errors.push('missing_algorithm_input_array');
   if (finalArray.length < 2) errors.push('missing_final_algorithm_array');
@@ -2284,15 +2497,15 @@ export async function generateSandboxSimulation(query, options = {}) {
   }
 
   if (!generated || generated.type !== 'sandbox_simulation') {
-    generated = buildFallbackBundle(topicUnderstanding, plan);
+    generated = buildFallbackBundle(topicUnderstanding, plan) || buildGenericFallbackBundle(topicUnderstanding, plan);
     generationSource = 'fallback';
   }
 
   if (!trace.some(entry => entry.stage === 'generation')) {
     tracePush(trace, 'generation', generationStart, {
       source: generationSource,
-      outputType: generated.type,
-      title: generated.title,
+      outputType: generated?.type || 'none',
+      title: generated?.title || null,
     });
   }
 
@@ -2304,7 +2517,7 @@ export async function generateSandboxSimulation(query, options = {}) {
       errors: validation.errors,
       recovery: 'fallback_bundle',
     });
-    generated = buildFallbackBundle(topicUnderstanding, plan);
+    generated = buildFallbackBundle(topicUnderstanding, plan) || buildGenericFallbackBundle(topicUnderstanding, plan);
     validation = validateSandboxBundle(generated);
   }
 

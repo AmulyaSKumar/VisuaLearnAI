@@ -23,6 +23,7 @@ import {
 import {
   getAzureTextClient,
   getAzureTextModel,
+  normalizeAzureError,
   toOpenAIMessages,
   toOpenAITools,
 } from "../src/services/openai/azure-client.js";
@@ -343,39 +344,49 @@ async function streamOpenAIChat({
     request.tools = toOpenAITools(tools);
   }
 
-  const stream = await client.chat.completions.create(request);
+  let stream;
+  try {
+    stream = await client.chat.completions.create(request);
+  } catch (error) {
+    throw normalizeAzureError(error);
+  }
+
   const toolCalls = new Map();
   let completionId = null;
   let finishReason = null;
 
-  for await (const chunk of stream) {
-    if (abortedRef.aborted) break;
-    completionId = completionId || chunk.id;
-    const choice = chunk.choices?.[0];
-    if (!choice) continue;
+  try {
+    for await (const chunk of stream) {
+      if (abortedRef.aborted) break;
+      completionId = completionId || chunk.id;
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
 
-    if (choice.finish_reason) {
-      finishReason = choice.finish_reason;
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+
+      const delta = choice.delta || {};
+      if (delta.content) {
+        onText?.(delta.content);
+      }
+
+      for (const toolDelta of delta.tool_calls || []) {
+        const index = toolDelta.index ?? 0;
+        const current = toolCalls.get(index) || {
+          id: toolDelta.id || `call_${Date.now()}_${index}`,
+          name: '',
+          arguments: '',
+        };
+
+        if (toolDelta.id) current.id = toolDelta.id;
+        if (toolDelta.function?.name) current.name += toolDelta.function.name;
+        if (toolDelta.function?.arguments) current.arguments += toolDelta.function.arguments;
+        toolCalls.set(index, current);
+      }
     }
-
-    const delta = choice.delta || {};
-    if (delta.content) {
-      onText?.(delta.content);
-    }
-
-    for (const toolDelta of delta.tool_calls || []) {
-      const index = toolDelta.index ?? 0;
-      const current = toolCalls.get(index) || {
-        id: toolDelta.id || `call_${Date.now()}_${index}`,
-        name: '',
-        arguments: '',
-      };
-
-      if (toolDelta.id) current.id = toolDelta.id;
-      if (toolDelta.function?.name) current.name += toolDelta.function.name;
-      if (toolDelta.function?.arguments) current.arguments += toolDelta.function.arguments;
-      toolCalls.set(index, current);
-    }
+  } catch (error) {
+    throw normalizeAzureError(error);
   }
 
   for (const call of toolCalls.values()) {

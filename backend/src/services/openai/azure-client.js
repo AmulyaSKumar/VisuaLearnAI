@@ -143,7 +143,7 @@ export async function createTextCompletion({
   return response.choices?.[0]?.message?.content || '';
 }
 
-function normalizeAzureError(error) {
+export function normalizeAzureError(error) {
   const code = error?.cause?.cause?.code || error?.cause?.code || error?.code;
 
   if (code === 'ENOTFOUND') {
@@ -160,6 +160,14 @@ function normalizeAzureError(error) {
 
   if (error?.status === 404) {
     return new Error('Azure OpenAI deployment was not found. Check AZURE_OPENAI_DEPLOYMENT.');
+  }
+
+  if (error?.name === 'APIConnectionError') {
+    return new Error('Azure OpenAI connection failed. Check AZURE_OPENAI_ENDPOINT, firewall/network access, and whether the Azure resource is reachable from Render.');
+  }
+
+  if (error?.name === 'APIConnectionTimeoutError') {
+    return new Error('Azure OpenAI request timed out. Check Azure service availability and Render outbound network access.');
   }
 
   return error instanceof Error ? error : new Error('Azure OpenAI request failed.');
