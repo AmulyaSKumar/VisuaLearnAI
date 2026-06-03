@@ -7,7 +7,7 @@
 import http from 'http';
 import express from 'express';
 
-import { config } from './config/environment.js';
+import { config, isAllowedCorsOrigin } from './config/environment.js';
 import { setupMiddleware, setupErrorHandler } from './middleware/index.js';
 import { registerRoutes } from './api/index.js';
 import { logger, createRequestLogger, getSentryRequestHandler, getSentryErrorHandler, flushSentry } from './services/logger.js';
@@ -16,7 +16,6 @@ import { supabase } from './database/client.js';
 import { agentRegistry } from './agents/index.js';
 import { scheduleDailyReset } from './services/costTracker.js';
 import { cache } from './services/cache.js';
-import { attachRealtimeAudioProxy } from './services/realtime/audioProxy.js';
 
 // Initialize Express app
 const app = express();
@@ -47,22 +46,25 @@ const server = http.createServer((req, res) => {
   // CORS preflight
   if (req.method === 'OPTIONS' && req.url?.startsWith('/api/')) {
     const origin = req.headers.origin;
-    if (config.cors.origin.includes(origin)) {
+    if (isAllowedCorsOrigin(origin)) {
       res.writeHead(204, {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+        ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
+        'Vary': 'Origin',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Max-Age': '86400',
       });
+      return res.end();
     }
-    return res.end();
+
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'CORS origin not allowed' }));
   }
 
   // Everything else goes through Express (including /api/chat and /api/tool-result)
   app(req, res);
 });
-
-attachRealtimeAudioProxy(server);
 
 const PORT = config.port;
 
@@ -93,6 +95,12 @@ export async function startServer() {
         logger.info({ redis: cacheStats.isRedisAvailable }, 'Cache status');
         logger.info('Auth: Supabase JWT verification enabled');
         logger.info('Rate limiting: enabled');
+        logger.info({
+          frontendUrl: config.frontendUrl,
+          backendPublicUrl: config.backendPublicUrl,
+          corsOrigins: config.cors.origin,
+          notionRedirectUri: config.notion.redirectUri,
+        }, 'Deployment URLs configured');
         logger.info(`Server ready. Try: curl http://localhost:${PORT}/api/health`);
         resolve();
       };

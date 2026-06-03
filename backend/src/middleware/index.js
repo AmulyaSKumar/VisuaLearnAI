@@ -7,7 +7,7 @@
 import express from 'express';
 import cors from 'cors';
 import errorHandler from './errorHandler.js';
-import { config } from '../config/environment.js';
+import { config, isAllowedCorsOrigin } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -17,9 +17,17 @@ import { logger } from '../utils/logger.js';
 export function setupMiddleware(app) {
   // CORS
   app.use(cors({
-    origin: config.cors.origin,
+    origin(origin, callback) {
+      if (isAllowedCorsOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   }));
 
   // JSON parsing
@@ -38,6 +46,18 @@ export function setupMiddleware(app) {
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  });
+
+  app.get(['/status', '/api/status'], (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'VisuaLearn backend',
+      environment: config.env,
+      frontendUrl: config.frontendUrl,
+      backendPublicUrl: config.backendPublicUrl,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     });

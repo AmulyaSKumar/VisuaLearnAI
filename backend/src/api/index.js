@@ -14,7 +14,6 @@ import ttsRoutes from './tts/routes.js';
 import documentRoutes from './documents/routes.js';
 import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
-import realtimeRoutes from './realtime/routes.js';
 import simulationRoutes from './simulation/routes.js';
 import visual3dRoutes from './visual3d/routes.js';
 import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
@@ -227,15 +226,6 @@ export function registerRoutes(app) {
   router.use('/personas', requireAuth, personaRoutes);
 
   /**
-   * Realtime Conversation API - Protected
-   * GET /api/realtime/status - Report backend-only Azure realtime configuration status
-   * POST /api/realtime/session - Create/rebuild a realtime conversation session
-   * PATCH /api/realtime/session/:sessionId - Refresh injected context
-   * POST /api/realtime/session/:sessionId/text - Text fallback turn through realtime context
-   */
-  router.use('/realtime', requireAuth, realtimeRoutes);
-
-  /**
    * Simulation API
    * POST /api/simulation/debug - Console-first sandbox simulation engine
    * POST /api/simulation/detect - Topic simulation support detection
@@ -393,9 +383,6 @@ export function registerRoutes(app) {
         'POST /api/personas',
         'GET /api/personas/default',
         'POST /api/personas/:id/set-default',
-        'POST /api/realtime/session',
-        'GET /api/realtime/status',
-        'POST /api/realtime/session/:sessionId/text',
         'GET /api/usage/:userId',
         'GET /api/progress/:userId',
         'GET /api/health'

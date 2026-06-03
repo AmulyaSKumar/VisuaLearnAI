@@ -109,7 +109,7 @@ await manager.addUserMessage(content);
 Azure OpenAI chat model integration and streaming
 
 #### `/services/azure` (coming Day 4)
-Azure OpenAI services (images, audio, realtime voice)
+Azure OpenAI services for generated learning assets
 
 #### `/services/cache` (coming soon)
 LRU cache and asset caching
@@ -261,6 +261,8 @@ NOTION_REDIRECT_URI=http://localhost:3001/api/notion/callback
 NOTION_VERSION=2026-03-11
 NOTION_TOKEN_ENCRYPTION_KEY=...
 FRONTEND_URL=http://localhost:5173
+BACKEND_PUBLIC_URL=http://localhost:3001
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:4173,https://visualearn-ai.vercel.app
 PORT=3001
 LOG_LEVEL=info
 NODE_ENV=development
@@ -333,6 +335,10 @@ For production:
 ```bash
 # Set environment
 export NODE_ENV=production
+export FRONTEND_URL=https://visualearn-ai.vercel.app
+export BACKEND_PUBLIC_URL=https://visualearnai-backend.onrender.com
+export CORS_ORIGINS=https://visualearn-ai.vercel.app
+export NOTION_REDIRECT_URI=https://visualearnai-backend.onrender.com/api/notion/callback
 
 # Start server
 npm start

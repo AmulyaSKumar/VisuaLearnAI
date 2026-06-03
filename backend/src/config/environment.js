@@ -6,10 +6,13 @@
 
 import dotenv from 'dotenv';
 
-// Load .env file.
-// Local development often has stale Azure variables in the parent shell; the
-// project .env should be the source of truth for this backend process.
-dotenv.config({ override: true });
+// Local development should use backend/.env as the source of truth. In
+// production, platform variables from Render must not be overwritten.
+dotenv.config({ override: process.env.NODE_ENV !== 'production' });
+
+const DEFAULT_LOCAL_FRONTEND_URL = 'http://localhost:5173';
+const DEFAULT_PRODUCTION_FRONTEND_URL = 'https://visualearn-ai.vercel.app';
+const DEFAULT_PRODUCTION_BACKEND_URL = 'https://visualearnai-backend.onrender.com';
 
 /**
  * Validate required environment variables
@@ -33,25 +36,6 @@ function validateEnv() {
 
 validateEnv();
 
-export function getRealtimeConfigStatus() {
-  const required = [
-    'AZURE_REALTIME_ENDPOINT',
-    'AZURE_REALTIME_API_KEY',
-    'AZURE_REALTIME_DEPLOYMENT',
-  ];
-  const missing = required.filter(key => !process.env[key]);
-
-  return {
-    configured: missing.length === 0,
-    missing,
-  };
-}
-
-const realtimeStatus = getRealtimeConfigStatus();
-if (!realtimeStatus.configured) {
-  console.warn('Realtime configuration incomplete', { missing: realtimeStatus.missing });
-}
-
 function getUrlHost(value) {
   try {
     return value ? new URL(value).host : null;
@@ -71,6 +55,64 @@ const canReuseChatKeyForEmbeddings = Boolean(
   chatEndpointHost &&
   embeddingEndpointHost === chatEndpointHost
 );
+
+function normalizeUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function csv(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+const frontendUrl = normalizeUrl(
+  process.env.FRONTEND_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? DEFAULT_PRODUCTION_FRONTEND_URL
+    : DEFAULT_LOCAL_FRONTEND_URL)
+);
+
+const backendPublicUrl = normalizeUrl(
+  process.env.BACKEND_PUBLIC_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? DEFAULT_PRODUCTION_BACKEND_URL
+    : `http://localhost:${process.env.PORT || 3001}`)
+);
+
+const configuredCorsOrigins = csv(process.env.CORS_ORIGINS || process.env.CORS_ORIGIN);
+const defaultCorsOrigins = [
+  DEFAULT_LOCAL_FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:4173',
+  DEFAULT_PRODUCTION_FRONTEND_URL,
+  frontendUrl,
+].filter(Boolean);
+
+const corsOrigins = [...new Set(
+  configuredCorsOrigins.length > 0
+    ? [...configuredCorsOrigins, frontendUrl]
+    : defaultCorsOrigins
+)];
+
+export function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+
+  if (corsOrigins.includes(origin)) {
+    return true;
+  }
+
+  // Allow Vercel preview URLs for this project when explicitly enabled.
+  if (
+    process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true' &&
+    /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Environment configuration object
@@ -107,34 +149,21 @@ export const config = {
     ttsModel: process.env.AZURE_TTS_MODEL,
   },
 
-  azureRealtime: {
-    endpoint: process.env.AZURE_REALTIME_ENDPOINT,
-    apiKey: process.env.AZURE_REALTIME_API_KEY,
-    deployment: process.env.AZURE_REALTIME_DEPLOYMENT || process.env.AZURE_REALTIME_MODEL,
-    apiVersion: process.env.AZURE_REALTIME_API_VERSION || 'v1',
-    transcriptionDeployment: process.env.AZURE_REALTIME_TRANSCRIPTION_DEPLOYMENT,
-  },
-
   // Notion export integration
   notion: {
     clientId: process.env.NOTION_CLIENT_ID,
     clientSecret: process.env.NOTION_CLIENT_SECRET,
-    redirectUri: process.env.NOTION_REDIRECT_URI || `http://localhost:${process.env.PORT || 3001}/api/notion/callback`,
+    redirectUri: process.env.NOTION_REDIRECT_URI || `${backendPublicUrl}/api/notion/callback`,
     version: process.env.NOTION_VERSION || '2026-03-11',
     tokenEncryptionKey: process.env.NOTION_TOKEN_ENCRYPTION_KEY,
   },
 
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendUrl,
+  backendPublicUrl,
 
   // CORS
   cors: {
-    origin: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-      : [
-          'http://localhost:5173',
-          'http://localhost:3000',
-          'https://visualearn-ai.vercel.app',
-        ],
+    origin: corsOrigins,
   },
 
   // Logging
