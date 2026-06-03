@@ -134,7 +134,24 @@ export class ImageGeneratorAgent extends BaseAgent {
         .from('lesson-assets')
         .getPublicUrl(`images/${filename}`);
 
-      return publicData.publicUrl;
+      const publicUrl = publicData.publicUrl;
+      try {
+        const verifyResponse = await fetch(publicUrl, { method: 'HEAD' });
+        if (verifyResponse.ok) {
+          return publicUrl;
+        }
+        logger.warn('Image Generator: Public storage URL was not readable, using data URL fallback', {
+          status: verifyResponse.status,
+          publicUrl,
+        });
+      } catch (verifyError) {
+        logger.warn('Image Generator: Public storage URL verification failed, using data URL fallback', {
+          error: verifyError.message,
+          publicUrl,
+        });
+      }
+
+      return `data:image/png;base64,${base64Data}`;
 
     } catch (error) {
       logger.error('Image Generator: Storage upload failed', { error: error.message });

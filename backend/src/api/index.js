@@ -38,6 +38,9 @@ import { getUsageStats } from '../services/costTracker.js';
 // Learning state service
 import { getUserProgress, getWeakTopics, getStrongTopics } from '../services/learningState.js';
 
+// Personalization metrics
+import { trackSessionMetrics } from '../agents/personalization.js';
+
 // Asset cache service
 import {
   invalidateByModelVersion,
@@ -100,6 +103,33 @@ export function registerRoutes(app) {
     } catch (err) {
       console.error('Error fetching progress:', err);
       res.status(500).json({ error: 'Failed to fetch progress' });
+    }
+  });
+
+  /**
+   * Behavior Tracking API
+   * POST /api/behavior - Record aggregate behavior metrics for personalization
+   */
+  router.post('/behavior', requireAuth, async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      const requestedUserId = req.body?.userId;
+
+      if (requestedUserId && requestedUserId !== userId) {
+        return res.status(403).json({ error: 'Forbidden: user ID mismatch' });
+      }
+
+      await trackSessionMetrics(userId, {
+        timeSpent: Number(req.body?.sessionDuration) || 0,
+        interactions: Number(req.body?.totalInteractions) || 0,
+        followUpCount: Number(req.body?.followUpCount) || 0,
+        widgetInteractions: Number(req.body?.widgetInteractionCount) || 0,
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ error: err.message, userId: req.user?.userId }, 'Behavior tracking failed');
+      res.status(500).json({ error: 'Failed to track behavior' });
     }
   });
 
@@ -368,6 +398,7 @@ export function registerRoutes(app) {
         'POST /api/chat',
         'POST /api/tool-result',
         'POST /api/learning-content',
+        'POST /api/behavior',
         'POST /api/simulation/debug',
         'POST /api/simulation/detect',
         'POST /api/simulation/generate',

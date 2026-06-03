@@ -564,6 +564,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
               content={learningContent}
               isLoading={isLearningContentLoading}
               userId={userId}
+              accessToken={accessToken}
               onInteraction={onLearningInteraction}
               initialTab={learningWorkspaceInitialTab}
             />

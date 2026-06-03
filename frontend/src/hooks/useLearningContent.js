@@ -372,7 +372,7 @@ export function useLearningContent() {
 
   const trackInteraction = useCallback(async (userId, interactionType, data, accessToken = null) => {
     if (!userId || !accessToken) {
-      if (!warnedUnauthenticatedTrackingRef.current) {
+      if (import.meta.env.DEV && !warnedUnauthenticatedTrackingRef.current) {
         console.warn('Skipping interaction tracking: unauthenticated');
         warnedUnauthenticatedTrackingRef.current = true;
       }
@@ -395,7 +395,7 @@ export function useLearningContent() {
         const payload = await parseJsonResponse(response, 'Failed to track learning interaction.');
         const message = payload?.error || 'Failed to track learning interaction';
         if (response.status === 401 || response.status === 403) {
-          if (!warnedUnauthenticatedTrackingRef.current) {
+          if (import.meta.env.DEV && !warnedUnauthenticatedTrackingRef.current) {
             console.warn(`Skipping interaction tracking: ${message}`);
             warnedUnauthenticatedTrackingRef.current = true;
           }

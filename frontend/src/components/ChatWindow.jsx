@@ -90,7 +90,7 @@ export default function ChatWindow({
   const learningState = useLearningState(userId, accessToken);
 
   // Behavior tracking
-  const behaviorTracking = useBehaviorTracking(userId);
+  const behaviorTracking = useBehaviorTracking(userId, accessToken);
 
   // Local state
   const sentRef = useRef(false);
@@ -327,7 +327,7 @@ export default function ChatWindow({
   // Handle widget interactions
   const handleWidgetInteraction = useCallback((data) => {
     behaviorTracking.trackWidgetInteraction(data.widgetId, data.action, data.data);
-    if (userId) {
+    if (userId && accessToken) {
       trackInteraction(
         userId,
         data.action === 'widget_analytics' ? 'widget_analytics' : 'widget_interaction',

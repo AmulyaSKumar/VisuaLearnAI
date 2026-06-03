@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https:
  * useBehaviorTracking - Tracks user behavior for personalization
  * Monitors: widget clicks, time spent per message, follow-up frequency
  */
-export function useBehaviorTracking(userId) {
+export function useBehaviorTracking(userId, accessToken = null) {
   const behaviorRef = useRef({
     sessionStart: Date.now(),
     messageViews: [], // { messageId, startTime, duration }
@@ -89,24 +89,33 @@ export function useBehaviorTracking(userId) {
 
   // Send behavior data to server
   const sendBehaviorData = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || !accessToken) return;
 
     const data = getBehaviorData();
 
     try {
-      await fetch(`${API_BASE}/api/behavior`, {
+      const response = await fetch(`${API_BASE}/api/behavior`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           userId,
           ...data,
           timestamp: new Date().toISOString(),
         }),
       });
+
+      if (!response.ok && import.meta.env.DEV) {
+        console.warn("Behavior tracking skipped:", response.status);
+      }
     } catch (err) {
-      console.error("Failed to send behavior data:", err);
+      if (import.meta.env.DEV) {
+        console.error("Failed to send behavior data:", err);
+      }
     }
-  }, [userId, getBehaviorData]);
+  }, [userId, accessToken, getBehaviorData]);
 
   // Get session summary data for SessionSummary modal
   const getSessionSummary = useCallback(() => {
