@@ -52,6 +52,15 @@ function getFriendlyAuthError(error, fallbackMessage) {
   return rawMessage;
 }
 
+function isMissingSupabaseRelation(error) {
+  const message = String(error?.message || '');
+  return error?.code === '42P01'
+    || error?.code === 'PGRST205'
+    || error?.status === 404
+    || message.includes('schema cache')
+    || message.includes('Could not find the table');
+}
+
 /**
  * Sign up with email and password
  */
@@ -508,7 +517,7 @@ export async function getFlashcardProgress(userId, conversationId) {
 
     if (error) {
       // Gracefully handle missing table - return empty progress
-      if (error.message?.includes('schema cache') || error.code === '42P01') {
+      if (isMissingSupabaseRelation(error)) {
         console.debug('Flashcard progress table not found, using local storage');
         return {};
       }
@@ -564,7 +573,7 @@ export async function updateFlashcardProgress(userId, conversationId, cardId, pr
 
     if (error) {
       // Gracefully handle missing table - just skip saving
-      if (error.message?.includes('schema cache') || error.code === '42P01') {
+      if (isMissingSupabaseRelation(error)) {
         console.debug('Flashcard progress table not found, progress not saved');
         return null;
       }
@@ -594,7 +603,7 @@ export async function getDueCardsCount(userId) {
 
     if (error) {
       // Gracefully handle missing table
-      if (error.message?.includes('schema cache') || error.code === '42P01') {
+      if (isMissingSupabaseRelation(error)) {
         return 0;
       }
       throw new Error(error.message);

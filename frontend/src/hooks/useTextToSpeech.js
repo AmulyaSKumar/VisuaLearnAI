@@ -1,6 +1,57 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { cleanTextForSpeech } from '../utils/cleanTextForSpeech';
 
+const MAX_UTTERANCE_LENGTH = 180;
+const SPEECH_KEEPALIVE_MS = 9000;
+
+function splitTextForSpeech(text, maxLength = MAX_UTTERANCE_LENGTH) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return [];
+
+  const sentences = normalized.match(/[^.!?;:]+[.!?;:]?/g) || [normalized];
+  const chunks = [];
+  let current = '';
+
+  const pushCurrent = () => {
+    const value = current.trim();
+    if (value) chunks.push(value);
+    current = '';
+  };
+
+  for (const sentence of sentences) {
+    const value = sentence.trim();
+    if (!value) continue;
+
+    if (value.length > maxLength) {
+      pushCurrent();
+      const words = value.split(/\s+/);
+      let wordChunk = '';
+      for (const word of words) {
+        const next = wordChunk ? `${wordChunk} ${word}` : word;
+        if (next.length > maxLength) {
+          if (wordChunk) chunks.push(wordChunk);
+          wordChunk = word;
+        } else {
+          wordChunk = next;
+        }
+      }
+      if (wordChunk) chunks.push(wordChunk);
+      continue;
+    }
+
+    const next = current ? `${current} ${value}` : value;
+    if (next.length > maxLength) {
+      pushCurrent();
+      current = value;
+    } else {
+      current = next;
+    }
+  }
+
+  pushCurrent();
+  return chunks;
+}
+
 /**
  * Hook for Text-to-Speech using Web Speech API
  * Handles voice selection, rate/pitch control, and playback state
@@ -30,6 +81,27 @@ export default function useTextToSpeech(options = {}) {
 
   const utteranceRef = useRef(null);
   const synthRef = useRef(null);
+  const chunksRef = useRef([]);
+  const chunkIndexRef = useRef(0);
+  const playbackIdRef = useRef(0);
+  const keepAliveRef = useRef(null);
+
+  const clearKeepAlive = useCallback(() => {
+    if (keepAliveRef.current) {
+      window.clearInterval(keepAliveRef.current);
+      keepAliveRef.current = null;
+    }
+  }, []);
+
+  const startKeepAlive = useCallback(() => {
+    clearKeepAlive();
+    keepAliveRef.current = window.setInterval(() => {
+      const synth = synthRef.current;
+      if (!synth || synth.paused || !synth.speaking) return;
+      // Chrome can silently stall long speech queues; resume nudges it without restarting.
+      synth.resume();
+    }, SPEECH_KEEPALIVE_MS);
+  }, [clearKeepAlive]);
 
   // Initialize speech synthesis and load voices
   useEffect(() => {
@@ -41,7 +113,6 @@ export default function useTextToSpeech(options = {}) {
 
     synthRef.current = window.speechSynthesis;
 
-    // Load voices
     const loadVoices = () => {
       const availableVoices = synthRef.current.getVoices();
       setVoices(availableVoices);
@@ -71,32 +142,45 @@ export default function useTextToSpeech(options = {}) {
 
     loadVoices();
 
-    // Chrome loads voices asynchronously
-    if (speechSynthesis.onvoiceschanged !== undefined) {
+    if (typeof speechSynthesis.addEventListener === 'function') {
+      speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    } else if (speechSynthesis.onvoiceschanged !== undefined) {
       speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    // Cleanup
     return () => {
-      if (synthRef.current) {
+      clearKeepAlive();
+      if (speechSynthesis.removeEventListener) {
+        speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      }
+      if (synthRef.current && utteranceRef.current) {
+        playbackIdRef.current += 1;
         synthRef.current.cancel();
       }
     };
-  }, [language, voiceName]);
+  }, [clearKeepAlive, language, voiceName]);
 
-  // Speak text
-  const speak = useCallback((text) => {
-    if (!synthRef.current || !text) return;
+  const finishPlayback = useCallback((playbackId) => {
+    if (playbackId !== playbackIdRef.current) return;
+    clearKeepAlive();
+    utteranceRef.current = null;
+    chunksRef.current = [];
+    chunkIndexRef.current = 0;
+    setIsSpeaking(false);
+    setIsPaused(false);
+    setIsLoading(false);
+  }, [clearKeepAlive]);
 
-    const speechText = cleanTextForSpeech(text);
-    if (!speechText) return;
+  const speakChunk = useCallback((playbackId) => {
+    const synth = synthRef.current;
+    const chunk = chunksRef.current[chunkIndexRef.current];
+    if (!synth || playbackId !== playbackIdRef.current) return;
+    if (!chunk) {
+      finishPlayback(playbackId);
+      return;
+    }
 
-    // Cancel any current speech
-    synthRef.current.cancel();
-    setError(null);
-    setIsLoading(true);
-
-    const utterance = new SpeechSynthesisUtterance(speechText);
+    const utterance = new SpeechSynthesisUtterance(chunk);
     utterance.lang = language;
     utterance.rate = Math.max(0.1, Math.min(10, rate));
     utterance.pitch = Math.max(0, Math.min(2, pitch));
@@ -107,45 +191,71 @@ export default function useTextToSpeech(options = {}) {
     }
 
     utterance.onstart = () => {
+      if (playbackId !== playbackIdRef.current) return;
       setIsLoading(false);
       setIsSpeaking(true);
       setIsPaused(false);
     };
 
     utterance.onend = () => {
-      setIsSpeaking(false);
-      setIsPaused(false);
-      setIsLoading(false);
+      if (playbackId !== playbackIdRef.current) return;
+      chunkIndexRef.current += 1;
+      window.setTimeout(() => speakChunk(playbackId), 40);
     };
 
     utterance.onerror = (event) => {
+      if (playbackId !== playbackIdRef.current) return;
       if (event.error === 'canceled' || event.error === 'interrupted') {
-        // Not an error, just user action
         setIsLoading(false);
         return;
       }
-      setError(`Speech error: ${event.error}`);
+      clearKeepAlive();
+      setError(`Speech error: ${event.error || 'playback failed'}`);
       setIsSpeaking(false);
       setIsPaused(false);
       setIsLoading(false);
     };
 
     utterance.onpause = () => {
+      if (playbackId !== playbackIdRef.current) return;
       setIsPaused(true);
     };
 
     utterance.onresume = () => {
+      if (playbackId !== playbackIdRef.current) return;
       setIsPaused(false);
     };
 
     utteranceRef.current = utterance;
-    synthRef.current.speak(utterance);
-  }, [language, rate, pitch, volume, currentVoice]);
+    synth.speak(utterance);
+  }, [clearKeepAlive, currentVoice, finishPlayback, language, pitch, rate, volume]);
+
+  // Speak text
+  const speak = useCallback((text) => {
+    if (!synthRef.current || !text) return;
+
+    const speechText = cleanTextForSpeech(text);
+    if (!speechText) return;
+    const chunks = splitTextForSpeech(speechText);
+    if (chunks.length === 0) return;
+
+    playbackIdRef.current += 1;
+    const playbackId = playbackIdRef.current;
+    synthRef.current.cancel();
+    chunksRef.current = chunks;
+    chunkIndexRef.current = 0;
+    setError(null);
+    setIsLoading(true);
+    startKeepAlive();
+
+    window.setTimeout(() => speakChunk(playbackId), 60);
+  }, [speakChunk, startKeepAlive]);
 
   // Pause speech
   const pause = useCallback(() => {
     if (synthRef.current && isSpeaking) {
       synthRef.current.pause();
+      setIsPaused(true);
     }
   }, [isSpeaking]);
 
@@ -153,18 +263,24 @@ export default function useTextToSpeech(options = {}) {
   const resume = useCallback(() => {
     if (synthRef.current && isPaused) {
       synthRef.current.resume();
+      setIsPaused(false);
     }
   }, [isPaused]);
 
   // Stop speech
   const stop = useCallback(() => {
     if (synthRef.current) {
+      playbackIdRef.current += 1;
+      clearKeepAlive();
       synthRef.current.cancel();
+      utteranceRef.current = null;
+      chunksRef.current = [];
+      chunkIndexRef.current = 0;
       setIsSpeaking(false);
       setIsPaused(false);
       setIsLoading(false);
     }
-  }, []);
+  }, [clearKeepAlive]);
 
   // Toggle pause/resume
   const togglePause = useCallback(() => {

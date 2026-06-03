@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import useTextToSpeech from "../hooks/useTextToSpeech";
 
-export default function MessageBubble({ content, showTTS = false, isStreaming = false }) {
+export default function MessageBubble({ content, showTTS = false, isStreaming = false, saveAction = null }) {
   const {
     isSpeaking,
     isPaused,
@@ -122,52 +122,57 @@ export default function MessageBubble({ content, showTTS = false, isStreaming = 
 
   return (
     <div className="relative group rounded-lg border border-border/60 bg-background/40 p-3">
-      {showTTS && isSupported && (
+      {(saveAction || (showTTS && isSupported)) && (
         <div className="mb-2 flex justify-end">
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleTTS}
-              disabled={isLoading}
-              className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all
-                ${isSpeaking
-                  ? "bg-primary/20 text-primary ring-1 ring-primary/30"
-                  : isLoading
-                    ? "bg-muted text-muted-foreground cursor-wait"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" /></svg>
-                  Preparing
-                </>
-              ) : isSpeaking && !isPaused ? (
-                <>
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-                  Pause
-                </>
-              ) : isPaused ? (
-                <>
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                  Resume
-                </>
-              ) : (
-                <>
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
-                  Play
-                </>
-              )}
-            </button>
-            {(isSpeaking || isPaused) && (
-              <button
-                type="button"
-                onClick={stop}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                title="Stop"
-              >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-              </button>
+            {saveAction}
+            {showTTS && isSupported && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleTTS}
+                  disabled={isLoading}
+                  className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all
+                    ${isSpeaking
+                      ? "bg-primary/20 text-primary ring-1 ring-primary/30"
+                      : isLoading
+                        ? "bg-muted text-muted-foreground cursor-wait"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" /></svg>
+                      Preparing
+                    </>
+                  ) : isSpeaking && !isPaused ? (
+                    <>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+                      Pause
+                    </>
+                  ) : isPaused ? (
+                    <>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
+                      Play
+                    </>
+                  )}
+                </button>
+                {(isSpeaking || isPaused) && (
+                  <button
+                    type="button"
+                    onClick={stop}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Stop"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

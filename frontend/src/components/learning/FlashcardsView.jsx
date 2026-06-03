@@ -9,7 +9,6 @@ import {
   getFlashcardProgress,
   updateFlashcardProgress,
   updateStudyStreak,
-  supabase,
 } from '../../lib/supabase';
 
 // ============================================
@@ -23,6 +22,8 @@ const FILTER_OPTIONS = [
 ];
 
 const LOCAL_STORAGE_KEY = 'visualearn_user_flashcards';
+const LOCAL_PROGRESS_KEY = 'visualearn_flashcard_progress';
+const ENABLE_REMOTE_FLASHCARDS = import.meta.env.VITE_ENABLE_FLASHCARD_DB === 'true';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -41,6 +42,49 @@ function extractString(value, fallback = '') {
     }
   }
   return fallback;
+}
+
+function readStoredJson(key, fallback = {}) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    console.warn(`Failed to read ${key} from localStorage:`, error);
+    return fallback;
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Failed to write ${key} to localStorage:`, error);
+  }
+}
+
+function getLocalCards(conversationId) {
+  const stored = readStoredJson(LOCAL_STORAGE_KEY, {});
+  return (stored[conversationId] || []).map(card => ({ ...card, isUserCard: true }));
+}
+
+function addLocalCard(conversationId, card) {
+  const stored = readStoredJson(LOCAL_STORAGE_KEY, {});
+  stored[conversationId] = [card, ...(stored[conversationId] || [])];
+  writeStoredJson(LOCAL_STORAGE_KEY, stored);
+}
+
+function getLocalProgress(conversationId) {
+  const stored = readStoredJson(LOCAL_PROGRESS_KEY, {});
+  return stored[conversationId] || {};
+}
+
+function setLocalProgress(conversationId, cardId, progress) {
+  const stored = readStoredJson(LOCAL_PROGRESS_KEY, {});
+  stored[conversationId] = {
+    ...(stored[conversationId] || {}),
+    [cardId]: progress,
+  };
+  writeStoredJson(LOCAL_PROGRESS_KEY, stored);
 }
 
 // ============================================
@@ -268,11 +312,12 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
   useEffect(() => {
     async function loadData() {
       setIsLoading(true);
+      setUserCards(getLocalCards(conversationId));
+      setCardProgress(getLocalProgress(conversationId));
 
-      // Load user flashcards
-      if (userId && conversationId) {
+      if (ENABLE_REMOTE_FLASHCARDS && userId && conversationId) {
         try {
-          // Try to load from Supabase
+          const { supabase } = await import('../../lib/supabase');
           const { data: dbCards } = await supabase
             .from('user_flashcards')
             .select('*')
@@ -292,30 +337,13 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
 
           // Load progress
           const progress = await getFlashcardProgress(userId, conversationId);
-          setCardProgress(progress);
+          setCardProgress(prev => ({ ...prev, ...progress }));
         } catch (error) {
-          console.error('Failed to load from Supabase:', error);
-          // Fallback to localStorage
-          loadFromLocalStorage();
+          console.warn('Remote flashcard storage unavailable, using local storage:', error?.message || error);
         }
-      } else {
-        loadFromLocalStorage();
       }
 
       setIsLoading(false);
-    }
-
-    function loadFromLocalStorage() {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          const sessionCards = parsed[conversationId] || [];
-          setUserCards(sessionCards.map(c => ({ ...c, isUserCard: true })));
-        } catch (e) {
-          console.error('Failed to parse localStorage:', e);
-        }
-      }
     }
 
     loadData();
@@ -369,9 +397,9 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
       createdAt: new Date().toISOString(),
     };
 
-    // Save to Supabase if logged in
-    if (userId && conversationId) {
+    if (ENABLE_REMOTE_FLASHCARDS && userId && conversationId) {
       try {
+        const { supabase } = await import('../../lib/supabase');
         await supabase.from('user_flashcards').insert({
           user_id: userId,
           conversation_id: conversationId,
@@ -380,15 +408,11 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
           topic,
         });
       } catch (error) {
-        console.error('Failed to save to Supabase:', error);
+        console.warn('Remote flashcard save unavailable, using local storage:', error?.message || error);
       }
     }
 
-    // Also save to localStorage as backup
-    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-    const parsed = stored ? JSON.parse(stored) : {};
-    parsed[conversationId] = [...(parsed[conversationId] || []), newCard];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(parsed));
+    addLocalCard(conversationId, newCard);
 
     setUserCards(prev => [newCard, ...prev]);
 
@@ -428,6 +452,7 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
       ...prev,
       [cardId]: newProgress,
     }));
+    setLocalProgress(conversationId, cardId, newProgress);
 
     // Update concept mastery
     if (updateConceptMastery) {
@@ -435,12 +460,12 @@ export default function FlashcardsView({ flashcards, userId, onInteraction, upda
     }
 
     // Save to database
-    if (userId && conversationId) {
+    if (ENABLE_REMOTE_FLASHCARDS && userId && conversationId) {
       try {
         await updateFlashcardProgress(userId, conversationId, cardId, newProgress);
         await updateStudyStreak(userId, 1);
       } catch (error) {
-        console.error('Failed to save progress:', error);
+        console.warn('Remote flashcard progress save unavailable, using local storage:', error?.message || error);
       }
     }
 

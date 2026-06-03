@@ -9,8 +9,6 @@ import SimulationView from "./learning/SimulationView";
 import Visual3DView from "./visual3d/Visual3DView";
 import SaveToNotionButton from "./SaveToNotionButton";
 import {
-  blocksToPlainText,
-  downloadBlocks,
   getAvailableBlockTypes,
   getMessageContentBlocks,
 } from "../utils/contentBlocks";
@@ -78,67 +76,6 @@ function artifactToWorkspaceTab(artifact) {
   return 'text';
 }
 
-function ResponseActionBar({
-  messageId,
-  contentBlocks,
-  availableBlockTypes,
-  isBookmarked,
-  onBookmark,
-  onCopy,
-  onDownload,
-  onExpand,
-}) {
-  if (!contentBlocks?.length) return null;
-
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <SaveToNotionButton
-        mode="chat"
-        scope="response"
-        messageId={messageId}
-        availableBlockTypes={availableBlockTypes}
-        compact
-      />
-      <IconButton label="Download response" onClick={onDownload}>
-        <path d="M12 3v12" />
-        <path d="m7 10 5 5 5-5" />
-        <path d="M5 21h14" />
-      </IconButton>
-      <IconButton label={isBookmarked ? "Remove bookmark" : "Bookmark response"} onClick={onBookmark} active={isBookmarked}>
-        <path d="M6 3h12v18l-6-4-6 4z" />
-      </IconButton>
-      <IconButton label="Copy response" onClick={onCopy}>
-        <rect x="9" y="9" width="13" height="13" rx="2" />
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-      </IconButton>
-      <IconButton label="Expand response" onClick={onExpand}>
-        <path d="M15 3h6v6" />
-        <path d="m21 3-7 7" />
-        <path d="M9 21H3v-6" />
-        <path d="m3 21 7-7" />
-      </IconButton>
-    </div>
-  );
-}
-
-function IconButton({ label, onClick, active = false, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-muted hover:text-foreground ${
-        active ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-card'
-      }`}
-      aria-label={label}
-      title={label}
-    >
-      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </svg>
-    </button>
-  );
-}
-
 const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
 export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], userId = null, conversationId = null, accessToken = null, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, learningWorkspaceInitialTab = 'text', allowLearningWorkspace = false }) {
   const scrollRef = useRef(null);
@@ -146,13 +83,6 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [expandedMessageIds, setExpandedMessageIds] = useState(() => new Set());
   const [collapsedMessageIds, setCollapsedMessageIds] = useState(() => new Set());
-  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem('visualearn:bookmarkedMessages') || '[]'));
-    } catch {
-      return new Set();
-    }
-  });
   const freezeAutoScrollRef = useRef(false);
 
   const expandMessage = useCallback((messageId) => {
@@ -174,29 +104,6 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
       next.add(messageId);
       return next;
     });
-  }, []);
-
-  const toggleBookmark = useCallback((messageId) => {
-    setBookmarkedMessageIds(previous => {
-      const next = new Set(previous);
-      if (next.has(messageId)) {
-        next.delete(messageId);
-      } else {
-        next.add(messageId);
-      }
-      localStorage.setItem('visualearn:bookmarkedMessages', JSON.stringify([...next]));
-      return next;
-    });
-  }, []);
-
-  const copyResponseBlocks = useCallback(async (blocks) => {
-    if (!blocks?.length) return;
-    await navigator.clipboard?.writeText(blocksToPlainText(blocks));
-  }, []);
-
-  const downloadResponseBlocks = useCallback((blocks, messageId) => {
-    if (!blocks?.length) return;
-    downloadBlocks(blocks, `visualearn-response-${messageId}.txt`);
   }, []);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
@@ -345,6 +252,17 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
             ? getMessageContentBlocks(msg, previousMessage?.role === "user" ? previousMessage : null)
             : [];
           const availableBlockTypes = getAvailableBlockTypes(contentBlocks);
+          const saveAction = msg.role === "assistant" && msg.id !== "streaming-now" && contentBlocks.length > 0
+            ? (
+              <SaveToNotionButton
+                mode="chat"
+                scope="response"
+                messageId={messageKey}
+                availableBlockTypes={availableBlockTypes}
+                compact
+              />
+            )
+            : null;
 
           if (isAssistantCollapsed) {
             const collapsedTitle = getCollapsedAssistantTitle(msg, inlineSimulationTopic);
@@ -410,17 +328,8 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
                     </svg>
                   </button>
                   <span>{msg.metadata?.requestedArtifact ? `${msg.metadata.requestedArtifact} response` : 'Assistant response'}</span>
+                  {saveAction}
                 </div>
-                <ResponseActionBar
-                  messageId={messageKey}
-                  contentBlocks={contentBlocks}
-                  availableBlockTypes={availableBlockTypes}
-                  isBookmarked={bookmarkedMessageIds.has(messageKey)}
-                  onBookmark={() => toggleBookmark(messageKey)}
-                  onCopy={() => copyResponseBlocks(contentBlocks)}
-                  onDownload={() => downloadResponseBlocks(contentBlocks, messageKey)}
-                  onExpand={() => expandMessage(messageKey)}
-                />
               </div>
             )}
 
@@ -451,20 +360,8 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
                     content={msg.text}
                     showTTS={msg.id !== "streaming-now"}
                     isStreaming={msg.id === "streaming-now"}
+                    saveAction={saveAction}
                   />
-
-                  {msg.id !== "streaming-now" && (
-                    <ResponseActionBar
-                      messageId={messageKey}
-                      contentBlocks={contentBlocks}
-                      availableBlockTypes={availableBlockTypes}
-                      isBookmarked={bookmarkedMessageIds.has(messageKey)}
-                      onBookmark={() => toggleBookmark(messageKey)}
-                      onCopy={() => copyResponseBlocks(contentBlocks)}
-                      onDownload={() => downloadResponseBlocks(contentBlocks, messageKey)}
-                      onExpand={() => expandMessage(messageKey)}
-                    />
-                  )}
 
                   {/* Fact Check Badge */}
                   {msg.factCheck && (
