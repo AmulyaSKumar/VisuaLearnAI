@@ -25,14 +25,13 @@ const ARTIFACT_LABELS = {
   simulation: 'Simulation',
   '3d_scene': '3D Visualization',
   video: 'Video Generation',
-  summarize: 'Document Summary',
 };
 
 const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation', 'video']);
 
 const artifactToContentType = (artifact) => {
   if (artifact === 'video') return null;
-  if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === '3d_scene' || artifact === 'summarize') return 'learn';
+  if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === '3d_scene') return 'learn';
   if (artifact === 'quiz') return 'quiz';
   if (artifact === 'flashcards' || artifact === 'mindmap') return 'flashcards-mindmap';
   return 'learn';
@@ -203,13 +202,14 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
     let savedFirstMessage = false;
     const activeDocumentId = selectedDocumentId;
     const requestedArtifact = pendingArtifact || (isLearningMode ? 'learn' : inferExplicitArtifact(text));
+    const shouldOpenLearningMode = isLearningMode || requestedArtifact === 'learn';
     const isArtifactOnlyResponse = ARTIFACT_ONLY_RESPONSES.has(requestedArtifact);
     const useWebSearch = webSearchEnabled && !activeDocumentId;
 
     try {
       // 1. Create conversation only when the first message is actually being sent
       conversation = await createConversation(user.id, DEFAULT_CONVERSATION_TITLE, {
-        mode: isLearningMode ? 'learning' : 'chat',
+        mode: shouldOpenLearningMode ? 'learning' : 'chat',
       });
 
       // 2. Save user message
@@ -285,13 +285,13 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           documentId: activeDocumentId,
           webSearch: useWebSearch,
           learningAction: requestedArtifact || null,
-          preferences: { requestedArtifact, mode: isLearningMode ? 'learning' : 'chat' },
-          mode: isLearningMode ? 'learning' : 'chat',
+          preferences: { requestedArtifact, mode: shouldOpenLearningMode ? 'learning' : 'chat' },
+          mode: shouldOpenLearningMode ? 'learning' : 'chat',
           conversationState: {
             activeTopic: null,
             subTopic: null,
             lastArtifact: null,
-            mode: isLearningMode ? 'learning' : 'chat',
+            mode: shouldOpenLearningMode ? 'learning' : 'chat',
           },
         })
       });
@@ -355,16 +355,14 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
           error: err?.message || '3D is not available for this topic.',
         }));
       }
-      const shouldGenerateLearningArtifact = Boolean(effectiveArtifact && effectiveArtifact !== '3d_scene' && (isLearningMode || pendingArtifact));
+      const shouldGenerateLearningArtifact = Boolean(effectiveArtifact && effectiveArtifact !== '3d_scene' && (shouldOpenLearningMode || pendingArtifact));
       if (shouldGenerateLearningArtifact) try {
         const lcHeaders = { 'Content-Type': 'application/json' };
         if (accessToken) {
           lcHeaders['Authorization'] = `Bearer ${accessToken}`;
         }
 
-        const learningQuery = effectiveArtifact === 'summarize'
-          ? 'Summarize the uploaded document'
-          : orchestrationMetadata.activeTopic || text;
+        const learningQuery = orchestrationMetadata.activeTopic || text;
 
         const lcResponse = await fetch(`${API_BASE}/api/learning-content`, {
           method: 'POST',
@@ -376,7 +374,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             conversationId: conversation.id,
             documentId: activeDocumentId,
             webSearch: useWebSearch,
-            preferences: { mode: isLearningMode ? 'learning' : 'chat' },
+            preferences: { mode: shouldOpenLearningMode ? 'learning' : 'chat' },
           })
         });
         if (lcResponse.ok) {
@@ -422,7 +420,7 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       setSelectedDocumentId(null);
       setPendingArtifact(null);
       setWebSearchEnabled(false);
-      navigate((isLearningMode || shouldGenerateLearningArtifact) ? `/learn/${conversation.id}` : `/chat/${conversation.id}`);
+      navigate((shouldOpenLearningMode || shouldGenerateLearningArtifact) ? `/learn/${conversation.id}` : `/chat/${conversation.id}`);
 
     } catch (err) {
       if (user && conversation?.id && !savedFirstMessage) {
@@ -567,7 +565,6 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
               onDocumentUpload={() => setShowDocuments(true)}
               onGenerateArtifact={(artifact) => {
                 setPendingArtifact(artifact);
-                if (artifact === 'summarize') setShowDocuments(true);
               }}
             />
 

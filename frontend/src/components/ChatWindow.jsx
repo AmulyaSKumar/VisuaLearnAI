@@ -15,7 +15,7 @@ import SessionSummary from "./SessionSummary";
 import PersonaBadge from "./PersonaBadge";
 import SaveToNotionButton from "./SaveToNotionButton";
 import { useDocuments } from "../hooks/useDocuments";
-import { supabase } from "../lib/supabase";
+import { supabase, updateConversation } from "../lib/supabase";
 import { shouldAttemptVisual3D } from "../utils/visual3d";
 import { isVideoRequest } from "../utils/videoGeneration";
 
@@ -27,7 +27,6 @@ const ARTIFACT_TABS = {
   simulation: 'simulation',
   '3d_scene': '3d',
   video: 'video',
-  summarize: 'text',
 };
 
 const ARTIFACT_LABELS = {
@@ -38,7 +37,6 @@ const ARTIFACT_LABELS = {
   simulation: 'Simulation',
   '3d_scene': '3D Visualization',
   video: 'Video Generation',
-  summarize: 'Document Summary',
 };
 
 const INLINE_LEARNING_ARTIFACTS = new Set(['quiz', 'flashcards', 'mindmap']);
@@ -225,6 +223,7 @@ export default function ChatWindow({
   const handleSendMessage = useCallback(async (text) => {
     behaviorTracking.trackFollowUp();
     const requestedArtifact = pendingArtifact || inferExplicitArtifact(text);
+    const shouldOpenLearningMode = conversationMode === 'learning' || requestedArtifact === 'learn';
     if (requestedArtifact) {
       setLearningWorkspaceInitialTab(ARTIFACT_TABS[requestedArtifact] || 'text');
     }
@@ -234,13 +233,42 @@ export default function ChatWindow({
       webSearch: webSearchEnabled && !selectedDocumentId,
       requestedArtifact,
       videoOptions: requestedArtifact === 'video' ? videoOptions : null,
-      mode: conversationMode,
+      mode: shouldOpenLearningMode ? 'learning' : conversationMode,
     });
+
+    if (requestedArtifact === 'learn' && conversationId && userId) {
+      const { data } = await supabase
+        .from('conversations')
+        .select('metadata')
+        .eq('id', conversationId)
+        .eq('user_id', userId)
+        .single();
+      const updatedConversation = await updateConversation(userId, conversationId, {
+        metadata: {
+          ...(data?.metadata || {}),
+          mode: 'learning',
+        },
+      });
+      onConversationUpdated?.(conversationId, updatedConversation);
+      navigate(`/learn/${conversationId}`);
+    }
 
     setSelectedDocumentId(null);
     setShowDocumentUpload(false);
     setPendingArtifact(null);
-  }, [behaviorTracking, conversationMode, pendingArtifact, selectedDocumentId, sendMessage, videoOptions, webSearchEnabled]);
+  }, [
+    behaviorTracking,
+    conversationId,
+    conversationMode,
+    navigate,
+    onConversationUpdated,
+    pendingArtifact,
+    selectedDocumentId,
+    sendMessage,
+    userId,
+    videoOptions,
+    webSearchEnabled,
+  ]);
 
   const latestMessage = messages[messages.length - 1] || null;
   const suppressExternalAssets = SUPPRESS_ASSET_ARTIFACTS.has(pendingArtifact)
@@ -260,9 +288,7 @@ export default function ChatWindow({
     return document;
   }, [uploadDocument]);
 
-  const getArtifactQueryFromContext = useCallback((artifact) => {
-    if (artifact === 'summarize') return 'Summarize the uploaded document';
-
+  const getArtifactQueryFromContext = useCallback(() => {
     const recent = [...messages]
       .filter(message => message.role === 'user' || message.role === 'assistant')
       .slice(-6)
@@ -274,13 +300,7 @@ export default function ChatWindow({
   }, [messages]);
 
   const handleGenerateArtifact = useCallback(async (artifact) => {
-    if (artifact === 'summarize' && !selectedDocumentId) {
-      setPendingArtifact(artifact);
-      setShowDocumentUpload(true);
-      return;
-    }
-
-    const query = getArtifactQueryFromContext(artifact);
+    const query = getArtifactQueryFromContext();
     if (!query || !isLearningConversation || conversationId) {
       setPendingArtifact(artifact);
       return;

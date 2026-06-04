@@ -1439,10 +1439,10 @@ function buildSandboxBundle({ title, steps, defaultData, variant }) {
       <span id="input-status" aria-live="polite"></span>
     </div>
     <div class="control-bar" aria-label="Simulation controls">
-      <button id="restart" class="secondary" type="button">Restart</button>
-      <button id="prev" class="secondary" type="button">Previous</button>
-      <button id="play" class="primary" type="button">Play</button>
-      <button id="next" class="secondary" type="button">Next</button>
+      <button id="restart" class="secondary" type="button" aria-label="Restart" title="Restart">↻</button>
+      <button id="prev" class="secondary" type="button" aria-label="Previous" title="Previous">←</button>
+      <button id="play" class="primary" type="button" aria-label="Play" title="Play">▶</button>
+      <button id="next" class="secondary" type="button" aria-label="Next" title="Next">→</button>
     </div>
   </header>
   <section id="stage" class="stage" aria-live="polite"></section>
@@ -1476,7 +1476,7 @@ h1 { margin: 0; font-size: 24px; line-height: 1.1; }
 #target-input { width: 92px; display: none; }
 #input-status { min-width: 72px; color: var(--soft); font-size: 12px; font-weight: 750; }
 button, select { font: inherit; }
-button { border: 1px solid var(--border); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 8px 10px; font-weight: 750; cursor: pointer; }
+button { border: 1px solid var(--border); border-radius: 8px; background: var(--paper); color: var(--ink); width: 38px; min-width: 38px; height: 38px; padding: 0; display: inline-grid; place-items: center; font-size: 18px; line-height: 1; font-weight: 850; cursor: pointer; }
 button:hover { border-color: var(--ink); }
 .stage { min-height: clamp(300px, 48dvh, 520px); border: 1px solid var(--border); border-radius: 8px; background: var(--paper); padding: clamp(12px, 2vw, 22px); overflow: auto; display: grid; place-items: center; }
 .array-row, .group-row { display: flex; align-items: end; justify-content: center; gap: 10px; margin: 12px 0; flex-wrap: wrap; width: 100%; }
@@ -1552,9 +1552,9 @@ button:hover { border-color: var(--ink); }
 .label { color: var(--ink) !important; font-size: 11px; font-weight: 760; }
 .control-bar { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
 .secondary { background: var(--paper); color: var(--soft); }
-.primary { min-width: 88px; min-height: 38px; background: var(--ink); color: white; border-color: var(--ink); font-size: 14px; }
+.primary { width: 46px; min-width: 46px; height: 40px; background: var(--ink); color: white; border-color: var(--ink); font-size: 18px; }
 select { border: 1px solid var(--border); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 7px 8px; font-weight: 800; }
-@media (max-width: 760px) { .sim-header { grid-template-columns: 1fr; align-items: stretch; padding-right: 44px; } .input-panel { justify-content: stretch; } #data-input { flex: 1 1 160px; width: auto; } .control-bar { justify-content: stretch; } .control-bar button { flex: 1 1 90px; } .stage { min-height: 48dvh; } .tree-children { gap: 12px; } .cell { min-width: 32px; min-height: 32px; } .step-copy { grid-template-columns: 1fr; } }`.trim();
+@media (max-width: 760px) { .sim-header { grid-template-columns: 1fr; align-items: stretch; padding-right: 44px; } .input-panel { justify-content: stretch; } #data-input { flex: 1 1 160px; width: auto; } .control-bar { justify-content: flex-start; } .stage { min-height: 48dvh; } .tree-children { gap: 12px; } .cell { min-width: 32px; min-height: 32px; } .step-copy { grid-template-columns: 1fr; } }`.trim();
 
   const js = `
 const SIM_STATE = ${stateJson};
@@ -1776,7 +1776,9 @@ function rebuildFromInput() {
   if (timer) {
     clearInterval(timer);
     timer = null;
-    play.textContent = 'Play';
+    play.textContent = '▶';
+    play.setAttribute('aria-label', 'Play');
+    play.setAttribute('title', 'Play');
   }
   const values = cleanArrayInput(dataInput.value);
   if (values.length < 2) {
@@ -2024,15 +2026,21 @@ play.addEventListener('click', () => {
   if (timer) {
     clearInterval(timer);
     timer = null;
-    play.textContent = 'Play';
+    play.textContent = '▶';
+    play.setAttribute('aria-label', 'Play');
+    play.setAttribute('title', 'Play');
     return;
   }
-  play.textContent = 'Pause';
+  play.textContent = '⏸';
+  play.setAttribute('aria-label', 'Pause');
+  play.setAttribute('title', 'Pause');
   timer = setInterval(() => {
     if (index >= SIM_STATE.steps.length - 1) {
       clearInterval(timer);
       timer = null;
-      play.textContent = 'Play';
+      play.textContent = '▶';
+      play.setAttribute('aria-label', 'Play');
+      play.setAttribute('title', 'Play');
       return;
     }
     setIndex(index + 1);

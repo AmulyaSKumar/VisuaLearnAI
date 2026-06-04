@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function buildSrcDoc(bundle) {
   if (bundle?.sandbox?.srcDoc) return bundle.sandbox.srcDoc;
@@ -19,6 +19,24 @@ function buildSrcDoc(bundle) {
 
   const bridge = `
 (() => {
+  const CONTROL_LABELS = {
+    restart: { match: /^restart$/i, label: '↻', title: 'Restart' },
+    prev: { match: /^(previous|prev)$/i, label: '←', title: 'Previous' },
+    next: { match: /^next$/i, label: '→', title: 'Next' },
+    play: { match: /^play$/i, label: '▶', title: 'Play' },
+    pause: { match: /^pause$/i, label: '⏸', title: 'Pause' }
+  };
+  const normalizeControlLabels = () => {
+    document.querySelectorAll('button').forEach(button => {
+      const text = String(button.textContent || '').trim();
+      const key = button.id === 'play' && /^pause$/i.test(text) ? 'pause' : button.id;
+      const config = CONTROL_LABELS[key] || Object.values(CONTROL_LABELS).find(item => item.match.test(text));
+      if (!config || text === config.label) return;
+      button.textContent = config.label;
+      button.setAttribute('aria-label', config.title);
+      button.setAttribute('title', config.title);
+    });
+  };
   const send = (type, payload) => {
     try { window.parent.postMessage({ source: 'visualearn-sandbox', type, payload }, '*'); } catch {}
   };
@@ -31,6 +49,10 @@ function buildSrcDoc(bundle) {
       original[level](...args);
     };
   }
+  window.addEventListener('DOMContentLoaded', () => {
+    normalizeControlLabels();
+    new MutationObserver(normalizeControlLabels).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
   window.addEventListener('error', event => send('runtime_error', { message: event.message, lineno: event.lineno, colno: event.colno }));
   window.addEventListener('unhandledrejection', event => send('runtime_error', { message: String(event.reason || 'Unhandled rejection') }));
 })();`;
@@ -54,15 +76,45 @@ ${bundle?.html || ''}
 export default function SandboxSimulationFrame({ bundle, height = 700, onSandboxEvent }) {
   const srcDoc = useMemo(() => buildSrcDoc(bundle), [bundle]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const shellRef = useRef(null);
 
   useEffect(() => {
-    if (!isFullscreen) return undefined;
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === shellRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreen && document.fullscreenElement !== shellRef.current) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
   }, [isFullscreen]);
+
+  const toggleFullscreen = useCallback(async () => {
+    const node = shellRef.current;
+    if (!node) return;
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen?.();
+        setIsFullscreen(false);
+        return;
+      }
+
+      if (node.requestFullscreen) {
+        await node.requestFullscreen();
+      }
+      setIsFullscreen(true);
+    } catch {
+      setIsFullscreen(value => !value);
+    }
+  }, []);
 
   useEffect(() => {
     function handleMessage(event) {
@@ -77,13 +129,14 @@ export default function SandboxSimulationFrame({ bundle, height = 700, onSandbox
 
   return (
     <section
+      ref={shellRef}
       className={`relative overflow-hidden border border-border bg-[#FAF7F2] ${
         isFullscreen ? 'fixed inset-0 z-[9999] rounded-none border-0' : 'rounded-lg'
       }`}
     >
       <button
         type="button"
-        onClick={() => setIsFullscreen(value => !value)}
+        onClick={toggleFullscreen}
         aria-label={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white/95 text-[#111111] shadow-sm backdrop-blur hover:bg-[#f3eee7]"

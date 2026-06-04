@@ -183,13 +183,13 @@ export default function InputBar({
                         Learn deeply
                       </button>
                       <button type="button" onClick={() => handleTool("quiz")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
-                        Generate quiz
+                        Quiz
                       </button>
                       <button type="button" onClick={() => handleTool("flashcards")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
-                        Generate flashcards
+                        Flashcards
                       </button>
                       <button type="button" onClick={() => handleTool("mindmap")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
-                        Generate mind map
+                        Mind Map
                       </button>
                       <button type="button" onClick={() => handleTool("simulation")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
                         Simulation
@@ -198,10 +198,7 @@ export default function InputBar({
                         3D Visualization
                       </button>
                       <button type="button" onClick={() => handleTool("video")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
-                        Video Generation
-                      </button>
-                      <button type="button" onClick={() => handleTool("summarize")} className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
-                        Summarize uploaded document
+                        Video
                       </button>
                     </>
                   )}

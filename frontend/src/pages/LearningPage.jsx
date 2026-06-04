@@ -1603,9 +1603,11 @@ function LearningPageContent() {
                                     isExpanding={isLatest && isExpandingContent}
                                   />
                                 ) : (
-                                  <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-                                    Click Learn to generate learning notes for this question.
-                                  </div>
+                                  assistantText ? null : (
+                                    <div className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                                      Learning notes are being prepared for this question.
+                                    </div>
+                                  )
                                 )}
                               </div>
                             )}
