@@ -1102,6 +1102,35 @@ export default function LearnTabView({
   // ============================================
 
   if (!keyIdeas || keyIdeas.length === 0) {
+    const fallbackText = summary
+      || learningContent?.answer
+      || learningContent?.explanation
+      || learningContent?.description
+      || learningContent?.overview
+      || learningContent?.key_takeaway
+      || '';
+
+    if (fallbackText) {
+      return (
+        <div className="rounded-lg border border-border bg-card p-5">
+          {topic && (
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {topic}
+            </p>
+          )}
+          <div className="space-y-3 text-sm leading-7 text-foreground">
+            {String(fallbackText)
+              .split(/\n{2,}/)
+              .map((paragraph, index) => (
+                <p key={index} className="whitespace-pre-wrap">
+                  {paragraph.trim()}
+                </p>
+              ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         <p>No learning content available</p>

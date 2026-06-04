@@ -494,6 +494,15 @@ function LearningPageContent() {
     return turns;
   }, [messages]);
 
+  const latestAssistantText = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'assistant') {
+        return getMessageText(messages[index]);
+      }
+    }
+    return '';
+  }, [messages]);
+
   useEffect(() => {
     const latestTurn = conversationTurns[conversationTurns.length - 1];
     const latestTurnId = latestTurn?.user?.id || latestTurn?.assistant?.id;
@@ -1736,7 +1745,7 @@ function LearningPageContent() {
       case 'learn':
         return (
           <LearnTabView
-            summary={learningContent?.summary}
+            summary={learningContent?.summary || latestAssistantText}
             keyIdeas={learningContent?.key_ideas}
             readCards={readCards}
             onReadCard={handleReadCard}
