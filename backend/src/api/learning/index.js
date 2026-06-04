@@ -271,7 +271,9 @@ router.post('/learning-content', async (req, res) => {
 
     // Build cache key that includes contentType, preferences, and documentId for proper caching
     const baseCacheKey = getCacheKey(query, userId);
-    const prefKey = preferences ? `${preferences.mode || 'balanced'}-${preferences.style || 'visual'}` : 'default';
+    const prefKey = preferences
+      ? `${preferences.mode || 'balanced'}-${preferences.style || 'visual'}-${preferences.forceMode || 'auto'}-${preferences.responseStyle || 'default'}`
+      : 'default';
     const docKey = documentId ? `:doc-${documentId}` : '';
     const cacheKey = contentType
       ? `${baseCacheKey}:${contentType}:${prefKey}${docKey}`
@@ -407,6 +409,10 @@ router.post('/learning-content', async (req, res) => {
     // Determine which agent to use based on content type
     // For 'learn' or unspecified contentType, use the orchestrator for adaptive responses
     // For other types (quiz, flashcards), use the standard agent
+    const requestedForceMode = preferences?.forceMode || preferences?.responseMode || null;
+    const forceLearnMode = (documentId && (!contentType || contentType === 'learn'))
+      ? 'deep_learn'
+      : ((!contentType || contentType === 'learn') && requestedForceMode === 'deep_learn' ? 'deep_learn' : undefined);
     const useOrchestrator = !contentType || contentType === 'learn';
 
     const agentToUse = useOrchestrator ? learningOrchestrator : learningContentAgent;
@@ -416,7 +422,7 @@ router.post('/learning-content', async (req, res) => {
       query,
       profile: mergedProfile,
       contentType,
-      forceMode: documentId && (!contentType || contentType === 'learn') ? 'deep_learn' : undefined,
+      forceMode: forceLearnMode,
       documentId,       // Pass ID so agents know a document was selected
       documentContext,  // RAG context (formatted text)
       contextChunks,    // Raw chunks for reference

@@ -30,7 +30,7 @@ const ARTIFACT_TABS = {
 };
 
 const ARTIFACT_LABELS = {
-  learn: 'Learn Deeply',
+  learn: 'Learning Mode',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
@@ -47,7 +47,6 @@ function inferExplicitArtifact(text) {
   if (/\b(quiz|test me|ask me questions|practice questions|question me)\b/i.test(value)) return 'quiz';
   if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
   if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
-  if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
   if (isVideoRequest(value)) return 'video';
   if (shouldAttemptVisual3D(value)) return '3d_scene';
   return null;

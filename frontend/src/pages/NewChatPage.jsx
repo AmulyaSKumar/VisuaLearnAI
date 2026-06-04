@@ -18,7 +18,7 @@ import { createVideoJob, isVideoRequest } from '../utils/videoGeneration';
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
 
 const ARTIFACT_LABELS = {
-  learn: 'Learn Deeply',
+  learn: 'Learning Mode',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
@@ -42,7 +42,6 @@ function inferExplicitArtifact(text) {
   if (/\b(quiz|test me|ask me questions|practice questions|question me)\b/i.test(value)) return 'quiz';
   if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
   if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
-  if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
   if (isVideoRequest(value)) return 'video';
   if (shouldAttemptVisual3D(value)) return '3d_scene';
   return null;
@@ -450,11 +449,11 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
             </svg>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-            {isLearningMode ? 'Explore a topic deeply' : 'What do you want to know?'}
+            {isLearningMode ? 'Learning Mode' : 'What do you want to know?'}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
             {isLearningMode
-              ? 'Start with Learn, then move through quiz, flashcards, mind map, simulation, and 3D.'
+              ? 'Ask a topic, then use the tabs for quiz, flashcards, mind map, simulation, 3D, and video when available.'
               : 'Ask a question for a concise answer. Visuals appear only when requested or clearly useful.'}
           </p>
         </div>

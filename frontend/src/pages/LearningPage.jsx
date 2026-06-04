@@ -20,7 +20,7 @@ import SaveToNotionButton from "../components/SaveToNotionButton";
 import { exportToNotion, getNotionStatus } from "../services/notionService";
 import { SIMULATION_CONFIG } from "../config/simulationConfig";
 import { shouldAttemptVisual3D } from "../utils/visual3d";
-import { isVideoRequest } from "../utils/videoGeneration";
+import { createVideoJob, isVideoRequest } from "../utils/videoGeneration";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -86,6 +86,20 @@ function getMessageText(message) {
   return message?.content || message?.text || '';
 }
 
+function buildLearnPreferences(depthLevel) {
+  return {
+    mode: depthLevel,
+    forceMode: 'deep_learn',
+    responseStyle: 'keynotes',
+  };
+}
+
+function shouldAutoGenerateLearningVideo(topic) {
+  const normalized = String(topic || '').trim();
+  if (!normalized) return false;
+  return !/^(hi|hello|hey|thanks|thank you|ok|okay)[!.?]*$/i.test(normalized);
+}
+
 // Inner component that uses the Learning Intelligence context
 function LearningPageContent() {
   const { id: conversationId } = useParams();
@@ -118,6 +132,8 @@ function LearningPageContent() {
   const [turnTabs, setTurnTabs] = useState({});
   const [turnLoadingTabs, setTurnLoadingTabs] = useState({});
   const [turnSimulationDetections, setTurnSimulationDetections] = useState({});
+  const [learningVideo, setLearningVideo] = useState(null);
+  const videoAutoStartRef = useRef(null);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -526,6 +542,77 @@ function LearningPageContent() {
     return artifacts;
   }, [learningContent, simulationDetection]);
 
+  const mainAvailableTabs = useMemo(() => {
+    const tabs = ['learn'];
+    if (learningContent?.quiz?.length) tabs.push('quiz');
+    if (learningContent?.flashcards?.length) tabs.push('flashcards');
+    if (learningContent?.mind_map) tabs.push('mindmap');
+    if (simulationDetection?.supported) tabs.push('simulation');
+    if (learningContent?.visual3d || shouldAttemptVisual3D(userQuery, null)) tabs.push('3d');
+    if (shouldAutoGenerateLearningVideo(learningContent?.topic || userQuery || conversation?.title)) tabs.push('video');
+    return tabs;
+  }, [conversation?.title, learningContent, simulationDetection, userQuery]);
+
+  useEffect(() => {
+    if (!mainAvailableTabs.includes(activeTab) && !isTabLoading(activeTab)) {
+      setActiveTab('learn');
+    }
+  }, [activeTab, mainAvailableTabs, loadingTabs, hookLoadingTabs]);
+
+  useEffect(() => {
+    const topic = learningContent?.topic || userQuery || conversation?.title;
+    if (!learningContent || !accessToken || !shouldAutoGenerateLearningVideo(topic)) return;
+    if (learningContent.video || learningVideo) return;
+
+    const key = `${conversationId || 'session'}:${String(topic).trim().toLowerCase()}`;
+    if (videoAutoStartRef.current === key) return;
+    videoAutoStartRef.current = key;
+
+    createVideoJob({
+      topic,
+      durationSeconds: 60,
+      audience: 'high school students',
+      quality: 'final',
+    }, accessToken)
+      .then(async (job) => {
+        if (!job) return;
+        const video = { job, jobId: job.jobId };
+        setLearningVideo(video);
+        setStoredContent(prev => (prev ? { ...prev, video } : prev));
+
+        const assistantMessage = [...messages].reverse().find(message => message.role === 'assistant' && !message.loading);
+        if (!assistantMessage?.id) return;
+
+        const updatedLearningContent = {
+          ...(assistantMessage.metadata?.learningContent || storedContentRef.current || {}),
+          video,
+        };
+        const updatedMetadata = {
+          ...(assistantMessage.metadata || {}),
+          learningContent: updatedLearningContent,
+        };
+
+        const { data: updatedAssistant, error: updateError } = await supabase
+          .from('messages')
+          .update({ metadata: updatedMetadata })
+          .eq('id', assistantMessage.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.warn('[LearningPage] Could not persist video job:', updateError.message);
+          return;
+        }
+
+        setMessages(prev => prev.map(message =>
+          message.id === assistantMessage.id ? updatedAssistant : message
+        ));
+      })
+      .catch((err) => {
+        console.warn('[LearningPage] Auto video generation failed:', err?.message || err);
+      });
+  }, [accessToken, conversation?.title, conversationId, learningContent, learningVideo, messages, userQuery]);
+
   // Load conversation and messages
   // Wait for persisted resources to be loaded first to avoid unnecessary API calls
   useEffect(() => {
@@ -549,6 +636,8 @@ function LearningPageContent() {
       clearContentRef.current(); // Use ref to avoid infinite loop
       setStoredContent(null);
       setDocumentId(null);
+      setLearningVideo(null);
+      videoAutoStartRef.current = null;
       // NOTE: visibleTabs and loadedTabs are managed by the persistedTypes sync effect
       // Don't reset them here or we'll lose persisted tabs!
       setTabErrors({});
@@ -644,7 +733,7 @@ function LearningPageContent() {
           // Pass preferences with mode based on depthLevel
           // IMPORTANT: Await so loading state shows properly
           // Use ref to avoid infinite loop (fetchTabContent changes on every render)
-          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, { mode: depthLevel }, conversationId, storedDocumentId);
+          await fetchTabContentRef.current(userMessage.content, 'learn', userId, accessToken, buildLearnPreferences(depthLevel), conversationId, storedDocumentId);
 
           // Also run simulation detection for fresh content
           runSimulationDetection(userMessage.content);
@@ -755,7 +844,7 @@ function LearningPageContent() {
         apiContentType,
         userId,
         accessToken,
-        { mode: depthLevel },
+        apiContentType === 'learn' ? buildLearnPreferences(depthLevel) : { mode: depthLevel },
         conversationId, // Pass conversationId for resource persistence
         documentId
       );
@@ -1164,7 +1253,7 @@ function LearningPageContent() {
           query,
           userId,
           contentType: 'learn',
-          preferences: { mode: depthLevel },
+          preferences: buildLearnPreferences(depthLevel),
           conversationId,
           messageId: savedUserMessage.id,
           documentId,
@@ -1394,7 +1483,7 @@ function LearningPageContent() {
           query,
           userId,
           contentType: apiContentType,
-          preferences: { mode: depthLevel },
+          preferences: apiContentType === 'learn' ? buildLearnPreferences(depthLevel) : { mode: depthLevel },
           conversationId,
           messageId: assistantMessage.id,
           documentId: assistantMessage.metadata?.documentId || turn?.user?.metadata?.documentId || documentId,
@@ -1498,8 +1587,17 @@ function LearningPageContent() {
               || Boolean(turn.assistant?.metadata?.visual3d);
             const canOfferTurnVideo = turn.assistant?.metadata?.requestedArtifact === 'video'
               || Boolean(turn.assistant?.metadata?.video)
+              || Boolean(turnContent?.video)
               || isVideoRequest(userText);
-            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', ...(canOfferTurn3D ? ['3d'] : []), ...(canOfferTurnVideo ? ['video'] : [])];
+            const availableTurnTabs = [
+              'learn',
+              ...(hasTurnTabContent(turnContent, 'quiz') ? ['quiz'] : []),
+              ...(hasTurnTabContent(turnContent, 'flashcards') ? ['flashcards'] : []),
+              ...(hasTurnTabContent(turnContent, 'mindmap') ? ['mindmap'] : []),
+              ...(turnSimulationDetection?.supported ? ['simulation'] : []),
+              ...(canOfferTurn3D ? ['3d'] : []),
+              ...(canOfferTurnVideo ? ['video'] : []),
+            ];
 
             return (
               <div
@@ -1848,7 +1946,7 @@ function LearningPageContent() {
             <VideoGenerationView
               topic={learningContent?.topic || userQuery || conversation?.title}
               accessToken={accessToken}
-              video={learningContent?.video || null}
+              video={learningContent?.video || learningVideo || null}
               autoStart
             />
           </>
@@ -1952,6 +2050,31 @@ function LearningPageContent() {
                   {factCheck.sources.length > 2 && ` +${factCheck.sources.length - 2} more`}
                 </div>
               )}
+            </div>
+          )}
+
+          {mainAvailableTabs.length > 1 && (
+            <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-border bg-card/80 p-1.5 shadow-sm">
+              {mainAvailableTabs.map(tabId => {
+                const loading = isTabLoading(tabId);
+                return (
+                  <button
+                    key={tabId}
+                    type="button"
+                    onClick={() => handleOpenTab(tabId)}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      activeTab === tabId
+                        ? 'bg-foreground text-background shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {TAB_LABELS[tabId]}
+                    {loading && (
+                      <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
 

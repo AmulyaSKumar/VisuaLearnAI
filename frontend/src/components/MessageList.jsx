@@ -80,7 +80,7 @@ function artifactToWorkspaceTab(artifact) {
 }
 
 const ARTIFACT_LABELS = {
-  learn: 'Learn Deeply',
+  learn: 'Learning Mode',
   quiz: 'Quiz',
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
