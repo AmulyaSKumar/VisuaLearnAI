@@ -8,6 +8,7 @@ const ARTIFACT_LABELS = {
   flashcards: 'Flashcards',
   mindmap: 'Mind Map',
   simulation: 'Simulation',
+  video: 'Video',
   comparison: 'Comparison',
   code: 'Code Walkthrough',
   visual3d: '3D Visualization',
@@ -127,6 +128,8 @@ export function documentToNotionBlocks(document, { mindmapFileUploadId = null } 
       blocks.push(...mindmapBlocks(resource.content, mindmapFileUploadId));
     } else if (artifactType === 'simulation') {
       blocks.push(...simulationBlocks(resource.content));
+    } else if (artifactType === 'video') {
+      blocks.push(...videoBlocks(resource.content));
     }
   }
 
@@ -272,6 +275,19 @@ function simulationBlocks(content) {
   ];
 }
 
+function videoBlocks(content) {
+  const job = content.job || content;
+  return [
+    heading(2, 'Video'),
+    paragraph(`Topic: ${text(job.topic, 'Not specified')}`),
+    paragraph(`Status: ${text(job.status, 'Not specified')}`),
+    paragraph(`Duration: ${text(job.durationSeconds, 'Not specified')} seconds`),
+    paragraph(`Audience: ${text(job.audience, 'Not specified')}`),
+    paragraph(`Quality: ${text(job.quality, 'Not specified')}`),
+    ...(job.jobId ? [paragraph(`Job ID: ${job.jobId}`)] : []),
+  ];
+}
+
 function conversationDocumentToNotionBlocks(document) {
   const blocks = [
     heading(1, document.title),
@@ -325,6 +341,10 @@ function contentBlockToNotionBlocks(block) {
 
   if (block.type === 'simulation' || block.type === 'visual3d') {
     return simulationBlocks(block.content || {});
+  }
+
+  if (block.type === 'video') {
+    return videoBlocks(block.content || {});
   }
 
   if (block.type === 'comparison') {
@@ -445,6 +465,18 @@ function extractMessageBlocks(message, sourcePrompt = '') {
       type: 'visual3d',
       title: titleForBlock('visual3d', topic),
       content: metadata.visual3d,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (metadata.video || metadata.requestedArtifact === 'video') {
+    blocks.push(contentBlock({
+      messageId,
+      type: 'video',
+      title: titleForBlock('video', topic),
+      content: metadata.video || { topic },
       timestamp,
       sourcePrompt,
       metadata: { topic },

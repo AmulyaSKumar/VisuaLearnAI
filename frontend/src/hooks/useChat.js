@@ -18,10 +18,11 @@ import {
 } from "../utils/conversationActions";
 import { getMessageContentBlocks } from "../utils/contentBlocks";
 import { generateVisual3D, shouldAttemptVisual3D } from "../utils/visual3d";
+import { createVideoJob } from "../utils/videoGeneration";
 
 const CHAT_ARTIFACTS_WITH_LEARNING_AGENTS = new Set(["quiz", "flashcards", "mindmap"]);
-const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
-const SUPPRESS_ASSET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
+const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation", "video"]);
+const SUPPRESS_ASSET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation", "video"]);
 
 /**
  * useChat hook with Supabase message persistence and behavior tracking
@@ -168,7 +169,18 @@ export function useChat(
         mode: preferences.mode || "chat",
       };
 
-    const userMsg = { id: Date.now().toString(), role: "user", content: text, text };
+    const userMessageMetadata = {
+      documentId: preferences.documentId || null,
+      webSearch: !!preferences.webSearch,
+      requestedArtifact: preferences.requestedArtifact || null,
+    };
+    const userMsg = {
+      id: Date.now().toString(),
+      role: "user",
+      content: text,
+      text,
+      metadata: userMessageMetadata,
+    };
     const newContext = [...messages, userMsg];
     setMessages(newContext);
     setIsStreaming(true);
@@ -206,14 +218,8 @@ export function useChat(
         createdConversation = newConv;
       }
 
-      const messageMetadata = {
-        documentId: preferences.documentId || null,
-        webSearch: !!preferences.webSearch,
-        requestedArtifact: preferences.requestedArtifact || null,
-      };
-
       // 2. Save user message to DB
-      savedUserMessage = await saveMessage(activeConversationId, "user", text, messageMetadata);
+      savedUserMessage = await saveMessage(activeConversationId, "user", text, userMessageMetadata);
       if (!savedUserMessage) {
         throw new Error("Failed to save your message.");
       }
@@ -227,6 +233,46 @@ export function useChat(
           ...createdConversation,
           messageCount: 1,
         });
+      }
+
+      if (preferences.requestedArtifact === "video") {
+        const videoJob = await createVideoJob({
+          topic: text,
+          durationSeconds: preferences.videoOptions?.durationSeconds || 60,
+          audience: preferences.videoOptions?.audience || "high school students",
+          quality: preferences.videoOptions?.quality || "final",
+        }, accessToken);
+
+        const assistantMessage = {
+          id: Date.now().toString(),
+          role: "assistant",
+          text: "",
+          content: "",
+          widgets: [],
+          images: [],
+          metadata: {
+            requestedArtifact: "video",
+            activeTopic: text,
+            video: videoJob,
+          },
+        };
+
+        const savedAssistant = await saveMessage(
+          activeConversationId,
+          "assistant",
+          "",
+          assistantMessage.metadata,
+        );
+        if (savedAssistant) assistantMessage.id = savedAssistant.id;
+
+        if (createdConversation && shouldAutoGenerateConversationTitle(createdConversation.title)) {
+          const generatedTitle = generateConversationTitle(text);
+          await updateConversationTitle(activeConversationId, generatedTitle);
+        }
+
+        setMessages([...newContext, assistantMessage]);
+        setIsStreaming(false);
+        return;
       }
 
       // Note: Learning content is fetched by LearningPage when user navigates there

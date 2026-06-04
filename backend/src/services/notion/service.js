@@ -416,7 +416,7 @@ function richText(content) {
 }
 
 function normalizeArtifactTypes(artifactTypes) {
-  const allowed = new Set(['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', 'transcript']);
+  const allowed = new Set(['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', 'video', 'transcript']);
   return [...new Set((artifactTypes || []).filter(type => allowed.has(type)))];
 }
 

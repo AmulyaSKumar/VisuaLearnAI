@@ -564,7 +564,7 @@ router.post("/chat", async (req, res) => {
 
     // Normal conversation mode is text-only. Sandbox simulations are rendered by
     // /api/simulation/debug, not by the old show_widget tool.
-    const tools = !intentionalLearningAction || intentionalLearningAction === 'simulation'
+    const tools = !intentionalLearningAction || intentionalLearningAction === 'simulation' || intentionalLearningAction === 'video'
       ? []
       : [SHOW_WIDGET_TOOL];
 

@@ -13,6 +13,7 @@ import {
 } from '../utils/conversationActions';
 import { sanitizeAssistantResponse } from '../utils/sanitizeAssistantResponse';
 import { generateVisual3D, shouldAttemptVisual3D } from '../utils/visual3d';
+import { createVideoJob, isVideoRequest } from '../utils/videoGeneration';
 
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://visualearnai-backend.onrender.com' : 'http://localhost:3001');
 
@@ -23,12 +24,14 @@ const ARTIFACT_LABELS = {
   mindmap: 'Mind Map',
   simulation: 'Simulation',
   '3d_scene': '3D Visualization',
+  video: 'Video Generation',
   summarize: 'Document Summary',
 };
 
-const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
+const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation', 'video']);
 
 const artifactToContentType = (artifact) => {
+  if (artifact === 'video') return null;
   if (!artifact || artifact === 'learn' || artifact === 'simulation' || artifact === '3d_scene' || artifact === 'summarize') return 'learn';
   if (artifact === 'quiz') return 'quiz';
   if (artifact === 'flashcards' || artifact === 'mindmap') return 'flashcards-mindmap';
@@ -41,6 +44,7 @@ function inferExplicitArtifact(text) {
   if (/\b(flashcards?|cards?|revise with cards)\b/i.test(value)) return 'flashcards';
   if (/\b(mind\s?map|concept map|map this)\b/i.test(value)) return 'mindmap';
   if (/\b(learn deeply|deep dive|teach me|explore)\b/i.test(value)) return 'learn';
+  if (isVideoRequest(value)) return 'video';
   if (shouldAttemptVisual3D(value)) return '3d_scene';
   return null;
 }
@@ -57,6 +61,11 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
   const [showDocuments, setShowDocuments] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [pendingArtifact, setPendingArtifact] = useState(null);
+  const [videoOptions, setVideoOptions] = useState({
+    durationSeconds: 60,
+    audience: 'high school students',
+    quality: 'final',
+  });
   const [recentSuggestions, setRecentSuggestions] = useState([]);
   const accessToken = session?.access_token;
 
@@ -101,15 +110,18 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
     }
 
     if (pendingArtifact) {
+      const videoLabel = pendingArtifact === 'video'
+        ? `Video: ${videoOptions.durationSeconds}s ${videoOptions.quality}`
+        : null;
       tools.push({
         id: `artifact-${pendingArtifact}`,
-        label: ARTIFACT_LABELS[pendingArtifact] || pendingArtifact,
+        label: videoLabel || ARTIFACT_LABELS[pendingArtifact] || pendingArtifact,
         onRemove: () => setPendingArtifact(null),
       });
     }
 
     return tools;
-  }, [isLearningMode, pendingArtifact, selectedDocument, selectedDocumentId, showDocuments, webSearchEnabled]);
+  }, [isLearningMode, pendingArtifact, selectedDocument, selectedDocumentId, showDocuments, videoOptions.durationSeconds, videoOptions.quality, webSearchEnabled]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -217,6 +229,44 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
       if (msgError) throw msgError;
       savedFirstMessage = true;
       onConversationCreated?.({ ...conversation, messageCount: 1 });
+
+      if (requestedArtifact === 'video') {
+        const video = await createVideoJob({
+          topic: text,
+          durationSeconds: videoOptions.durationSeconds,
+          audience: videoOptions.audience,
+          quality: videoOptions.quality,
+        }, accessToken);
+
+        await supabase
+          .from('messages')
+          .insert({
+            conversation_id: conversation.id,
+            role: 'assistant',
+            content: '',
+            metadata: {
+              documentId: activeDocumentId,
+              webSearch: useWebSearch,
+              requestedArtifact: 'video',
+              activeTopic: text,
+              video,
+            }
+          });
+
+        if (shouldAutoGenerateConversationTitle(conversation.title)) {
+          const generatedTitle = generateConversationTitle(text);
+          const updatedConversation = await updateConversation(user.id, conversation.id, {
+            title: generatedTitle,
+          });
+          onConversationUpdated?.(conversation.id, updatedConversation);
+        }
+
+        setSelectedDocumentId(null);
+        setPendingArtifact(null);
+        setWebSearchEnabled(false);
+        navigate(`/chat/${conversation.id}`);
+        return;
+      }
 
       // 3. Call backend to generate response
       const headers = { 'Content-Type': 'application/json' };
@@ -439,6 +489,65 @@ export default function NewChatPage({ onConversationCreated = null, onConversati
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {pendingArtifact === 'video' && (
+              <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Video generation</p>
+                    <p className="text-xs text-muted-foreground">Choose video settings before sending your topic.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingArtifact(null)}
+                    className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Cancel video generation"
+                    title="Cancel"
+                  >
+                    x
+                  </button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Duration
+                    <select
+                      value={videoOptions.durationSeconds}
+                      onChange={event => setVideoOptions(prev => ({ ...prev, durationSeconds: Number(event.target.value) }))}
+                      className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value={30}>30 seconds</option>
+                      <option value={60}>60 seconds</option>
+                      <option value={90}>90 seconds</option>
+                      <option value={120}>120 seconds</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Audience
+                    <select
+                      value={videoOptions.audience}
+                      onChange={event => setVideoOptions(prev => ({ ...prev, audience: event.target.value }))}
+                      className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="middle school students">Middle school</option>
+                      <option value="high school students">High school</option>
+                      <option value="college students">College</option>
+                      <option value="curious learner">Curious learner</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Quality
+                    <select
+                      value={videoOptions.quality}
+                      onChange={event => setVideoOptions(prev => ({ ...prev, quality: event.target.value }))}
+                      className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="final">Final</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             )}
 

@@ -7,6 +7,7 @@ export const BLOCK_LABELS = {
   mindmap: "Mind Map",
   simulation: "Simulation",
   visual3d: "3D Visualization",
+  video: "Video",
   comparison: "Comparison",
   code: "Code Walkthrough",
 };
@@ -118,6 +119,18 @@ export function getMessageContentBlocks(message, previousUserMessage = null) {
       type: "visual3d",
       title: titleForBlock("visual3d", topic),
       content: metadata.visual3d,
+      timestamp,
+      sourcePrompt,
+      metadata: { topic },
+    }));
+  }
+
+  if (metadata.video || metadata.requestedArtifact === "video") {
+    blocks.push(createBlock({
+      messageId,
+      type: "video",
+      title: titleForBlock("video", topic),
+      content: metadata.video || { topic },
       timestamp,
       sourcePrompt,
       metadata: { topic },

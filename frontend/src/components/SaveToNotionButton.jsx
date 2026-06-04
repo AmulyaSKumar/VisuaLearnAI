@@ -10,10 +10,11 @@ const DEFAULT_EXPORT_ARTIFACTS = [
   "flashcards",
   "mindmap",
   "simulation",
+  "video",
   "transcript",
 ];
 
-const CHAT_BLOCK_EXPORT_TYPES = ["flashcards", "mindmap", "simulation"];
+const CHAT_BLOCK_EXPORT_TYPES = ["flashcards", "mindmap", "simulation", "video"];
 
 function getActiveConversationId(pathname) {
   const match = pathname.match(/^\/(?:chat|learn)\/([^/?#]+)/);

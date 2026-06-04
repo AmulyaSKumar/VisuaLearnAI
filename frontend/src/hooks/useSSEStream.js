@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from "react";
 import { sanitizeAssistantResponse } from "../utils/sanitizeAssistantResponse";
 
-const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
-const SUPPRESS_WIDGET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation"]);
+const ARTIFACT_ONLY_RESPONSES = new Set(["quiz", "flashcards", "mindmap", "simulation", "video"]);
+const SUPPRESS_WIDGET_ARTIFACTS = new Set(["quiz", "flashcards", "mindmap", "simulation", "video"]);
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://visualearnai-backend.onrender.com" : "http://localhost:3001");
 
 export function useSSEStream() {

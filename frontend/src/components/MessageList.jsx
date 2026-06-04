@@ -7,6 +7,7 @@ import ImageWidget from "./ImageWidget";
 import LearningWorkspace from "./LearningWorkspace";
 import SimulationView from "./learning/SimulationView";
 import Visual3DView from "./visual3d/Visual3DView";
+import VideoGenerationView from "./video/VideoGenerationView";
 import SaveToNotionButton from "./SaveToNotionButton";
 import {
   getAvailableBlockTypes,
@@ -64,6 +65,7 @@ function getCollapsedResponsePreview(message) {
   if (artifact === 'mindmap') return 'Mind map ready';
   if (artifact === 'simulation') return 'Simulation ready';
   if (artifact === '3d_scene') return '3D visualization ready';
+  if (artifact === 'video') return 'Video generation ready';
   return 'Response ready';
 }
 
@@ -73,10 +75,27 @@ function artifactToWorkspaceTab(artifact) {
   if (artifact === 'mindmap') return 'mindmap';
   if (artifact === 'simulation') return 'simulation';
   if (artifact === '3d_scene') return '3d';
+  if (artifact === 'video') return 'video';
   return 'text';
 }
 
-const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation']);
+const ARTIFACT_LABELS = {
+  learn: 'Learn Deeply',
+  quiz: 'Quiz',
+  flashcards: 'Flashcards',
+  mindmap: 'Mind Map',
+  simulation: 'Simulation',
+  '3d_scene': '3D Visualization',
+  video: 'Video Generation',
+  summarize: 'Document Summary',
+};
+
+function getArtifactLabel(message) {
+  const artifact = message?.metadata?.requestedArtifact || message?.metadata?.decision?.artifacts?.[0] || null;
+  return artifact ? ARTIFACT_LABELS[artifact] || String(artifact).replace(/_/g, ' ') : null;
+}
+
+const ARTIFACT_ONLY_RESPONSES = new Set(['quiz', 'flashcards', 'mindmap', 'simulation', 'video']);
 export default function MessageList({ messages, currentStreamedMessage, isLoadingWidget, factCheck = null, images = [], userId = null, conversationId = null, accessToken = null, learningContent = null, isLearningContentLoading = false, onLearningInteraction = null, learningWorkspaceInitialTab = 'text', allowLearningWorkspace = false }) {
   const scrollRef = useRef(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -169,6 +188,7 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
           const isTurnCollapsed = nextAssistantKey
             ? collapsedMessageIds.has(nextAssistantKey) || (isNextAssistantOlder && !expandedMessageIds.has(nextAssistantKey))
             : false;
+          const artifactLabel = getArtifactLabel(msg) || (msg.role === 'user' ? getArtifactLabel(nextMessage) : null);
 
           if (msg.role === "user" && nextIsCollapsibleAssistant) {
             if (isTurnCollapsed) {
@@ -194,6 +214,11 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
                       <span className="block truncate text-sm font-medium text-foreground">
                         {getMessageText(msg) || 'Question'}
                       </span>
+                      {artifactLabel && (
+                        <span className="mt-1 inline-flex rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                          {artifactLabel}
+                        </span>
+                      )}
                       <span className="mt-1 block truncate text-xs text-muted-foreground">
                         {getCollapsedResponsePreview(nextMessage)}
                       </span>
@@ -243,6 +268,10 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
               || msg.metadata?.decision?.scene3D?.requested
               || msg.metadata?.visual3d
             );
+          const shouldRenderVideo = msg.role === "assistant"
+            && msg.id !== "streaming-now"
+            && !isAssistantCollapsed
+            && (msg.metadata?.requestedArtifact === 'video' || msg.metadata?.video);
           const inlineLearningContent = msg.role === "assistant" && !isAssistantCollapsed
             ? msg.metadata?.learningContent
             : null;
@@ -300,6 +329,11 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
             {/* User Message */}
             {msg.role === "user" && (
               <div className="relative bg-primary/10 text-foreground px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] sm:max-w-[75%] border border-primary/20 shadow-sm">
+                {artifactLabel && (
+                  <span className="mb-1.5 inline-flex rounded-full border border-primary/20 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-primary">
+                    {artifactLabel}
+                  </span>
+                )}
                 <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{msg.content}</p>
               </div>
             )}
@@ -413,6 +447,17 @@ export default function MessageList({ messages, currentStreamedMessage, isLoadin
                   accessToken={accessToken}
                   visual3d={msg.metadata?.visual3d || null}
                   autoFetch={!msg.metadata?.visual3d}
+                />
+              </div>
+            )}
+
+            {shouldRenderVideo && (
+              <div className="my-2 w-full max-w-4xl">
+                <VideoGenerationView
+                  topic={msg.metadata?.activeTopic || msg.topic || getMessageText(previousMessage)}
+                  accessToken={accessToken}
+                  video={msg.metadata?.video || null}
+                  autoStart={!msg.metadata?.video}
                 />
               </div>
             )}

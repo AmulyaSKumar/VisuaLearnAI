@@ -16,6 +16,7 @@ import resourceRoutes from './resources/routes.js';
 import personaRoutes from './personas/routes.js';
 import simulationRoutes from './simulation/routes.js';
 import visual3dRoutes from './visual3d/routes.js';
+import videoRoutes from './videos/routes.js';
 import notionRoutes, { notionCallbackRoutes } from './notion/routes.js';
 import chatRoutes from '../../routes/chat.js';
 import { generateAssets, getAssetSchema } from './assets/controller.js';
@@ -30,6 +31,7 @@ import {
   rateLimitTts,
   rateLimitPlan,
   rateLimitLearningContent,
+  rateLimitGeneric,
 } from '../middleware/rateLimitMiddleware.js';
 
 // Cost tracking
@@ -272,6 +274,15 @@ export function registerRoutes(app) {
   router.use('/visual3d', visual3dRoutes);
 
   /**
+   * Video Generation API - Protected backend proxy for async video generation
+   * POST /api/videos - Create a video generation job
+   * GET /api/videos/:jobId - Poll job status
+   * GET /api/videos/:jobId/logs - Get generation logs
+   * GET /api/videos/:jobId/video - Stream generated MP4
+   */
+  router.use('/videos', requireAuth, rateLimitGeneric, videoRoutes);
+
+  /**
    * Admin API - Requires admin user
    */
 
@@ -406,6 +417,10 @@ export function registerRoutes(app) {
         'POST /api/visual3d/generate',
         'POST /api/visual3d/debug',
         'GET /api/visual3d/examples',
+        'POST /api/videos',
+        'GET /api/videos/:jobId',
+        'GET /api/videos/:jobId/logs',
+        'GET /api/videos/:jobId/video',
         'POST /api/tts',
         'POST /api/plan',
         'POST /api/generate-assets',

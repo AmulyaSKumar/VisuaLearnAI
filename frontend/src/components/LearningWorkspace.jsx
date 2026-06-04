@@ -5,8 +5,10 @@ import QuizView from './learning/QuizView';
 import ConceptsView from './learning/ConceptsView';
 import SimulationView from './learning/SimulationView';
 import Visual3DView from './visual3d/Visual3DView';
+import VideoGenerationView from './video/VideoGenerationView';
 
 const TABS = [
+  { id: 'video', label: 'Video', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
   { id: 'simulation', label: 'Simulation', icon: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: '3d', label: '3D', icon: 'M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.2L18.7 8 12 11.8 5.3 8 12 4.2zM5 9.7l6 3.4v6.7l-6-3.4V9.7zm14 0v6.7l-6 3.4v-6.7l6-3.4z' },
   { id: 'mindmap', label: 'Mind Map', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
@@ -15,13 +17,14 @@ const TABS = [
   { id: 'concepts', label: 'Concepts', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' },
 ];
 
-const SINGLE_ARTIFACT_TABS = new Set(['simulation', '3d', 'mindmap', 'flashcards', 'quiz']);
+const SINGLE_ARTIFACT_TABS = new Set(['video', 'simulation', '3d', 'mindmap', 'flashcards', 'quiz']);
 
 export default function LearningWorkspace({ content, isLoading, userId, onInteraction, accessToken, initialTab = 'quiz' }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'quiz');
   const requestedSingleTab = SINGLE_ARTIFACT_TABS.has(initialTab) ? initialTab : null;
   const availableTabs = TABS.filter(tab => {
     if (tab.id === 'simulation') return !!content?.simulationDetection?.supported;
+    if (tab.id === 'video') return !!content?.video || initialTab === 'video';
     if (tab.id === '3d') return !!content?.visual3d || initialTab === '3d';
     if (tab.id === 'mindmap') return !!(content?.mindmap || content?.mind_map);
     if (tab.id === 'flashcards') return Array.isArray(content?.flashcards) && content.flashcards.length > 0;
@@ -76,6 +79,15 @@ export default function LearningWorkspace({ content, isLoading, userId, onIntera
             onInteraction={onInteraction}
             accessToken={accessToken}
             simulationDetection={content.simulationDetection}
+          />
+        );
+      case 'video':
+        return (
+          <VideoGenerationView
+            topic={content.topic || content.title}
+            accessToken={accessToken}
+            video={content.video || null}
+            autoStart
           />
         );
       case 'mindmap':

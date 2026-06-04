@@ -14,11 +14,13 @@ import QuizView from "../components/learning/QuizView";
 import MindMapTabView from "../components/learning/MindMapTabView";
 import SimulationView from "../components/learning/SimulationView";
 import Visual3DView from "../components/visual3d/Visual3DView";
+import VideoGenerationView from "../components/video/VideoGenerationView";
 import EngagingLoader from "../components/learning/EngagingLoader";
 import SaveToNotionButton from "../components/SaveToNotionButton";
 import { exportToNotion, getNotionStatus } from "../services/notionService";
 import { SIMULATION_CONFIG } from "../config/simulationConfig";
 import { shouldAttemptVisual3D } from "../utils/visual3d";
+import { isVideoRequest } from "../utils/videoGeneration";
 
 // Tab labels for dynamic tab bar
 const TAB_LABELS = {
@@ -28,6 +30,7 @@ const TAB_LABELS = {
   mindmap: 'Mind Map',
   simulation: 'Simulation',
   '3d': '3D',
+  video: 'Video',
 };
 
 const NOTION_ARTIFACT_LABELS = {
@@ -37,6 +40,7 @@ const NOTION_ARTIFACT_LABELS = {
   mindmap: 'Mind Map',
   simulation: 'Simulation',
   '3d': '3D Visualization',
+  video: 'Video',
 };
 
 const TOPIC_STOP_WORDS = new Set([
@@ -509,6 +513,7 @@ function LearningPageContent() {
     if (learningContent?.flashcards?.length) artifacts.push('flashcards');
     if (learningContent?.mind_map) artifacts.push('mindmap');
     if (simulationDetection?.supported && simulationDetection?.explicit) artifacts.push('simulation');
+    if (learningContent?.video) artifacts.push('video');
     return artifacts;
   }, [learningContent, simulationDetection]);
 
@@ -676,6 +681,10 @@ function LearningPageContent() {
     }
 
     if (tabId === '3d') {
+      return;
+    }
+
+    if (tabId === 'video') {
       return;
     }
 
@@ -1270,6 +1279,7 @@ function LearningPageContent() {
     if (tabId === 'flashcards') return Array.isArray(turnContent?.flashcards) && turnContent.flashcards.length > 0;
     if (tabId === 'mindmap') return !!turnContent?.mind_map;
     if (tabId === '3d') return !!turnContent?.visual3d;
+    if (tabId === 'video') return true;
     return false;
   }, []);
 
@@ -1348,6 +1358,10 @@ function LearningPageContent() {
     }
 
     if (tabId === '3d') {
+      return;
+    }
+
+    if (tabId === 'video') {
       return;
     }
 
@@ -1473,7 +1487,10 @@ function LearningPageContent() {
             const canOfferTurn3D = shouldAttemptVisual3D(userText, turn.assistant?.metadata?.requestedArtifact)
               || Boolean(turn.assistant?.metadata?.decision?.scene3D?.requested)
               || Boolean(turn.assistant?.metadata?.visual3d);
-            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', ...(canOfferTurn3D ? ['3d'] : [])];
+            const canOfferTurnVideo = turn.assistant?.metadata?.requestedArtifact === 'video'
+              || Boolean(turn.assistant?.metadata?.video)
+              || isVideoRequest(userText);
+            const availableTurnTabs = ['learn', 'quiz', 'flashcards', 'mindmap', 'simulation', ...(canOfferTurn3D ? ['3d'] : []), ...(canOfferTurnVideo ? ['video'] : [])];
 
             return (
               <div
@@ -1660,6 +1677,15 @@ function LearningPageContent() {
                                 autoFetch
                               />
                             )}
+
+                            {activeTurnTab === 'video' && (
+                              <VideoGenerationView
+                                topic={turnContent?.topic || userText || conversation?.title}
+                                accessToken={accessToken}
+                                video={turn.assistant?.metadata?.video || null}
+                                autoStart={!turn.assistant?.metadata?.video}
+                              />
+                            )}
                       </div>
                     )}
                   </div>
@@ -1800,6 +1826,19 @@ function LearningPageContent() {
               accessToken={accessToken}
               visual3d={learningContent?.visual3d || null}
               autoFetch
+            />
+          </>
+        );
+
+      case 'video':
+        return (
+          <>
+            <BackButton />
+            <VideoGenerationView
+              topic={learningContent?.topic || userQuery || conversation?.title}
+              accessToken={accessToken}
+              video={learningContent?.video || null}
+              autoStart
             />
           </>
         );
