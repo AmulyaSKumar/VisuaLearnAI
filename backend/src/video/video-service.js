@@ -93,6 +93,21 @@ function estimateProgress(job) {
   return Math.min(95, Math.max(10, Math.round((elapsedSeconds / expectedSeconds) * 90)));
 }
 
+function normalizeVideoError(error) {
+  const message = String(error || '').trim();
+  if (!message) return null;
+
+  if (/spawnSync\s+docker\s+ENOENT/i.test(message)) {
+    return 'Video assembly failed because Docker is not available in the video rendering server. Please enable Docker in the Video API runtime or switch the Video API assembly step to a non-Docker renderer.';
+  }
+
+  if (/visual-code-agent:.*failed|Remotion render failed|Missing segment worker result/i.test(message)) {
+    return 'Video visual rendering failed inside the Video API. Please retry with simpler/template visuals or check the Video API render logs.';
+  }
+
+  return message.length > 500 ? `${message.slice(0, 500)}...` : message;
+}
+
 function toPublicJob(job) {
   if (!job) return null;
   const status = job.status || 'queued';
@@ -106,7 +121,8 @@ function toPublicJob(job) {
     createdAt: job.createdAt || job.localCreatedAt,
     startedAt: job.startedAt || null,
     finishedAt: job.finishedAt || null,
-    error: job.error || null,
+    error: normalizeVideoError(job.error),
+    rawError: process.env.NODE_ENV === 'production' ? undefined : job.error || null,
     progress: Number.isFinite(job.progress) ? job.progress : estimateProgress(job),
     videoUrl: status === 'done' ? `/api/videos/${encodeURIComponent(job.jobId)}/video` : null,
     logsUrl: `/api/videos/${encodeURIComponent(job.jobId)}/logs`,
@@ -218,4 +234,3 @@ export async function proxyVideo(jobId, req, res) {
 export function getStoredVideoJob(jobId) {
   return toPublicJob(jobs.get(String(jobId || '').trim()));
 }
-
